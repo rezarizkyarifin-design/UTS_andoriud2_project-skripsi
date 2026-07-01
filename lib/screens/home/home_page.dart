@@ -10,249 +10,492 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  int _selectedNavIndex = 0;
+
+  static const Color _primaryGreen = Color(0xFF1B4332);
+  static const Color _accentGreen = Color(0xFF2D6A4F);
+
   void _navigateAndRefresh(String route) async {
     await Navigator.pushNamed(context, route);
     setState(() {});
   }
 
-  Widget menuCard(String title, IconData icon, String route) {
-    return InkWell(
-      onTap: () => _navigateAndRefresh(route),
-      child: Container(
-        padding: const EdgeInsets.all(18),
-        margin: const EdgeInsets.symmetric(vertical: 10),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: 18,
-              offset: const Offset(0, 6),
+  // ─── DRAWER ───
+  Widget _buildDrawer() {
+    return Drawer(
+      child: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(20, 56, 20, 24),
+            color: _primaryGreen,
+            child: Row(
+              children: [
+                const CircleAvatar(
+                  radius: 28,
+                  backgroundColor: Colors.white24,
+                  child: Icon(Icons.person, color: Colors.white, size: 28),
+                ),
+                const SizedBox(width: 14),
+                const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Petugas Arsip',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Kantor Pertanahan Cilegon',
+                      style: TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Row(
-          children: [
-            CircleAvatar(
-              backgroundColor: Colors.blue.withOpacity(0.12),
-              child: Icon(icon, color: Colors.blue),
-            ),
-            const SizedBox(width: 18),
-            Text(
-              title,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
-            const Spacer(),
-            const Icon(
-              Icons.arrow_forward_ios,
-              size: 16,
-              color: Colors.black54,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget statusCard(String title, String value, Color color) {
-    return Expanded(
-      child: Container(
-        height: 110,
-        margin: const EdgeInsets.only(right: 12),
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: TextStyle(color: color, fontSize: 12)),
-            const Spacer(),
-            Text(
-              value,
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  List<Widget> _buildNotifikasi() {
-    final notifikasi = PeminjamanService.getNotifikasi();
-    if (notifikasi.isEmpty) return [];
-
-    return [
-      const Text(
-        'Notifikasi',
-        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-      ),
-      const SizedBox(height: 12),
-      ...notifikasi.map(
-        (n) => Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(18),
-          margin: const EdgeInsets.only(bottom: 12),
-          decoration: BoxDecoration(
-            color: Colors.red.shade50,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.red.shade200),
           ),
-          child: Row(
-            children: [
-              const Icon(Icons.warning, color: Colors.red),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(n, style: TextStyle(color: Colors.red.shade800)),
-              ),
-            ],
+          const SizedBox(height: 8),
+          _drawerItem(
+            Icons.dashboard,
+            'Dashboard',
+            isActive: true,
+            onTap: () => Navigator.pop(context),
           ),
-        ),
-      ),
-      const SizedBox(height: 24),
-    ];
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF4F7FE),
-      appBar: AppBar(
-        elevation: 0,
-        title: const Text('Dashboard'),
-        centerTitle: true,
-      ),
-      drawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            const UserAccountsDrawerHeader(
-              accountName: Text('Admin Arsip'),
-              accountEmail: Text('admin@kantahcilegon.go.id'),
-              currentAccountPicture: CircleAvatar(
-                backgroundColor: Colors.white,
-                child: Icon(Icons.person, color: Colors.blue),
+          _drawerItem(
+            Icons.edit_document,
+            'Peminjaman',
+            onTap: () {
+              Navigator.pop(context);
+              _navigateAndRefresh(AppRoutes.form);
+            },
+          ),
+          _drawerItem(
+            Icons.assignment_return,
+            'Pengembalian',
+            onTap: () {
+              Navigator.pop(context);
+              _navigateAndRefresh(AppRoutes.returnPage);
+            },
+          ),
+          const Spacer(),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
+            child: ListTile(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
               ),
-              decoration: BoxDecoration(color: Colors.blue),
-            ),
-            ListTile(
-              leading: const Icon(Icons.home),
-              title: const Text('Dashboard'),
-              onTap: () => Navigator.pop(context),
-            ),
-            ListTile(
-              leading: const Icon(Icons.logout),
-              title: const Text('Logout'),
+              leading: const Icon(Icons.logout, color: Colors.redAccent),
+              title: const Text(
+                'Logout',
+                style: TextStyle(color: Colors.redAccent),
+              ),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.pushReplacementNamed(context, AppRoutes.login);
               },
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _drawerItem(
+    IconData icon,
+    String label, {
+    bool isActive = false,
+    required VoidCallback onTap,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      child: ListTile(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        tileColor: isActive ? _primaryGreen : Colors.transparent,
+        leading: Icon(icon, color: isActive ? Colors.white : Colors.black54),
+        title: Text(
+          label,
+          style: TextStyle(
+            color: isActive ? Colors.white : Colors.black87,
+            fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+          ),
+        ),
+        onTap: onTap,
+      ),
+    );
+  }
+
+  // ─── HERO BANNER ───
+  Widget _buildHeroBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        color: _accentGreen,
+      ),
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Selamat datang kembali,',
+            style: TextStyle(color: Colors.white70, fontSize: 13),
+          ),
+          SizedBox(height: 4),
+          Text(
+            'Halo, Admin!',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 26,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          SizedBox(height: 8),
+          Text(
+            'Pantau dan kelola seluruh dokumentasi pertanahan dengan sistem manajemen arsip digital yang presisi.',
+            style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.5),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─── STAT CARD ───
+  Widget _buildStatCard({
+    required IconData icon,
+    required Color iconBgColor,
+    required Color iconColor,
+    required String label,
+    required String value,
+    required String subtitle,
+    required Color valueColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: iconBgColor,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: iconColor, size: 22),
+          ),
+          const SizedBox(width: 14),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(fontSize: 12, color: Colors.black54),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                  color: valueColor,
+                ),
+              ),
+              Text(subtitle, style: TextStyle(fontSize: 12, color: valueColor)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─── SECTION HEADER ───
+  Widget _buildSectionHeader(String title, String actionLabel) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
+        ),
+        Text(
+          actionLabel,
+          style: TextStyle(
+            fontSize: 12,
+            color: _accentGreen,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ─── MENU ITEM ───
+  Widget _buildMenuItem({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required String route,
+  }) {
+    return GestureDetector(
+      onTap: () => _navigateAndRefresh(route),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: const Color(0xFFEDF4F1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: _accentGreen, size: 20),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(fontSize: 12, color: Colors.black45),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: Colors.black26, size: 20),
           ],
         ),
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Halo, Selamat Datang!',
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        SizedBox(height: 6),
-                        Text(
-                          'Kelola peminjaman arsip dengan mudah dan cepat.',
-                          style: TextStyle(fontSize: 14, color: Colors.black54),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const CircleAvatar(
-                    radius: 28,
-                    backgroundColor: Color(0xFFE3F2FD),
-                    child: Icon(Icons.archive, color: Colors.blue, size: 28),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  statusCard(
-                    'Sedang Dipinjam',
-                    PeminjamanService.getSedangDipinjam().toString(),
-                    Colors.orange,
-                  ),
-                  statusCard(
-                    'Telah Kembali',
-                    PeminjamanService.getTelahKembali().toString(),
-                    Colors.green,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              ..._buildNotifikasi(),
-              const Text(
-                'Menu Peminjaman',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              menuCard('Form Peminjaman', Icons.edit_document, AppRoutes.form),
-              menuCard('Daftar Peminjaman', Icons.book, AppRoutes.history),
-              const SizedBox(height: 24),
-              const Text(
-                'Menu Pengembalian',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              menuCard(
-                'Pengembalian Dokumen',
-                Icons.assignment_return,
-                AppRoutes.returnPage,
-              ),
-              menuCard('Scan Dokumen', Icons.qr_code_scanner, AppRoutes.scan),
-              const SizedBox(height: 20),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Row(
+    );
+  }
+
+  // ─── BOTTOM NAV ───
+  Widget _buildBottomNav() {
+    final items = [
+      {'icon': Icons.home_rounded, 'label': 'Beranda'},
+      {'icon': Icons.folder_outlined, 'label': 'Arsip'},
+      {'icon': Icons.history, 'label': 'Aktivitas'},
+      {'icon': Icons.person_outline, 'label': 'Profil'},
+    ];
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 12,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: List.generate(items.length, (index) {
+              final isSelected = _selectedNavIndex == index;
+              return GestureDetector(
+                onTap: () => setState(() => _selectedNavIndex = index),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.info_outline, color: Colors.blue),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Gunakan menu di atas untuk mengakses formulir, histori, dan fitur scanner arsip.',
-                        style: TextStyle(color: Colors.black87),
+                    Icon(
+                      items[index]['icon'] as IconData,
+                      color: isSelected ? _primaryGreen : Colors.black38,
+                      size: 24,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      items[index]['label'] as String,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isSelected ? _primaryGreen : Colors.black38,
+                        fontWeight: isSelected
+                            ? FontWeight.w600
+                            : FontWeight.normal,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      width: isSelected ? 6 : 0,
+                      height: isSelected ? 6 : 0,
+                      decoration: BoxDecoration(
+                        color: _primaryGreen,
+                        shape: BoxShape.circle,
                       ),
                     ),
                   ],
                 ),
-              ),
-            ],
+              );
+            }),
           ),
+        ),
+      ),
+    );
+  }
+
+  // ─── BUILD ───
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F7F5),
+      drawer: _buildDrawer(),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu, color: Colors.black87),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
+        title: Row(
+          children: [
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: _primaryGreen,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Icon(Icons.archive, color: Colors.white, size: 16),
+            ),
+            const SizedBox(width: 10),
+            const Text(
+              'Arsip Pertanahan',
+              style: TextStyle(
+                color: Colors.black87,
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(
+              Icons.notifications_outlined,
+              color: Colors.black54,
+            ),
+            onPressed: () {},
+          ),
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: GestureDetector(
+              onTap: () {},
+              child: const CircleAvatar(
+                radius: 16,
+                backgroundColor: Color(0xFFD8F3DC),
+                child: Icon(Icons.person, color: Color(0xFF1B4332), size: 18),
+              ),
+            ),
+          ),
+        ],
+      ),
+      bottomNavigationBar: _buildBottomNav(),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildHeroBanner(),
+            const SizedBox(height: 16),
+            _buildStatCard(
+              icon: Icons.sync_alt_rounded,
+              iconBgColor: const Color(0xFFFFF3E0),
+              iconColor: Colors.orange,
+              label: 'Peminjaman Aktif',
+              value: PeminjamanService.getSedangDipinjam().toString(),
+              subtitle: 'Sedang Dipinjam',
+              valueColor: Colors.orange,
+            ),
+            const SizedBox(height: 12),
+            _buildStatCard(
+              icon: Icons.inventory_2_outlined,
+              iconBgColor: const Color(0xFFE8F5E9),
+              iconColor: Colors.green,
+              label: 'Arsip Diproses',
+              value: PeminjamanService.getTelahKembali().toString(),
+              subtitle: 'Telah Kembali',
+              valueColor: Colors.green,
+            ),
+            const SizedBox(height: 24),
+            _buildSectionHeader('Menu Peminjaman', 'Lihat Semua'),
+            const SizedBox(height: 12),
+            _buildMenuItem(
+              icon: Icons.edit_document,
+              title: 'Form Peminjaman',
+              subtitle: 'Buat permohonan peminjaman arsip baru',
+              route: AppRoutes.form,
+            ),
+            const SizedBox(height: 10),
+            _buildMenuItem(
+              icon: Icons.list_alt,
+              title: 'Daftar Peminjaman',
+              subtitle: 'Pantau status seluruh dokumen keluar',
+              route: AppRoutes.history,
+            ),
+            const SizedBox(height: 24),
+            _buildSectionHeader('Menu Pengembalian', 'Log Harian'),
+            const SizedBox(height: 12),
+            _buildMenuItem(
+              icon: Icons.assignment_return_outlined,
+              title: 'Pengembalian Dokumen',
+              subtitle: 'Proses verifikasi dokumen yang kembali',
+              route: AppRoutes.returnPage,
+            ),
+            const SizedBox(height: 10),
+            _buildMenuItem(
+              icon: Icons.qr_code_scanner,
+              title: 'Scan Dokumen',
+              subtitle: 'Digitalisasi arsip fisik ke sistem cloud',
+              route: AppRoutes.scan,
+            ),
+            const SizedBox(height: 16),
+          ],
         ),
       ),
     );
