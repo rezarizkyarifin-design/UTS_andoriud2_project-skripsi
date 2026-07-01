@@ -6,6 +6,7 @@ class CustomButton extends StatelessWidget {
   final VoidCallback onTap;
 
   const CustomButton({
+    super.key,
     required this.text,
     required this.icon,
     required this.onTap,
@@ -15,12 +16,12 @@ class CustomButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      margin: EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 12),
       child: ElevatedButton.icon(
         icon: Icon(icon),
         label: Text(text),
         style: ElevatedButton.styleFrom(
-          padding: EdgeInsets.all(16),
+          padding: const EdgeInsets.all(16),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
