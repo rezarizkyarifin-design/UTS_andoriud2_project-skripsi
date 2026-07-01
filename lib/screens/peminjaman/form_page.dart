@@ -567,21 +567,41 @@ class _FormPageState extends State<FormPage> {
                   isDisabled: kelurahanDisabled,
                 ),
                 const SizedBox(height: 16),
-                _label('Jenis Hak'),
-                _dropdownField(
-                  placeholder: 'Pilih Hak',
-                  icon: Icons.shield_outlined,
-                  items: DummyData.jenisHak,
-                  value: _selectedJenisHak,
-                  onChanged: (v) => setState(() => _selectedJenisHak = v),
-                ),
-                const SizedBox(height: 16),
-                _label('Nomor Hak'),
-                _textField(
-                  controller: _noHakController,
-                  placeholder: 'Contoh: 12345',
-                  icon: Icons.tag,
-                  keyboardType: TextInputType.number,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _label('Jenis Hak'),
+                          _dropdownField(
+                            placeholder: 'Pilih Hak',
+                            icon: Icons.shield_outlined,
+                            items: DummyData.jenisHak,
+                            value: _selectedJenisHak,
+                            onChanged: (v) =>
+                                setState(() => _selectedJenisHak = v),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _label('Nomor Hak'),
+                          _textField(
+                            controller: _noHakController,
+                            placeholder: 'Contoh: 12345',
+                            icon: Icons.tag,
+                            keyboardType: TextInputType.number,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
