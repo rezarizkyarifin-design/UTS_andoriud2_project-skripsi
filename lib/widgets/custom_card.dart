@@ -6,6 +6,7 @@ class CustomCard extends StatelessWidget {
   final String status;
 
   const CustomCard({
+    super.key,
     required this.title,
     required this.subtitle,
     required this.status,
@@ -16,7 +17,7 @@ class CustomCard extends StatelessWidget {
     final isDone = status == "Dikembalikan";
 
     return Container(
-      margin: EdgeInsets.all(10),
+      margin: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: isDone
