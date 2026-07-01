@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../services/peminjaman_service.dart';
 
 class ScanPage extends StatefulWidget {
@@ -11,8 +12,14 @@ class ScanPage extends StatefulWidget {
 
 class _ScanPageState extends State<ScanPage> {
   final MobileScannerController _controller = MobileScannerController();
+  final ImagePicker _imagePicker = ImagePicker();
+
   bool _isScanning = false;
   bool _hasDetected = false;
+  bool _torchOn = false;
+
+  static const Color _accentGreen = Color(0xFF52B788);
+  static const Color _primaryGreen = Color(0xFF1B4332);
 
   @override
   void dispose() {
@@ -20,6 +27,7 @@ class _ScanPageState extends State<ScanPage> {
     super.dispose();
   }
 
+  // ─── CAMERA DETECT ───
   void _onDetect(BarcodeCapture capture) {
     if (_hasDetected) return; // Cegah deteksi ganda
 
@@ -35,8 +43,33 @@ class _ScanPageState extends State<ScanPage> {
     _prosesHasilScan(rawValue);
   }
 
+  // ─── PILIH DARI GALERI ───
+  Future<void> _pilihDariGaleri() async {
+    final XFile? image = await _imagePicker.pickImage(
+      source: ImageSource.gallery,
+    );
+    if (image == null) return;
+
+    setState(() => _hasDetected = false);
+    final bool detected = await _controller.analyzeImage(image.path);
+
+    if (!detected) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Tidak ada barcode/QR terdeteksi pada gambar.'),
+          backgroundColor: Colors.red.shade400,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
+    }
+  }
+
+  // ─── PROSES HASIL SCAN ───
   void _prosesHasilScan(String noHak) {
-    // Cari peminjaman berdasarkan noHak yang di-scan
     final semua = PeminjamanService.getAll();
     final peminjaman = semua
         .where((p) => p.noHak == noHak && p.status == 'Dipinjam')
@@ -48,6 +81,9 @@ class _ScanPageState extends State<ScanPage> {
       builder: (ctx) {
         if (peminjaman.isEmpty) {
           return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+            ),
             title: const Text('Tidak Ditemukan'),
             content: Text(
               'Tidak ada peminjaman aktif dengan No. Hak "$noHak".',
@@ -57,7 +93,7 @@ class _ScanPageState extends State<ScanPage> {
                 onPressed: () {
                   Navigator.pop(ctx);
                   setState(() => _hasDetected = false);
-                  _controller.start();
+                  if (_isScanning) _controller.start();
                 },
                 child: const Text('Scan Ulang'),
               ),
@@ -71,6 +107,9 @@ class _ScanPageState extends State<ScanPage> {
 
         final p = peminjaman.first;
         return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
           title: const Text('Dokumen Ditemukan'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -95,12 +134,20 @@ class _ScanPageState extends State<ScanPage> {
               onPressed: () {
                 Navigator.pop(ctx);
                 setState(() => _hasDetected = false);
-                _controller.start();
+                if (_isScanning) _controller.start();
               },
-              child: const Text('Batal'),
+              child: const Text(
+                'Batal',
+                style: TextStyle(color: Colors.black54),
+              ),
             ),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _accentGreen,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
               onPressed: () {
                 PeminjamanService.kembalikan(noHak);
                 Navigator.pop(ctx);
@@ -109,10 +156,14 @@ class _ScanPageState extends State<ScanPage> {
                     content: Text(
                       'Dokumen No. Hak $noHak berhasil dikembalikan.',
                     ),
-                    backgroundColor: Colors.green,
+                    backgroundColor: _accentGreen,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 );
-                Navigator.pop(context); // Balik ke home
+                Navigator.pop(context); // Balik ke halaman sebelumnya
               },
               child: const Text(
                 'Kembalikan',
@@ -125,141 +176,301 @@ class _ScanPageState extends State<ScanPage> {
     );
   }
 
+  void _toggleScan() {
+    setState(() {
+      _isScanning = !_isScanning;
+      _hasDetected = false;
+    });
+    if (_isScanning) {
+      _controller.start();
+    } else {
+      _controller.stop();
+    }
+  }
+
+  // ─── CORNER BRACKET OVERLAY ───
+  Widget _corner({
+    required Alignment alignment,
+    required bool top,
+    required bool left,
+  }) {
+    return Align(
+      alignment: alignment,
+      child: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          border: Border(
+            top: top
+                ? const BorderSide(color: _accentGreen, width: 4)
+                : BorderSide.none,
+            bottom: !top
+                ? const BorderSide(color: _accentGreen, width: 4)
+                : BorderSide.none,
+            left: left
+                ? const BorderSide(color: _accentGreen, width: 4)
+                : BorderSide.none,
+            right: !left
+                ? const BorderSide(color: _accentGreen, width: 4)
+                : BorderSide.none,
+          ),
+          borderRadius: BorderRadius.only(
+            topLeft: top && left ? const Radius.circular(10) : Radius.zero,
+            topRight: top && !left ? const Radius.circular(10) : Radius.zero,
+            bottomLeft: !top && left ? const Radius.circular(10) : Radius.zero,
+            bottomRight: !top && !left
+                ? const Radius.circular(10)
+                : Radius.zero,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _scanFrame() {
+    return Center(
+      child: SizedBox(
+        width: 240,
+        height: 240,
+        child: Stack(
+          children: [
+            _corner(alignment: Alignment.topLeft, top: true, left: true),
+            _corner(alignment: Alignment.topRight, top: true, left: false),
+            _corner(alignment: Alignment.bottomLeft, top: false, left: true),
+            _corner(alignment: Alignment.bottomRight, top: false, left: false),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─── CUSTOM FLOATING APP BAR ───
+  Widget _floatingAppBar() {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _circleIconButton(
+              icon: Icons.arrow_back,
+              onTap: () => Navigator.pop(context),
+            ),
+            const Text(
+              'Scan Dokumen',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            _circleIconButton(
+              icon: _torchOn ? Icons.flash_on : Icons.flash_off,
+              onTap: () {
+                _controller.toggleTorch();
+                setState(() => _torchOn = !_torchOn);
+              },
+              highlighted: _torchOn,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _circleIconButton({
+    required IconData icon,
+    required VoidCallback onTap,
+    bool highlighted = false,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: highlighted ? _accentGreen : Colors.black.withOpacity(0.35),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, color: Colors.white, size: 20),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Scan Dokumen'),
-        actions: [
-          // Toggle flash
-          IconButton(
-            icon: const Icon(Icons.flash_on),
-            onPressed: () => _controller.toggleTorch(),
-            tooltip: 'Lampu Flash',
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          // ── Camera preview / placeholder
+          Positioned.fill(
+            child: _isScanning
+                ? MobileScanner(controller: _controller, onDetect: _onDetect)
+                : Container(
+                    color: const Color(0xFF121212),
+                    child: const Center(
+                      child: Icon(
+                        Icons.qr_code_scanner,
+                        size: 90,
+                        color: Colors.white24,
+                      ),
+                    ),
+                  ),
           ),
-          // Ganti kamera depan/belakang
-          IconButton(
-            icon: const Icon(Icons.flip_camera_ios),
-            onPressed: () => _controller.switchCamera(),
-            tooltip: 'Ganti Kamera',
+
+          // ── Dim overlay supaya teks & bracket lebih kontras
+          Positioned.fill(
+            child: IgnorePointer(
+              child: Container(color: Colors.black.withOpacity(0.15)),
+            ),
           ),
-        ],
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Area scanner
-            Expanded(
-              flex: 3,
-              child: _isScanning
-                  ? Stack(
-                      children: [
-                        MobileScanner(
-                          controller: _controller,
-                          onDetect: _onDetect,
-                        ),
-                        // Overlay panduan scan
-                        Center(
-                          child: Container(
-                            width: 220,
-                            height: 220,
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.blue, width: 3),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                        ),
-                        const Positioned(
-                          bottom: 24,
-                          left: 0,
-                          right: 0,
-                          child: Center(
-                            child: Text(
-                              'Arahkan kamera ke QR Code dokumen',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                                backgroundColor: Colors.black54,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    )
-                  : Container(
-                      color: Colors.black12,
-                      child: const Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
+
+          // ── Corner bracket + instruksi (hanya saat aktif)
+          if (_isScanning) ...[
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 220,
+              child: _scanFrame(),
+            ),
+            Positioned(
+              left: 32,
+              right: 32,
+              bottom: 250,
+              child: Column(
+                children: const [
+                  Text(
+                    'Arahkan kamera ke barcode dokumen',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  SizedBox(height: 6),
+                  Text(
+                    'Pastikan pencahayaan cukup dan barcode terlihat jelas di dalam kotak.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white70, fontSize: 12.5),
+                  ),
+                ],
+              ),
+            ),
+          ] else
+            const Positioned(
+              left: 32,
+              right: 32,
+              bottom: 250,
+              child: Text(
+                'Kamera belum aktif. Tekan tombol di bawah untuk mulai scan.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white54, fontSize: 13),
+              ),
+            ),
+
+          // ── Custom floating app bar
+          Positioned(top: 0, left: 0, right: 0, child: _floatingAppBar()),
+
+          // ── Bottom panel
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Info pill
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.4),
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(
-                            Icons.qr_code_scanner,
-                            size: 80,
-                            color: Colors.blue,
+                          const Icon(
+                            Icons.info_outline,
+                            size: 14,
+                            color: Colors.white70,
                           ),
-                          SizedBox(height: 16),
-                          Text(
-                            'Kamera tidak aktif',
-                            style: TextStyle(color: Colors.black54),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Mendukung QR Code & Barcode BPN',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                            ),
                           ),
                         ],
                       ),
                     ),
-            ),
-
-            // Panel bawah
-            Expanded(
-              flex: 1,
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  children: [
-                    Text(
-                      _isScanning
-                          ? 'Scanner aktif — arahkan ke QR Code'
-                          : 'Tekan tombol di bawah untuk mulai scan',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.black54),
-                    ),
                     const SizedBox(height: 16),
+
+                    // Tombol Mulai/Stop Scan
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
-                        onPressed: () {
-                          setState(() {
-                            _isScanning = !_isScanning;
-                            _hasDetected = false;
-                          });
-                          if (_isScanning) {
-                            _controller.start();
-                          } else {
-                            _controller.stop();
-                          }
-                        },
-                        icon: Icon(_isScanning ? Icons.stop : Icons.camera_alt),
+                        onPressed: _toggleScan,
+                        icon: Icon(
+                          _isScanning
+                              ? Icons.stop_circle_outlined
+                              : Icons.qr_code_scanner,
+                          color: Colors.white,
+                        ),
                         label: Padding(
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           child: Text(
                             _isScanning ? 'Stop Scan' : 'Mulai Scan',
-                            style: const TextStyle(fontSize: 16),
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: _isScanning
-                              ? Colors.red
-                              : Colors.blue,
+                              ? const Color(0xFFB3261E)
+                              : _accentGreen,
                           foregroundColor: Colors.white,
+                          elevation: 0,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(30),
                           ),
                         ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+
+                    // Pilih dari Galeri
+                    TextButton.icon(
+                      onPressed: _pilihDariGaleri,
+                      icon: const Icon(
+                        Icons.image_outlined,
+                        size: 18,
+                        color: Colors.white70,
+                      ),
+                      label: const Text(
+                        'Pilih dari Galeri',
+                        style: TextStyle(color: Colors.white70, fontSize: 13),
                       ),
                     ),
                   ],
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/peminjaman.dart';
 import '../../services/peminjaman_service.dart';
 import '../../data.dart';
+import '../../routes/app_routes.dart';
 
 class FormPage extends StatefulWidget {
   const FormPage({super.key});
@@ -42,6 +43,24 @@ class _FormPageState extends State<FormPage> {
     super.dispose();
   }
 
+  // ─── ROBUST KELURAHAN LOOKUP ───
+  // Guards against key mismatches (extra spaces / casing) between the
+  // Kecamatan list and the Kelurahan map so the dropdown never gets stuck
+  // "disabled" just because of a data typo.
+  List<String> _kelurahanFor(String? kecamatan) {
+    if (kecamatan == null) return const [];
+    final direct = DummyData.kelurahan[kecamatan];
+    if (direct != null && direct.isNotEmpty) return direct;
+
+    final normalized = kecamatan.trim().toLowerCase();
+    for (final entry in DummyData.kelurahan.entries) {
+      if (entry.key.trim().toLowerCase() == normalized) {
+        return entry.value;
+      }
+    }
+    return const [];
+  }
+
   // ─── FORMAT DATE ───
   String _formatDate(DateTime date) {
     const bulan = [
@@ -62,11 +81,20 @@ class _FormPageState extends State<FormPage> {
   }
 
   // ─── PICK DATE ───
+  // Tanggal Mulai (isPinjam) can be any date from 2020 onward.
+  // Tanggal Pengembalian can never be picked earlier than Tanggal Mulai.
   Future<void> _pickDate({required bool isPinjam}) async {
+    final DateTime firstDate = isPinjam ? DateTime(2020) : _tanggalPinjam;
+    final DateTime initial = isPinjam
+        ? _tanggalPinjam
+        : (_tanggalKembali.isBefore(_tanggalPinjam)
+              ? _tanggalPinjam
+              : _tanggalKembali);
+
     final picked = await showDatePicker(
       context: context,
-      initialDate: isPinjam ? _tanggalPinjam : _tanggalKembali,
-      firstDate: DateTime(2020),
+      initialDate: initial,
+      firstDate: firstDate,
       lastDate: DateTime(2030),
       builder: (context, child) {
         return Theme(
@@ -85,8 +113,10 @@ class _FormPageState extends State<FormPage> {
       setState(() {
         if (isPinjam) {
           _tanggalPinjam = picked;
-          if (_tanggalKembali.isBefore(picked)) {
-            _tanggalKembali = picked.add(const Duration(days: 7));
+          // Only auto-adjust the return date if it would now be invalid
+          // (i.e. it falls before the newly picked start date).
+          if (_tanggalKembali.isBefore(_tanggalPinjam)) {
+            _tanggalKembali = _tanggalPinjam.add(const Duration(days: 7));
           }
         } else {
           _tanggalKembali = picked;
@@ -144,6 +174,127 @@ class _FormPageState extends State<FormPage> {
       context,
       '/barcode',
       arguments: {'noHak': peminjaman.noHak},
+    );
+  }
+
+  void _navigateAndRefresh(String route) async {
+    await Navigator.pushNamed(context, route);
+    if (mounted) setState(() {});
+  }
+
+  // ─── DRAWER ───
+  Widget _buildDrawer() {
+    return Drawer(
+      child: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(20, 56, 20, 24),
+            color: _primaryGreen,
+            child: Row(
+              children: [
+                const CircleAvatar(
+                  radius: 28,
+                  backgroundColor: Colors.white24,
+                  child: Icon(Icons.person, color: Colors.white, size: 28),
+                ),
+                const SizedBox(width: 14),
+                const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Petugas Arsip',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Kantor Pertanahan Cilegon',
+                      style: TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          _drawerItem(
+            Icons.dashboard,
+            'Dashboard',
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.pushReplacementNamed(context, AppRoutes.home);
+            },
+          ),
+          _drawerItem(
+            Icons.edit_document,
+            'Peminjaman',
+            isActive: true,
+            onTap: () => Navigator.pop(context),
+          ),
+          _drawerItem(
+            Icons.list_alt,
+            'Daftar Peminjaman',
+            onTap: () {
+              Navigator.pop(context);
+              _navigateAndRefresh(AppRoutes.history);
+            },
+          ),
+          _drawerItem(
+            Icons.assignment_return,
+            'Pengembalian',
+            onTap: () {
+              Navigator.pop(context);
+              _navigateAndRefresh(AppRoutes.returnPage);
+            },
+          ),
+          const Spacer(),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
+            child: ListTile(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              leading: const Icon(Icons.logout, color: Colors.redAccent),
+              title: const Text(
+                'Logout',
+                style: TextStyle(color: Colors.redAccent),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushReplacementNamed(context, AppRoutes.login);
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _drawerItem(
+    IconData icon,
+    String label, {
+    bool isActive = false,
+    required VoidCallback onTap,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      child: ListTile(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        tileColor: isActive ? _primaryGreen : Colors.transparent,
+        leading: Icon(icon, color: isActive ? Colors.white : Colors.black54),
+        title: Text(
+          label,
+          style: TextStyle(
+            color: isActive ? Colors.white : Colors.black87,
+            fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+          ),
+        ),
+        onTap: onTap,
+      ),
     );
   }
 
@@ -320,17 +471,13 @@ class _FormPageState extends State<FormPage> {
   }
 
   // ─── DATE FIELD ───
-  Widget _dateField({
-    required DateTime date,
-    required bool isPinjam,
-    required bool isDisabled,
-  }) {
+  Widget _dateField({required DateTime date, required bool isPinjam}) {
     return GestureDetector(
-      onTap: isDisabled ? null : () => _pickDate(isPinjam: isPinjam),
+      onTap: () => _pickDate(isPinjam: isPinjam),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: isDisabled ? const Color(0xFFEEEEEE) : const Color(0xFFF5F5F5),
+          color: const Color(0xFFF5F5F5),
           borderRadius: BorderRadius.circular(30),
         ),
         child: Row(
@@ -338,15 +485,19 @@ class _FormPageState extends State<FormPage> {
             Icon(
               Icons.calendar_month_outlined,
               size: 18,
-              color: isDisabled ? Colors.black26 : Colors.black45,
+              color: Colors.black45,
             ),
             const SizedBox(width: 10),
-            Text(
-              isDisabled ? 'mm/dd/yyyy' : _formatDate(date),
-              style: TextStyle(
-                fontSize: 14,
-                color: isDisabled ? Colors.black26 : Colors.black87,
+            Expanded(
+              child: Text(
+                _formatDate(date),
+                style: const TextStyle(fontSize: 14, color: Colors.black87),
               ),
+            ),
+            const Icon(
+              Icons.edit_calendar_outlined,
+              size: 16,
+              color: Colors.black26,
             ),
           ],
         ),
@@ -359,7 +510,7 @@ class _FormPageState extends State<FormPage> {
     final items = [
       {'icon': Icons.home_rounded, 'label': 'Beranda'},
       {'icon': Icons.folder_outlined, 'label': 'Arsip'},
-      {'icon': Icons.history, 'label': 'Aktivitas'},
+      {'icon': Icons.assignment_return, 'label': 'Kembali'},
       {'icon': Icons.person_outline, 'label': 'Profil'},
     ];
     const selectedIndex = 1; // Arsip aktif di halaman ini
@@ -384,9 +535,26 @@ class _FormPageState extends State<FormPage> {
             children: List.generate(items.length, (index) {
               final isSelected = selectedIndex == index;
               return GestureDetector(
-                onTap: index == 0
-                    ? () => Navigator.pushReplacementNamed(context, '/home')
-                    : null,
+                onTap: () {
+                  switch (index) {
+                    case 0:
+                      Navigator.pushReplacementNamed(context, AppRoutes.home);
+                      break;
+                    case 1:
+                      _navigateAndRefresh(AppRoutes.history);
+                      break;
+                    case 2:
+                      _navigateAndRefresh(AppRoutes.returnPage);
+                      break;
+                    case 3:
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Halaman Profil belum tersedia.'),
+                        ),
+                      );
+                      break;
+                  }
+                },
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -429,20 +597,21 @@ class _FormPageState extends State<FormPage> {
   // ─── BUILD ───
   @override
   Widget build(BuildContext context) {
-    final kelurahanOptions = _selectedKecamatan != null
-        ? DummyData.kelurahan[_selectedKecamatan] ?? const <String>[]
-        : const <String>[];
+    final kelurahanOptions = _kelurahanFor(_selectedKecamatan);
     final kelurahanDisabled =
         _selectedKecamatan == null || kelurahanOptions.isEmpty;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7F5),
+      drawer: _buildDrawer(),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.menu, color: Colors.black87),
-          onPressed: () {},
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu, color: Colors.black87),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
         ),
         title: Row(
           children: [
@@ -472,7 +641,11 @@ class _FormPageState extends State<FormPage> {
               Icons.notifications_outlined,
               color: Colors.black54,
             ),
-            onPressed: () {},
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Belum ada notifikasi baru.')),
+              );
+            },
           ),
           Padding(
             padding: const EdgeInsets.only(right: 12),
@@ -528,7 +701,7 @@ class _FormPageState extends State<FormPage> {
                 const SizedBox(height: 16),
                 _label('Seksi / Unit Kerja'),
                 _dropdownField(
-                  placeholder: 'Contoh: Infrastruktur',
+                  placeholder: 'Pilih Seksi / Unit Kerja',
                   icon: Icons.apartment_outlined,
                   items: DummyData.seksi,
                   value: _selectedSeksi,
@@ -559,7 +732,9 @@ class _FormPageState extends State<FormPage> {
                   isDisabled: kelurahanDisabled,
                 ),
                 _dropdownField(
-                  placeholder: 'Pilih Kecamatan dahulu',
+                  placeholder: _selectedKecamatan == null
+                      ? 'Pilih Kecamatan dahulu'
+                      : 'Pilih Kelurahan',
                   icon: Icons.map_outlined,
                   items: kelurahanOptions,
                   value: _selectedKelurahan,
@@ -643,17 +818,25 @@ class _FormPageState extends State<FormPage> {
                 ),
                 const SizedBox(height: 16),
                 _label('Tanggal Mulai'),
-                _dateField(
-                  date: _tanggalPinjam,
-                  isPinjam: true,
-                  isDisabled: false,
+                _dateField(date: _tanggalPinjam, isPinjam: true),
+                const SizedBox(height: 4),
+                const Padding(
+                  padding: EdgeInsets.only(left: 4),
+                  child: Text(
+                    'Ketuk untuk memilih tanggal mulai peminjaman.',
+                    style: TextStyle(fontSize: 11, color: Colors.black38),
+                  ),
                 ),
                 const SizedBox(height: 16),
                 _label('Tanggal Pengembalian'),
-                _dateField(
-                  date: _tanggalKembali,
-                  isPinjam: false,
-                  isDisabled: false,
+                _dateField(date: _tanggalKembali, isPinjam: false),
+                const SizedBox(height: 4),
+                const Padding(
+                  padding: EdgeInsets.only(left: 4),
+                  child: Text(
+                    'Tidak bisa lebih awal dari Tanggal Mulai.',
+                    style: TextStyle(fontSize: 11, color: Colors.black38),
+                  ),
                 ),
               ],
             ),
