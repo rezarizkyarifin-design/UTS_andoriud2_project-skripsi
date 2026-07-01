@@ -2,13 +2,22 @@ import 'package:flutter/material.dart';
 import '../../routes/app_routes.dart';
 import '../../services/peminjaman_service.dart';
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
-  Widget menuCard(
-      BuildContext context, String title, IconData icon, String route) {
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  void _navigateAndRefresh(String route) async {
+    await Navigator.pushNamed(context, route);
+    setState(() {});
+  }
+
+  Widget menuCard(String title, IconData icon, String route) {
     return InkWell(
-      onTap: () => Navigator.pushNamed(context, route),
+      onTap: () => _navigateAndRefresh(route),
       child: Container(
         padding: const EdgeInsets.all(18),
         margin: const EdgeInsets.symmetric(vertical: 10),
@@ -20,7 +29,7 @@ class HomePage extends StatelessWidget {
               color: Colors.black.withOpacity(0.06),
               blurRadius: 18,
               offset: const Offset(0, 6),
-            )
+            ),
           ],
         ),
         child: Row(
@@ -35,7 +44,11 @@ class HomePage extends StatelessWidget {
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
             ),
             const Spacer(),
-            const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.black54)
+            const Icon(
+              Icons.arrow_forward_ios,
+              size: 16,
+              color: Colors.black54,
+            ),
           ],
         ),
       ),
@@ -56,7 +69,7 @@ class HomePage extends StatelessWidget {
               color: Colors.black.withOpacity(0.04),
               blurRadius: 16,
               offset: const Offset(0, 6),
-            )
+            ),
           ],
         ),
         child: Column(
@@ -64,11 +77,10 @@ class HomePage extends StatelessWidget {
           children: [
             Text(title, style: TextStyle(color: color, fontSize: 12)),
             const Spacer(),
-            Text(value,
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                )),
+            Text(
+              value,
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            ),
           ],
         ),
       ),
@@ -85,28 +97,27 @@ class HomePage extends StatelessWidget {
         style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
       ),
       const SizedBox(height: 12),
-      ...notifikasi.map((n) => Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(18),
-        margin: const EdgeInsets.only(bottom: 12),
-        decoration: BoxDecoration(
-          color: Colors.red.shade50,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.red.shade200),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.warning, color: Colors.red),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                n,
-                style: TextStyle(color: Colors.red.shade800),
+      ...notifikasi.map(
+        (n) => Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(18),
+          margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(
+            color: Colors.red.shade50,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.red.shade200),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.warning, color: Colors.red),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(n, style: TextStyle(color: Colors.red.shade800)),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      )),
+      ),
       const SizedBox(height: 24),
     ];
   }
@@ -131,9 +142,7 @@ class HomePage extends StatelessWidget {
                 backgroundColor: Colors.white,
                 child: Icon(Icons.person, color: Colors.blue),
               ),
-              decoration: BoxDecoration(
-                color: Colors.blue,
-              ),
+              decoration: BoxDecoration(color: Colors.blue),
             ),
             ListTile(
               leading: const Icon(Icons.home),
@@ -159,10 +168,10 @@ class HomePage extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Expanded(
+                  const Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
+                      children: [
                         Text(
                           'Halo, Selamat Datang!',
                           style: TextStyle(
@@ -188,8 +197,16 @@ class HomePage extends StatelessWidget {
               const SizedBox(height: 24),
               Row(
                 children: [
-                  statusCard('Sedang Dipinjam', PeminjamanService.getSedangDipinjam().toString(), Colors.orange),
-                  statusCard('Telah Kembali', PeminjamanService.getTelahKembali().toString(), Colors.green),
+                  statusCard(
+                    'Sedang Dipinjam',
+                    PeminjamanService.getSedangDipinjam().toString(),
+                    Colors.orange,
+                  ),
+                  statusCard(
+                    'Telah Kembali',
+                    PeminjamanService.getTelahKembali().toString(),
+                    Colors.green,
+                  ),
                 ],
               ),
               const SizedBox(height: 24),
@@ -199,16 +216,20 @@ class HomePage extends StatelessWidget {
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),
-              menuCard(context, 'Form Peminjaman', Icons.edit_document, AppRoutes.form),
-              menuCard(context, 'Daftar Peminjaman', Icons.book, AppRoutes.history),
+              menuCard('Form Peminjaman', Icons.edit_document, AppRoutes.form),
+              menuCard('Daftar Peminjaman', Icons.book, AppRoutes.history),
               const SizedBox(height: 24),
               const Text(
                 'Menu Pengembalian',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),
-              menuCard(context, 'Pengembalian Dokumen', Icons.assignment_return, AppRoutes.returnPage),
-              menuCard(context, 'Scan Dokumen', Icons.qr_code_scanner, AppRoutes.scan),
+              menuCard(
+                'Pengembalian Dokumen',
+                Icons.assignment_return,
+                AppRoutes.returnPage,
+              ),
+              menuCard('Scan Dokumen', Icons.qr_code_scanner, AppRoutes.scan),
               const SizedBox(height: 20),
               Container(
                 width: double.infinity,
@@ -217,8 +238,8 @@ class HomePage extends StatelessWidget {
                   color: Colors.blue.shade50,
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: Row(
-                  children: const [
+                child: const Row(
+                  children: [
                     Icon(Icons.info_outline, color: Colors.blue),
                     SizedBox(width: 12),
                     Expanded(
