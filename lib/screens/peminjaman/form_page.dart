@@ -22,11 +22,27 @@ class _FormPageState extends State<FormPage> {
   late final DateTime _tanggalPinjam;
   late final DateTime _tanggalKembali;
 
+  // Helper peminjaman sementara untuk format tanggal (pakai getter dari model)
+  late final Peminjaman _dummyForFormat;
+
   @override
   void initState() {
     super.initState();
     _tanggalPinjam = DateTime.now();
     _tanggalKembali = _tanggalPinjam.add(const Duration(days: 7));
+
+    // Dummy object hanya untuk akses _formatDate dari model
+    _dummyForFormat = Peminjaman(
+      nama: '',
+      seksi: '',
+      kecamatan: '',
+      kelurahan: '',
+      jenisHak: '',
+      noHak: '',
+      keperluan: '',
+      tanggalPinjam: _tanggalPinjam,
+      tanggalKembali: _tanggalKembali,
+    );
   }
 
   @override
@@ -37,40 +53,16 @@ class _FormPageState extends State<FormPage> {
     super.dispose();
   }
 
-  String _formatDate(DateTime date) {
-    const bulan = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'Mei',
-      'Jun',
-      'Jul',
-      'Agu',
-      'Sep',
-      'Okt',
-      'Nov',
-      'Des',
-    ];
-
-    return '${date.day.toString().padLeft(2, '0')} ${bulan[date.month - 1]} ${date.year}';
-  }
-
-  InputDecoration inputDecoration(String label, IconData icon) {
+  InputDecoration _inputDecoration(String label, IconData icon) {
     return InputDecoration(
       labelText: label,
       prefixIcon: Icon(icon),
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: 16,
-        vertical: 18,
-      ),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
     );
   }
 
-  Widget dropdownField(
+  Widget _dropdownField(
     String label,
     IconData icon,
     List<String> items,
@@ -81,7 +73,6 @@ class _FormPageState extends State<FormPage> {
     return DropdownButtonFormField<String>(
       value: items.contains(value) ? value : null,
       isExpanded: true,
-
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon),
@@ -89,30 +80,17 @@ class _FormPageState extends State<FormPage> {
           horizontal: 16,
           vertical: 18,
         ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
       ),
-
       hint: hint != null
-          ? Text(
-              hint,
-              overflow: TextOverflow.ellipsis,
-              maxLines: 1,
-            )
+          ? Text(hint, overflow: TextOverflow.ellipsis, maxLines: 1)
           : null,
-
       items: items.map((item) {
         return DropdownMenuItem<String>(
           value: item,
-          child: Text(
-            item,
-            overflow: TextOverflow.ellipsis,
-            maxLines: 1,
-          ),
+          child: Text(item, overflow: TextOverflow.ellipsis, maxLines: 1),
         );
       }).toList(),
-
       onChanged: items.isEmpty ? null : onChanged,
     );
   }
@@ -127,9 +105,7 @@ class _FormPageState extends State<FormPage> {
         _keperluanController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Lengkapi semua kolom sebelum menyimpan.',
-          ),
+          content: Text('Lengkapi semua kolom sebelum menyimpan.'),
         ),
       );
       return;
@@ -150,19 +126,13 @@ class _FormPageState extends State<FormPage> {
     PeminjamanService.tambah(peminjaman);
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Data peminjaman berhasil disimpan.',
-        ),
-      ),
+      const SnackBar(content: Text('Data peminjaman berhasil disimpan.')),
     );
 
     Navigator.pushNamed(
       context,
       '/barcode',
-      arguments: {
-        'noHak': peminjaman.noHak,
-      },
+      arguments: {'noHak': peminjaman.noHak},
     );
   }
 
@@ -173,149 +143,98 @@ class _FormPageState extends State<FormPage> {
         : const <String>[];
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Form Peminjaman'),
-      ),
-
+      appBar: AppBar(title: const Text('Form Peminjaman')),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
-
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
-
             children: [
               TextFormField(
                 controller: _namaController,
-                decoration: inputDecoration(
-                  'Nama Peminjam',
-                  Icons.person,
-                ),
+                decoration: _inputDecoration('Nama Peminjam', Icons.person),
               ),
-
               const SizedBox(height: 16),
-
-              dropdownField(
+              _dropdownField(
                 'Nama Seksi',
                 Icons.apartment,
                 DummyData.seksi,
                 _selectedSeksi,
-                (value) {
-                  setState(() {
-                    _selectedSeksi = value;
-                  });
-                },
+                (value) => setState(() => _selectedSeksi = value),
               ),
-
               const SizedBox(height: 16),
-
-              dropdownField(
+              _dropdownField(
                 'Kecamatan',
                 Icons.location_city,
                 DummyData.kecamatan,
                 _selectedKecamatan,
-                (value) {
-                  setState(() {
-                    _selectedKecamatan = value;
-                    _selectedKelurahan = null;
-                  });
-                },
+                (value) => setState(() {
+                  _selectedKecamatan = value;
+                  _selectedKelurahan = null;
+                }),
               ),
-
               const SizedBox(height: 16),
-
-              dropdownField(
+              _dropdownField(
                 'Kelurahan',
                 Icons.location_on,
                 kelurahanOptions,
                 _selectedKelurahan,
-                (value) {
-                  setState(() {
-                    _selectedKelurahan = value;
-                  });
-                },
+                (value) => setState(() => _selectedKelurahan = value),
                 hint: _selectedKecamatan == null
                     ? 'Pilih kecamatan terlebih dahulu'
                     : kelurahanOptions.isEmpty
-                        ? 'Data kelurahan belum tersedia'
-                        : null,
+                    ? 'Data kelurahan belum tersedia'
+                    : null,
               ),
-
               const SizedBox(height: 16),
-
-              dropdownField(
+              _dropdownField(
                 'Jenis Hak',
                 Icons.description,
                 DummyData.jenisHak,
                 _selectedJenisHak,
-                (value) {
-                  setState(() {
-                    _selectedJenisHak = value;
-                  });
-                },
+                (value) => setState(() => _selectedJenisHak = value),
               ),
-
               const SizedBox(height: 16),
-
               TextFormField(
                 controller: _noHakController,
-                decoration: inputDecoration(
-                  'Nomor Hak',
-                  Icons.numbers,
-                ),
+                decoration: _inputDecoration('Nomor Hak', Icons.numbers),
               ),
-
               const SizedBox(height: 16),
-
               TextFormField(
                 controller: _keperluanController,
                 maxLines: 3,
-                decoration: inputDecoration(
-                  'Keperluan',
-                  Icons.assignment,
-                ),
+                decoration: _inputDecoration('Keperluan', Icons.assignment),
               ),
-
               const SizedBox(height: 20),
-
+              // Gunakan getter dari model — tidak duplikat lagi
               TextFormField(
                 enabled: false,
-                initialValue: _formatDate(_tanggalPinjam),
-                decoration: inputDecoration(
+                initialValue: _dummyForFormat.tanggalPinjamFormatted,
+                decoration: _inputDecoration(
                   'Tanggal Peminjaman',
                   Icons.calendar_month,
                 ),
               ),
-
               const SizedBox(height: 16),
-
               TextFormField(
                 enabled: false,
-                initialValue: _formatDate(_tanggalKembali),
-                decoration: inputDecoration(
+                initialValue: _dummyForFormat.tanggalKembaliFormatted,
+                decoration: _inputDecoration(
                   'Tanggal Pengembalian',
                   Icons.calendar_today,
                 ),
               ),
-
               const SizedBox(height: 24),
-
               SizedBox(
                 width: double.infinity,
-
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 16,
-                    ),
-
+                    padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
                     ),
                   ),
-
                   onPressed: _simpanPeminjaman,
-
                   child: const Text(
                     'Simpan Data',
                     style: TextStyle(fontSize: 16),
