@@ -585,8 +585,8 @@ class _HomePageState extends State<HomePage> {
             const SizedBox(height: 10),
             _buildMenuItem(
               icon: Icons.qr_code_scanner,
-              title: 'Scan Dokumen',
-              subtitle: 'Digitalisasi arsip fisik ke sistem cloud',
+              title: 'Scan QR Code',
+              subtitle: 'Scan kode QR untuk verifikasi dokumen kembali',
               route: AppRoutes.scan,
             ),
             const SizedBox(height: 16),

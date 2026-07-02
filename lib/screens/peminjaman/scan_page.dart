@@ -257,7 +257,7 @@ class _ScanPageState extends State<ScanPage> {
               onTap: () => Navigator.pop(context),
             ),
             const Text(
-              'Scan Dokumen',
+              'Scan QR',
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 16,
