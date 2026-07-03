@@ -3,6 +3,8 @@ import '../../models/peminjaman.dart';
 import '../../services/peminjaman_service.dart';
 import '../../data.dart';
 import '../../routes/app_routes.dart';
+import '../../widgets/app_drawer.dart';
+import '../../widgets/app_bottom_nav.dart';
 
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
@@ -26,6 +28,7 @@ class _HistoryPageState extends State<HistoryPage> {
 
   static const Color _primaryGreen = Color(0xFF1B4332);
   static const Color _accentGreen = Color(0xFF2D6A4F);
+  static const Color _overdueRed = Color(0xFFC0392B);
 
   @override
   void initState() {
@@ -130,28 +133,102 @@ class _HistoryPageState extends State<HistoryPage> {
     return 'Dipinjam ${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
   }
 
-  Color _statusColor(String status) {
-    return status == 'Dipinjam' ? const Color(0xFFB07A00) : _accentGreen;
+  Color _statusColor(Peminjaman p) {
+    if (p.status == 'Dipinjam' && p.isOverdue) return _overdueRed;
+    return p.status == 'Dipinjam' ? const Color(0xFFB07A00) : _accentGreen;
   }
 
-  Color _statusBg(String status) {
-    return status == 'Dipinjam'
+  Color _statusBg(Peminjaman p) {
+    if (p.status == 'Dipinjam' && p.isOverdue) return const Color(0xFFFDE2E1);
+    return p.status == 'Dipinjam'
         ? const Color(0xFFFFF3D9)
         : const Color(0xFFD8F3DC);
   }
 
-  // ─── NOTIFICATIONS ───
+  String _statusLabel(Peminjaman p) {
+    if (p.status == 'Dipinjam' && p.isOverdue) return 'Terlambat';
+    return p.status == 'Dipinjam' ? 'Dipinjam' : 'Kembali';
+  }
+
+  // ─── NOTIFICATIONS (bottom sheet, mirrors HomePage) ───
   void _showNotifications() {
     final aktif = PeminjamanService.getSedangDipinjam();
     final kembali = PeminjamanService.getTelahKembali();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          '$aktif dokumen sedang dipinjam · $kembali telah dikembalikan',
-        ),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
+    final terlambat = _history.where((p) => p.isOverdue).length;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.black12,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+              const Text(
+                'Notifikasi',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              if (terlambat > 0)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(
+                    Icons.warning_amber_rounded,
+                    color: _overdueRed,
+                  ),
+                  title: Text('$terlambat dokumen sudah lewat batas waktu'),
+                  subtitle: const Text(
+                    'Segera proses pengembalian atau perpanjangan.',
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _navigateAndRefresh(AppRoutes.returnPage);
+                  },
+                ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(
+                  Icons.sync_alt_rounded,
+                  color: Colors.orange,
+                ),
+                title: Text('$aktif dokumen sedang dipinjam'),
+                subtitle: const Text(
+                  'Pantau tanggal pengembalian agar tepat waktu.',
+                ),
+                onTap: () => Navigator.pop(context),
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(
+                  Icons.inventory_2_outlined,
+                  color: _accentGreen,
+                ),
+                title: Text('$kembali dokumen telah dikembalikan'),
+                subtitle: const Text('Lihat riwayat peminjaman terbaru.'),
+                onTap: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -182,91 +259,229 @@ class _HistoryPageState extends State<HistoryPage> {
     }
   }
 
-  // ─── DRAWER (logika & tampilan sama seperti HomePage) ───
-  Widget _buildDrawer() {
-    return Drawer(
-      child: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(20, 56, 20, 24),
-            color: _primaryGreen,
-            child: Row(
-              children: [
-                const CircleAvatar(
-                  radius: 28,
-                  backgroundColor: Colors.white24,
-                  child: Icon(Icons.person, color: Colors.white, size: 28),
+  // ─── Dipakai oleh AppDrawer: Dashboard pakai pushReplacement, sisanya
+  // push + refresh saat kembali (sama seperti HomePage).
+  void _onDrawerNavigate(String route) {
+    if (route == AppRoutes.home) {
+      Navigator.pushReplacementNamed(context, AppRoutes.home);
+    } else {
+      _navigateAndRefresh(route);
+    }
+  }
+
+  // ─── HEADER (gradient, rounded-bottom, matches HomePage) ───
+  Widget _buildHeader() {
+    final aktif = PeminjamanService.getSedangDipinjam();
+    final kembali = PeminjamanService.getTelahKembali();
+    final terlambat = _history.where((p) => p.isOverdue).length;
+
+    Widget stat(
+      IconData icon,
+      String value,
+      String label, {
+      Color? valueColor,
+    }) {
+      return Expanded(
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.10),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withOpacity(0.15)),
+          ),
+          child: Column(
+            children: [
+              Icon(icon, size: 16, color: Colors.white70),
+              const SizedBox(height: 6),
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: valueColor ?? Colors.white,
                 ),
-                const SizedBox(width: 14),
-                const Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Petugas Arsip',
+              ),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 10, color: Colors.white70),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [_primaryGreen, _accentGreen],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Builder(
+                    builder: (context) => IconButton(
+                      icon: const Icon(Icons.menu, color: Colors.white),
+                      onPressed: () => Scaffold.of(context).openDrawer(),
+                    ),
+                  ),
+                  Container(
+                    width: 26,
+                    height: 26,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Icon(
+                      Icons.list_alt,
+                      color: _primaryGreen,
+                      size: 15,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Daftar Peminjaman',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
                       ),
                     ),
-                    SizedBox(height: 2),
-                    Text(
-                      'Kantor Pertanahan Cilegon',
-                      style: TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.refresh, color: Colors.white),
+                    onPressed: _refresh,
+                    tooltip: 'Refresh',
+                  ),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.notifications_outlined,
+                      color: Colors.white,
                     ),
-                  ],
-                ),
-              ],
+                    onPressed: _showNotifications,
+                    tooltip: 'Notifikasi',
+                  ),
+                  GestureDetector(
+                    onTapDown: _showProfileMenu,
+                    child: const CircleAvatar(
+                      radius: 15,
+                      backgroundColor: Colors.white24,
+                      child: Icon(Icons.person, color: Colors.white, size: 16),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  stat(
+                    Icons.folder_copy_outlined,
+                    '${_history.length}',
+                    'Total\nBerkas',
+                  ),
+                  const SizedBox(width: 10),
+                  stat(Icons.sync_alt_rounded, '$aktif', 'Sedang\nDipinjam'),
+                  const SizedBox(width: 10),
+                  stat(
+                    Icons.inventory_2_outlined,
+                    '$kembali',
+                    'Telah\nKembali',
+                  ),
+                  const SizedBox(width: 10),
+                  stat(
+                    Icons.warning_amber_rounded,
+                    '$terlambat',
+                    'Terlambat\nKembali',
+                    valueColor: terlambat > 0 ? const Color(0xFFFFB4AC) : null,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ─── FLOATING SEARCH + FILTER BAR (overlaps header bottom edge) ───
+  Widget _buildFloatingSearchBar() {
+    return Container(
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _searchController,
+              style: const TextStyle(fontSize: 14),
+              decoration: const InputDecoration(
+                hintText: 'Cari nama, kelurahan, atau nomor hak...',
+                hintStyle: TextStyle(color: Colors.black38, fontSize: 13.5),
+                prefixIcon: Icon(Icons.search, color: Colors.black38, size: 20),
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(vertical: 12),
+              ),
             ),
           ),
-          const SizedBox(height: 8),
-          _drawerItem(
-            Icons.dashboard,
-            'Dashboard',
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.pushReplacementNamed(context, AppRoutes.home);
-            },
-          ),
-          _drawerItem(
-            Icons.edit_document,
-            'Peminjaman',
-            onTap: () {
-              Navigator.pop(context);
-              _navigateAndRefresh(AppRoutes.form);
-            },
-          ),
-          _drawerItem(
-            Icons.list_alt,
-            'Daftar Peminjaman',
-            isActive: true,
-            onTap: () => Navigator.pop(context),
-          ),
-          _drawerItem(
-            Icons.assignment_return,
-            'Pengembalian',
-            onTap: () {
-              Navigator.pop(context);
-              _navigateAndRefresh(AppRoutes.returnPage);
-            },
-          ),
-          const Spacer(),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
-            child: ListTile(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+          GestureDetector(
+            onTap: _openFilterSheet,
+            child: Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: _isFiltering ? _accentGreen : const Color(0xFFF5F5F5),
+                borderRadius: BorderRadius.circular(14),
               ),
-              leading: const Icon(Icons.logout, color: Colors.redAccent),
-              title: const Text(
-                'Logout',
-                style: TextStyle(color: Colors.redAccent),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Center(
+                    child: Icon(
+                      Icons.tune_rounded,
+                      size: 19,
+                      color: _isFiltering ? Colors.white : _accentGreen,
+                    ),
+                  ),
+                  if (_isFiltering)
+                    Positioned(
+                      right: -2,
+                      top: -2,
+                      child: Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                          color: Colors.redAccent,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                ],
               ),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.pushReplacementNamed(context, AppRoutes.login);
-              },
             ),
           ),
         ],
@@ -274,34 +489,7 @@ class _HistoryPageState extends State<HistoryPage> {
     );
   }
 
-  Widget _drawerItem(
-    IconData icon,
-    String label, {
-    bool isActive = false,
-    required VoidCallback onTap,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-      child: ListTile(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        tileColor: isActive ? _primaryGreen : Colors.transparent,
-        leading: Icon(icon, color: isActive ? Colors.white : Colors.black54),
-        title: Text(
-          label,
-          style: TextStyle(
-            color: isActive ? Colors.white : Colors.black87,
-            fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-          ),
-        ),
-        onTap: onTap,
-      ),
-    );
-  }
-
   // ─── FILTER BOTTOM SHEET ───
-  // Same header/section/dropdown/apply-button structure as ReturnPage's
-  // filter sheet, so filtering feels identical across the app; the extra
-  // "Status" chip row only appears here because History needs it.
   void _openFilterSheet() {
     String? tempKecamatan = _filterKecamatan;
     String? tempKelurahan = _filterKelurahan;
@@ -550,247 +738,414 @@ class _HistoryPageState extends State<HistoryPage> {
     );
   }
 
-  // ─── CARD ITEM ───
-  Widget _item(Peminjaman peminjaman) {
-    final statusColor = _statusColor(peminjaman.status);
-    final statusBg = _statusBg(peminjaman.status);
-
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: const [
-          BoxShadow(
-            color: Color.fromRGBO(0, 0, 0, 0.06),
-            blurRadius: 14,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
+  // ─── DETAIL BOTTOM SHEET ───
+  void _showDetail(Peminjaman p) {
+    Widget row(IconData icon, String label, String value) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 14),
+        child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        peminjaman.nama,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        peminjaman.keperluan,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: Colors.black45,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: statusBg,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 6,
-                        height: 6,
-                        decoration: BoxDecoration(
-                          color: statusColor,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        peminjaman.status == 'Dipinjam'
-                            ? 'Sedang Dipinjam'
-                            : 'Telah Kembali',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: statusColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF5F5F5),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Row(
+            Icon(icon, size: 18, color: _accentGreen),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(
-                    Icons.description_outlined,
-                    size: 20,
-                    color: _accentGreen,
+                  Text(
+                    label,
+                    style: const TextStyle(fontSize: 11, color: Colors.black38),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Nomor Hak',
-                          style: TextStyle(fontSize: 11, color: Colors.black38),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${peminjaman.noHak}/${peminjaman.kelurahan}',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
-                          ),
-                        ),
-                      ],
+                  const SizedBox(height: 2),
+                  Text(
+                    value,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 12),
-            Row(
+          ],
+        ),
+      );
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 16,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+          ),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                CircleAvatar(
-                  radius: 14,
-                  backgroundColor: const Color(0xFFD8F3DC),
-                  child: Text(
-                    _initials(peminjaman.nama),
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: _primaryGreen,
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 18),
+                    decoration: BoxDecoration(
+                      color: Colors.black12,
+                      borderRadius: BorderRadius.circular(4),
                     ),
                   ),
                 ),
-                const Spacer(),
-                Text(
-                  _relativeTime(peminjaman.tanggalPinjam),
-                  style: const TextStyle(fontSize: 12, color: Colors.black38),
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 22,
+                      backgroundColor: const Color(0xFFD8F3DC),
+                      child: Text(
+                        _initials(p.nama),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: _primaryGreen,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            p.nama,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          Text(
+                            p.seksi,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.black45,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _statusBg(p),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        _statusLabel(p),
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: _statusColor(p),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                const Divider(height: 1),
+                const SizedBox(height: 18),
+                row(Icons.location_city_outlined, 'Kecamatan', p.kecamatan),
+                row(Icons.map_outlined, 'Kelurahan', p.kelurahan),
+                row(
+                  Icons.shield_outlined,
+                  'Jenis Hak / Nomor Hak',
+                  '${p.jenisHak} - ${p.noHak}',
+                ),
+                row(Icons.description_outlined, 'Keperluan', p.keperluan),
+                row(
+                  Icons.calendar_month_outlined,
+                  'Tanggal Pinjam',
+                  p.tanggalPinjamFormatted,
+                ),
+                row(
+                  Icons.event_available_outlined,
+                  'Tanggal Kembali',
+                  p.tanggalKembaliFormatted,
+                ),
+                if (p.status == 'Dipinjam') ...[
+                  const SizedBox(height: 4),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        PeminjamanService.kembalikan(p.noHak);
+                        Navigator.pop(context);
+                        _refresh();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: const Text(
+                              'Dokumen berhasil ditandai kembali.',
+                            ),
+                            backgroundColor: _accentGreen,
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        );
+                      },
+                      icon: const Icon(
+                        Icons.assignment_turned_in_outlined,
+                        size: 18,
+                        color: Colors.white,
+                      ),
+                      label: const Text(
+                        'Tandai Telah Kembali',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _accentGreen,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        elevation: 0,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // ─── CARD ITEM ───
+  Widget _item(Peminjaman peminjaman) {
+    final statusColor = _statusColor(peminjaman);
+    final statusBg = _statusBg(peminjaman);
+
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: () => _showDetail(peminjaman),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: const [
+              BoxShadow(
+                color: Color.fromRGBO(0, 0, 0, 0.06),
+                blurRadius: 14,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  width: 4,
+                  decoration: BoxDecoration(
+                    color: statusColor,
+                    borderRadius: const BorderRadius.horizontal(
+                      left: Radius.circular(18),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    peminjaman.nama,
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    peminjaman.keperluan,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.black45,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: statusBg,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    width: 6,
+                                    height: 6,
+                                    decoration: BoxDecoration(
+                                      color: statusColor,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    _statusLabel(peminjaman),
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: statusColor,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF5F5F5),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.description_outlined,
+                                size: 20,
+                                color: _accentGreen,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Nomor Hak',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.black38,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      '${peminjaman.noHak}/${peminjaman.kelurahan}',
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.black87,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const Icon(
+                                Icons.chevron_right_rounded,
+                                color: Colors.black26,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 14,
+                              backgroundColor: const Color(0xFFD8F3DC),
+                              child: Text(
+                                _initials(peminjaman.nama),
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: _primaryGreen,
+                                ),
+                              ),
+                            ),
+                            const Spacer(),
+                            Text(
+                              _relativeTime(peminjaman.tanggalPinjam),
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.black38,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ],
             ),
-          ],
+          ),
         ),
       ),
     );
   }
 
   // ─── BOTTOM NAV ───
-  Widget _buildBottomNav() {
-    final items = [
-      {'icon': Icons.home_rounded, 'label': 'Beranda'},
-      {'icon': Icons.folder_outlined, 'label': 'Arsip'},
-      {'icon': Icons.assignment_return, 'label': 'Kembali'},
-      {'icon': Icons.person_outline, 'label': 'Profil'},
-    ];
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 12,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: List.generate(items.length, (index) {
-              final isSelected = _selectedNavIndex == index;
-              return GestureDetector(
-                onTap: () {
-                  switch (index) {
-                    case 0:
-                      Navigator.pushReplacementNamed(context, AppRoutes.home);
-                      break;
-                    case 1:
-                      setState(() => _selectedNavIndex = 1);
-                      break;
-                    case 2:
-                      _navigateAndRefresh(AppRoutes.returnPage);
-                      break;
-                    case 3:
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Halaman Profil belum tersedia.'),
-                        ),
-                      );
-                      break;
-                  }
-                },
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      items[index]['icon'] as IconData,
-                      color: isSelected ? _primaryGreen : Colors.black38,
-                      size: 24,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      items[index]['label'] as String,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: isSelected ? _primaryGreen : Colors.black38,
-                        fontWeight: isSelected
-                            ? FontWeight.w600
-                            : FontWeight.normal,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      width: isSelected ? 6 : 0,
-                      height: isSelected ? 6 : 0,
-                      decoration: BoxDecoration(
-                        color: _primaryGreen,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }),
-          ),
-        ),
-      ),
-    );
+  // ─── Dipakai oleh AppBottomNav ───
+  void _onNavTap(int index) {
+    switch (index) {
+      case 0:
+        Navigator.pushReplacementNamed(context, AppRoutes.home);
+        break;
+      case 1:
+        setState(() => _selectedNavIndex = 1);
+        break;
+      case 2:
+        _navigateAndRefresh(AppRoutes.returnPage);
+        break;
+      case 3:
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Halaman Profil belum tersedia.')),
+        );
+        break;
+    }
   }
 
   @override
@@ -799,207 +1154,88 @@ class _HistoryPageState extends State<HistoryPage> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7F5),
-      drawer: _buildDrawer(),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        toolbarHeight: 72,
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu, color: Colors.black87),
-            onPressed: () => Scaffold.of(context).openDrawer(),
-          ),
-        ),
-        title: const Text(
-          'Daftar\nPeminjaman',
-          style: TextStyle(
-            color: _primaryGreen,
-            fontWeight: FontWeight.bold,
-            fontSize: 18,
-            height: 1.15,
-          ),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(
-              Icons.notifications_none_rounded,
-              color: Colors.black54,
-            ),
-            onPressed: _showNotifications,
-            tooltip: 'Notifikasi',
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.black54),
-            onPressed: _refresh,
-            tooltip: 'Refresh',
-          ),
-          Padding(
-            padding: const EdgeInsets.only(right: 12, left: 4),
-            child: GestureDetector(
-              onTapDown: _showProfileMenu,
-              child: const CircleAvatar(
-                radius: 16,
-                backgroundColor: Color(0xFFD8F3DC),
-                child: Icon(Icons.person, color: Color(0xFF1B4332), size: 18),
-              ),
-            ),
-          ),
-        ],
+      drawer: AppDrawer(
+        active: DrawerSection.daftarPeminjaman,
+        onNavigate: _onDrawerNavigate,
       ),
-      bottomNavigationBar: _buildBottomNav(),
-      body: SafeArea(
-        child: Column(
-          children: [
-            const SizedBox(height: 16),
-            // ── Search bar + compact filter button (matches ReturnPage)
+      bottomNavigationBar: AppBottomNav(
+        activeIndex: _selectedNavIndex,
+        onItemSelected: _onNavTap,
+      ),
+      body: Column(
+        children: [
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              _buildHeader(),
+              Positioned(
+                left: 20,
+                right: 20,
+                bottom: -24,
+                child: _buildFloatingSearchBar(),
+              ),
+            ],
+          ),
+          const SizedBox(height: 36),
+          if (_isFiltering)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
               child: Row(
                 children: [
-                  Expanded(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(18),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color.fromRGBO(0, 0, 0, 0.04),
-                            blurRadius: 10,
-                            offset: Offset(0, 3),
-                          ),
-                        ],
-                      ),
-                      child: TextField(
-                        controller: _searchController,
-                        style: const TextStyle(fontSize: 14),
-                        decoration: const InputDecoration(
-                          hintText: 'Cari nama, departemen, atau nomor hak...',
-                          hintStyle: TextStyle(
-                            color: Colors.black38,
-                            fontSize: 14,
-                          ),
-                          prefixIcon: Icon(Icons.search, color: Colors.black38),
-                          border: InputBorder.none,
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 16,
-                          ),
-                        ),
-                      ),
-                    ),
+                  const Icon(Icons.filter_alt, size: 14, color: Colors.black45),
+                  const SizedBox(width: 6),
+                  const Text(
+                    'Filter aktif',
+                    style: TextStyle(fontSize: 12, color: Colors.black54),
                   ),
-                  const SizedBox(width: 10),
+                  const Spacer(),
                   GestureDetector(
-                    onTap: _openFilterSheet,
-                    child: Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: _isFiltering ? _accentGreen : Colors.white,
-                        borderRadius: BorderRadius.circular(14),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color.fromRGBO(0, 0, 0, 0.04),
-                            blurRadius: 10,
-                            offset: Offset(0, 3),
-                          ),
-                        ],
-                      ),
-                      child: Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          Center(
-                            child: Icon(
-                              Icons.tune_rounded,
-                              size: 20,
-                              color: _isFiltering ? Colors.white : _accentGreen,
-                            ),
-                          ),
-                          if (_isFiltering)
-                            Positioned(
-                              right: -2,
-                              top: -2,
-                              child: Container(
-                                width: 8,
-                                height: 8,
-                                decoration: const BoxDecoration(
-                                  color: Colors.redAccent,
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                            ),
-                        ],
+                    onTap: _resetFilters,
+                    child: Text(
+                      'Hapus Filter',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: _accentGreen,
                       ),
                     ),
                   ),
                 ],
               ),
             ),
-            if (_isFiltering)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.filter_alt,
-                      size: 14,
-                      color: Colors.black45,
-                    ),
-                    const SizedBox(width: 6),
-                    const Text(
-                      'Filter aktif',
-                      style: TextStyle(fontSize: 12, color: Colors.black54),
-                    ),
-                    const Spacer(),
-                    GestureDetector(
-                      onTap: _resetFilters,
-                      child: Text(
-                        'Hapus Filter',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: _accentGreen,
+          const SizedBox(height: 14),
+          Expanded(
+            child: filtered.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.history,
+                          size: 56,
+                          color: Colors.blueGrey.shade200,
                         ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            const SizedBox(height: 16),
-            // ── List
-            Expanded(
-              child: filtered.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.history,
-                            size: 56,
-                            color: Colors.blueGrey,
+                        const SizedBox(height: 12),
+                        Text(
+                          _history.isEmpty
+                              ? 'Belum ada data peminjaman.'
+                              : 'Tidak ada hasil yang cocok.',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            color: Colors.black54,
                           ),
-                          const SizedBox(height: 12),
-                          Text(
-                            _history.isEmpty
-                                ? 'Belum ada data peminjaman.'
-                                : 'Tidak ada hasil yang cocok.',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              color: Colors.black54,
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                  : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                      itemCount: filtered.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 12),
-                      itemBuilder: (context, index) => _item(filtered[index]),
+                        ),
+                      ],
                     ),
-            ),
-          ],
-        ),
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                    itemCount: filtered.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    itemBuilder: (context, index) => _item(filtered[index]),
+                  ),
+          ),
+        ],
       ),
     );
   }

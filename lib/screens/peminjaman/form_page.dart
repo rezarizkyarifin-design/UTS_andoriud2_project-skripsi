@@ -3,6 +3,8 @@ import '../../models/peminjaman.dart';
 import '../../services/peminjaman_service.dart';
 import '../../data.dart';
 import '../../routes/app_routes.dart';
+import '../../widgets/app_drawer.dart';
+import '../../widgets/app_bottom_nav.dart';
 
 class FormPage extends StatefulWidget {
   const FormPage({super.key});
@@ -44,9 +46,6 @@ class _FormPageState extends State<FormPage> {
   }
 
   // ─── ROBUST KELURAHAN LOOKUP ───
-  // Guards against key mismatches (extra spaces / casing) between the
-  // Kecamatan list and the Kelurahan map so the dropdown never gets stuck
-  // "disabled" just because of a data typo.
   List<String> _kelurahanFor(String? kecamatan) {
     if (kecamatan == null) return const [];
     final direct = DummyData.kelurahan[kecamatan];
@@ -81,8 +80,6 @@ class _FormPageState extends State<FormPage> {
   }
 
   // ─── PICK DATE ───
-  // Tanggal Mulai (isPinjam) can be any date from 2020 onward.
-  // Tanggal Pengembalian can never be picked earlier than Tanggal Mulai.
   Future<void> _pickDate({required bool isPinjam}) async {
     final DateTime firstDate = isPinjam ? DateTime(2020) : _tanggalPinjam;
     final DateTime initial = isPinjam
@@ -113,8 +110,6 @@ class _FormPageState extends State<FormPage> {
       setState(() {
         if (isPinjam) {
           _tanggalPinjam = picked;
-          // Only auto-adjust the return date if it would now be invalid
-          // (i.e. it falls before the newly picked start date).
           if (_tanggalKembali.isBefore(_tanggalPinjam)) {
             _tanggalKembali = _tanggalPinjam.add(const Duration(days: 7));
           }
@@ -173,7 +168,13 @@ class _FormPageState extends State<FormPage> {
     Navigator.pushNamed(
       context,
       '/barcode',
-      arguments: {'noHak': peminjaman.noHak},
+      arguments: {
+        'noHak': peminjaman.noHak,
+        'nama': peminjaman.nama,
+        'kelurahan': peminjaman.kelurahan,
+        'tanggalPinjam': _formatDate(peminjaman.tanggalPinjam),
+        'tanggalKembali': _formatDate(peminjaman.tanggalKembali),
+      },
     );
   }
 
@@ -182,118 +183,140 @@ class _FormPageState extends State<FormPage> {
     if (mounted) setState(() {});
   }
 
-  // ─── DRAWER ───
-  Widget _buildDrawer() {
-    return Drawer(
-      child: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(20, 56, 20, 24),
-            color: _primaryGreen,
-            child: Row(
-              children: [
-                const CircleAvatar(
-                  radius: 28,
-                  backgroundColor: Colors.white24,
-                  child: Icon(Icons.person, color: Colors.white, size: 28),
-                ),
-                const SizedBox(width: 14),
-                const Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Petugas Arsip',
+  void _onDrawerNavigate(String route) {
+    if (route == AppRoutes.home) {
+      Navigator.pushReplacementNamed(context, AppRoutes.home);
+    } else {
+      _navigateAndRefresh(route);
+    }
+  }
+
+  // ─── HEADER (gradient, rounded-bottom, matches HomePage) ───
+  Widget _buildHeader() {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [_primaryGreen, _accentGreen],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Top bar: menu, title, avatar
+              Row(
+                children: [
+                  Builder(
+                    builder: (context) => IconButton(
+                      icon: const Icon(Icons.menu, color: Colors.white),
+                      onPressed: () => Scaffold.of(context).openDrawer(),
+                    ),
+                  ),
+                  Container(
+                    width: 26,
+                    height: 26,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Icon(
+                      Icons.archive,
+                      color: _primaryGreen,
+                      size: 15,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Arsip Pertanahan',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
                       ),
                     ),
-                    SizedBox(height: 2),
-                    Text(
-                      'Kantor Pertanahan Cilegon',
-                      style: TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: const CircleAvatar(
+                      radius: 15,
+                      backgroundColor: Colors.white24,
+                      child: Icon(Icons.close, color: Colors.white, size: 16),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              // Glass info card (mirrors homepage greeting card)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.10),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: Colors.white.withOpacity(0.15)),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: const [
+                          Text(
+                            'Catat peminjaman dokumen,',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'Form Peminjaman',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          SizedBox(height: 6),
+                          Text(
+                            'Lengkapi data di bawah untuk mencatat\npeminjaman arsip pertanahan.',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 11.5,
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                      child: const Icon(
+                        Icons.edit_document,
+                        size: 20,
+                        color: _primaryGreen,
+                      ),
                     ),
                   ],
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          _drawerItem(
-            Icons.dashboard,
-            'Dashboard',
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.pushReplacementNamed(context, AppRoutes.home);
-            },
-          ),
-          _drawerItem(
-            Icons.edit_document,
-            'Peminjaman',
-            isActive: true,
-            onTap: () => Navigator.pop(context),
-          ),
-          _drawerItem(
-            Icons.list_alt,
-            'Daftar Peminjaman',
-            onTap: () {
-              Navigator.pop(context);
-              _navigateAndRefresh(AppRoutes.history);
-            },
-          ),
-          _drawerItem(
-            Icons.assignment_return,
-            'Pengembalian',
-            onTap: () {
-              Navigator.pop(context);
-              _navigateAndRefresh(AppRoutes.returnPage);
-            },
-          ),
-          const Spacer(),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
-            child: ListTile(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
               ),
-              leading: const Icon(Icons.logout, color: Colors.redAccent),
-              title: const Text(
-                'Logout',
-                style: TextStyle(color: Colors.redAccent),
-              ),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.pushReplacementNamed(context, AppRoutes.login);
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _drawerItem(
-    IconData icon,
-    String label, {
-    bool isActive = false,
-    required VoidCallback onTap,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-      child: ListTile(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        tileColor: isActive ? _primaryGreen : Colors.transparent,
-        leading: Icon(icon, color: isActive ? Colors.white : Colors.black54),
-        title: Text(
-          label,
-          style: TextStyle(
-            color: isActive ? Colors.white : Colors.black87,
-            fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+            ],
           ),
         ),
-        onTap: onTap,
       ),
     );
   }
@@ -506,92 +529,29 @@ class _FormPageState extends State<FormPage> {
   }
 
   // ─── BOTTOM NAV ───
-  Widget _buildBottomNav() {
-    final items = [
-      {'icon': Icons.home_rounded, 'label': 'Beranda'},
-      {'icon': Icons.folder_outlined, 'label': 'Arsip'},
-      {'icon': Icons.assignment_return, 'label': 'Kembali'},
-      {'icon': Icons.person_outline, 'label': 'Profil'},
-    ];
-    const selectedIndex = 1; // Arsip aktif di halaman ini
+  // ─── Dipakai oleh AppBottomNav. Form bukan salah satu tab (Beranda/
+  // Arsip/Kembali/Profil), jadi setiap tap selalu berpindah halaman —
+  // tidak ada case yang di-setState di sini. "Arsip" tetap tampil aktif
+  // (index 1) selama berada di halaman Form, sama seperti sebelumnya.
+  static const int _selectedNavIndex = 1;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 12,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: List.generate(items.length, (index) {
-              final isSelected = selectedIndex == index;
-              return GestureDetector(
-                onTap: () {
-                  switch (index) {
-                    case 0:
-                      Navigator.pushReplacementNamed(context, AppRoutes.home);
-                      break;
-                    case 1:
-                      _navigateAndRefresh(AppRoutes.history);
-                      break;
-                    case 2:
-                      _navigateAndRefresh(AppRoutes.returnPage);
-                      break;
-                    case 3:
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Halaman Profil belum tersedia.'),
-                        ),
-                      );
-                      break;
-                  }
-                },
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      items[index]['icon'] as IconData,
-                      color: isSelected ? _primaryGreen : Colors.black38,
-                      size: 24,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      items[index]['label'] as String,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: isSelected ? _primaryGreen : Colors.black38,
-                        fontWeight: isSelected
-                            ? FontWeight.w600
-                            : FontWeight.normal,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      width: isSelected ? 6 : 0,
-                      height: isSelected ? 6 : 0,
-                      decoration: BoxDecoration(
-                        color: _primaryGreen,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }),
-          ),
-        ),
-      ),
-    );
+  void _onNavTap(int index) {
+    switch (index) {
+      case 0:
+        Navigator.pushReplacementNamed(context, AppRoutes.home);
+        break;
+      case 1:
+        _navigateAndRefresh(AppRoutes.history);
+        break;
+      case 2:
+        _navigateAndRefresh(AppRoutes.returnPage);
+        break;
+      case 3:
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Halaman Profil belum tersedia.')),
+        );
+        break;
+    }
   }
 
   // ─── BUILD ───
@@ -603,283 +563,232 @@ class _FormPageState extends State<FormPage> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7F5),
-      drawer: _buildDrawer(),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu, color: Colors.black87),
-            onPressed: () => Scaffold.of(context).openDrawer(),
-          ),
-        ),
-        title: Row(
-          children: [
-            Container(
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(
-                color: _primaryGreen,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: const Icon(Icons.archive, color: Colors.white, size: 16),
-            ),
-            const SizedBox(width: 10),
-            const Text(
-              'Arsip Pertanahan',
-              style: TextStyle(
-                color: Colors.black87,
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(
-              Icons.notifications_outlined,
-              color: Colors.black54,
-            ),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Belum ada notifikasi baru.')),
-              );
-            },
-          ),
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: CircleAvatar(
-              radius: 16,
-              backgroundColor: const Color(0xFFD8F3DC),
-              child: const Icon(
-                Icons.person,
-                color: Color(0xFF1B4332),
-                size: 18,
-              ),
-            ),
-          ),
-        ],
+      drawer: AppDrawer(
+        active: DrawerSection.peminjaman,
+        onNavigate: _onDrawerNavigate,
       ),
-      bottomNavigationBar: _buildBottomNav(),
+      bottomNavigationBar: AppBottomNav(
+        activeIndex: _selectedNavIndex,
+        onItemSelected: _onNavTap,
+      ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Page header
-            const Text(
-              'Form Peminjaman',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'Lengkapi data untuk mencatat peminjaman dokumen arsip pertanahan.',
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors.black45,
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: 20),
+            // ── Gradient header, matches HomePage
+            _buildHeader(),
+            const SizedBox(height: 18),
 
-            // ── Seksi 1: Identitas Peminjam
-            _sectionCard(
-              icon: Icons.person_search_outlined,
-              title: 'Identitas Peminjam',
-              children: [
-                _label('Nama Lengkap'),
-                _textField(
-                  controller: _namaController,
-                  placeholder: 'Masukkan nama peminjam',
-                  icon: Icons.badge_outlined,
-                ),
-                const SizedBox(height: 16),
-                _label('Seksi / Unit Kerja'),
-                _dropdownField(
-                  placeholder: 'Pilih Seksi / Unit Kerja',
-                  icon: Icons.apartment_outlined,
-                  items: DummyData.seksi,
-                  value: _selectedSeksi,
-                  onChanged: (v) => setState(() => _selectedSeksi = v),
-                ),
-              ],
-            ),
-
-            // ── Seksi 2: Detail Objek Arsip
-            _sectionCard(
-              icon: Icons.inventory_2_outlined,
-              title: 'Detail Objek Arsip',
-              children: [
-                _label('Kecamatan'),
-                _dropdownField(
-                  placeholder: 'Pilih Kecamatan',
-                  icon: Icons.location_city_outlined,
-                  items: DummyData.kecamatan,
-                  value: _selectedKecamatan,
-                  onChanged: (v) => setState(() {
-                    _selectedKecamatan = v;
-                    _selectedKelurahan = null;
-                  }),
-                ),
-                const SizedBox(height: 16),
-                _label(
-                  kelurahanDisabled ? 'Kelurahan (Non-aktif)' : 'Kelurahan',
-                  isDisabled: kelurahanDisabled,
-                ),
-                _dropdownField(
-                  placeholder: _selectedKecamatan == null
-                      ? 'Pilih Kecamatan dahulu'
-                      : 'Pilih Kelurahan',
-                  icon: Icons.map_outlined,
-                  items: kelurahanOptions,
-                  value: _selectedKelurahan,
-                  onChanged: (v) => setState(() => _selectedKelurahan = v),
-                  isDisabled: kelurahanDisabled,
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _label('Jenis Hak'),
-                          _dropdownField(
-                            placeholder: 'Pilih Hak',
-                            icon: Icons.shield_outlined,
-                            items: DummyData.jenisHak,
-                            value: _selectedJenisHak,
-                            onChanged: (v) =>
-                                setState(() => _selectedJenisHak = v),
-                          ),
-                        ],
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ── Seksi 1: Identitas Peminjam
+                  _sectionCard(
+                    icon: Icons.person_search_outlined,
+                    title: 'Identitas Peminjam',
+                    children: [
+                      _label('Nama Lengkap'),
+                      _textField(
+                        controller: _namaController,
+                        placeholder: 'Masukkan nama peminjam',
+                        icon: Icons.badge_outlined,
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _label('Nomor Hak'),
-                          _textField(
-                            controller: _noHakController,
-                            placeholder: 'Contoh: 12345',
-                            icon: Icons.tag,
-                            keyboardType: TextInputType.number,
-                          ),
-                        ],
+                      const SizedBox(height: 16),
+                      _label('Seksi / Unit Kerja'),
+                      _dropdownField(
+                        placeholder: 'Pilih Seksi / Unit Kerja',
+                        icon: Icons.apartment_outlined,
+                        items: DummyData.seksi,
+                        value: _selectedSeksi,
+                        onChanged: (v) => setState(() => _selectedSeksi = v),
                       ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-
-            // ── Seksi 3: Keperluan & Waktu
-            _sectionCard(
-              icon: Icons.access_time_outlined,
-              title: 'Keperluan & Waktu',
-              children: [
-                _label('Keperluan Peminjaman'),
-                Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF5F5F5),
-                    borderRadius: BorderRadius.circular(16),
+                    ],
                   ),
-                  child: TextField(
-                    controller: _keperluanController,
-                    maxLines: 4,
-                    style: const TextStyle(fontSize: 14, color: Colors.black87),
-                    decoration: const InputDecoration(
-                      hintText: 'Jelaskan alasan peminjaman dokumen...',
-                      hintStyle: TextStyle(color: Colors.black38, fontSize: 14),
-                      prefixIcon: Padding(
-                        padding: EdgeInsets.only(top: 14, left: 4),
-                        child: Icon(
-                          Icons.description_outlined,
-                          size: 18,
-                          color: Colors.black38,
+
+                  // ── Seksi 2: Detail Objek Arsip
+                  _sectionCard(
+                    icon: Icons.inventory_2_outlined,
+                    title: 'Detail Objek Arsip',
+                    children: [
+                      _label('Kecamatan'),
+                      _dropdownField(
+                        placeholder: 'Pilih Kecamatan',
+                        icon: Icons.location_city_outlined,
+                        items: DummyData.kecamatan,
+                        value: _selectedKecamatan,
+                        onChanged: (v) => setState(() {
+                          _selectedKecamatan = v;
+                          _selectedKelurahan = null;
+                        }),
+                      ),
+                      const SizedBox(height: 16),
+                      _label(
+                        kelurahanDisabled
+                            ? 'Kelurahan (Non-aktif)'
+                            : 'Kelurahan',
+                        isDisabled: kelurahanDisabled,
+                      ),
+                      _dropdownField(
+                        placeholder: _selectedKecamatan == null
+                            ? 'Pilih Kecamatan dahulu'
+                            : 'Pilih Kelurahan',
+                        icon: Icons.map_outlined,
+                        items: kelurahanOptions,
+                        value: _selectedKelurahan,
+                        onChanged: (v) =>
+                            setState(() => _selectedKelurahan = v),
+                        isDisabled: kelurahanDisabled,
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _label('Jenis Hak'),
+                                _dropdownField(
+                                  placeholder: 'Pilih Hak',
+                                  icon: Icons.shield_outlined,
+                                  items: DummyData.jenisHak,
+                                  value: _selectedJenisHak,
+                                  onChanged: (v) =>
+                                      setState(() => _selectedJenisHak = v),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _label('Nomor Hak'),
+                                _textField(
+                                  controller: _noHakController,
+                                  placeholder: 'Contoh: 12345',
+                                  icon: Icons.tag,
+                                  keyboardType: TextInputType.number,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+
+                  // ── Seksi 3: Keperluan & Waktu
+                  _sectionCard(
+                    icon: Icons.access_time_outlined,
+                    title: 'Keperluan & Waktu',
+                    children: [
+                      _label('Keperluan Peminjaman'),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF5F5F5),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: TextField(
+                          controller: _keperluanController,
+                          maxLines: 4,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Colors.black87,
+                          ),
+                          decoration: const InputDecoration(
+                            hintText: 'Jelaskan alasan peminjaman dokumen...',
+                            hintStyle: TextStyle(
+                              color: Colors.black38,
+                              fontSize: 14,
+                            ),
+                            prefixIcon: Padding(
+                              padding: EdgeInsets.only(top: 14, left: 4),
+                              child: Icon(
+                                Icons.description_outlined,
+                                size: 18,
+                                color: Colors.black38,
+                              ),
+                            ),
+                            prefixIconConstraints: BoxConstraints(
+                              minWidth: 44,
+                              minHeight: 0,
+                            ),
+                            border: InputBorder.none,
+                            contentPadding: EdgeInsets.all(16),
+                          ),
                         ),
                       ),
-                      prefixIconConstraints: BoxConstraints(
-                        minWidth: 44,
-                        minHeight: 0,
+                      const SizedBox(height: 16),
+                      _label('Tanggal Mulai'),
+                      _dateField(date: _tanggalPinjam, isPinjam: true),
+                      const SizedBox(height: 4),
+                      const Padding(
+                        padding: EdgeInsets.only(left: 4),
+                        child: Text(
+                          'Ketuk untuk memilih tanggal mulai peminjaman.',
+                          style: TextStyle(fontSize: 11, color: Colors.black38),
+                        ),
                       ),
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.all(16),
+                      const SizedBox(height: 16),
+                      _label('Tanggal Pengembalian'),
+                      _dateField(date: _tanggalKembali, isPinjam: false),
+                      const SizedBox(height: 4),
+                      const Padding(
+                        padding: EdgeInsets.only(left: 4),
+                        child: Text(
+                          'Tidak bisa lebih awal dari Tanggal Mulai.',
+                          style: TextStyle(fontSize: 11, color: Colors.black38),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  // ── Tombol Simpan
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _simpanPeminjaman,
+                      icon: const Icon(
+                        Icons.save_outlined,
+                        size: 18,
+                        color: Colors.white,
+                      ),
+                      label: const Text(
+                        'Simpan Data',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _accentPurple,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        elevation: 0,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                _label('Tanggal Mulai'),
-                _dateField(date: _tanggalPinjam, isPinjam: true),
-                const SizedBox(height: 4),
-                const Padding(
-                  padding: EdgeInsets.only(left: 4),
-                  child: Text(
-                    'Ketuk untuk memilih tanggal mulai peminjaman.',
-                    style: TextStyle(fontSize: 11, color: Colors.black38),
+                  const SizedBox(height: 12),
+                  Center(
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text(
+                        'Batalkan',
+                        style: TextStyle(fontSize: 14, color: Colors.black45),
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                _label('Tanggal Pengembalian'),
-                _dateField(date: _tanggalKembali, isPinjam: false),
-                const SizedBox(height: 4),
-                const Padding(
-                  padding: EdgeInsets.only(left: 4),
-                  child: Text(
-                    'Tidak bisa lebih awal dari Tanggal Mulai.',
-                    style: TextStyle(fontSize: 11, color: Colors.black38),
-                  ),
-                ),
-              ],
-            ),
-
-            // ── Tombol Simpan
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _simpanPeminjaman,
-                icon: const Icon(
-                  Icons.save_outlined,
-                  size: 18,
-                  color: Colors.white,
-                ),
-                label: const Text(
-                  'Simpan Data',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _accentPurple,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                  elevation: 0,
-                ),
+                  const SizedBox(height: 8),
+                ],
               ),
             ),
-            const SizedBox(height: 12),
-            Center(
-              child: TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text(
-                  'Batalkan',
-                  style: TextStyle(fontSize: 14, color: Colors.black45),
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
           ],
         ),
       ),

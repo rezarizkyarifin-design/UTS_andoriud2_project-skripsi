@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../routes/app_routes.dart';
 import '../../services/peminjaman_service.dart';
+import '../../services/auth_service.dart';
+import '../../models/peminjaman.dart';
+import '../../core/theme/app_theme.dart';
+import '../../widgets/app_drawer.dart';
+import '../../widgets/app_bottom_nav.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -12,15 +17,42 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int _selectedNavIndex = 0;
 
-  static const Color _primaryGreen = Color(0xFF1B4332);
-  static const Color _accentGreen = Color(0xFF2D6A4F);
+  final PageController _bannerController = PageController();
+  int _currentBanner = 0;
+
+  // Ganti / tambah path sesuai foto yang kamu taruh di assets/images/
+  final List<String> _bannerImages = const [
+    'assets/bpn1.jpg',
+    'assets/bpn2.jpg',
+    'assets/bpn3.jpg',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    // Guard: HomePage is reachable directly by route name, so if there's
+    // no active session (hot restart mid-session, deep link, etc.) bounce
+    // straight back to Login instead of rendering with a null user.
+    if (!AuthService.isLoggedIn) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          Navigator.pushReplacementNamed(context, AppRoutes.login);
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _bannerController.dispose();
+    super.dispose();
+  }
 
   void _navigateAndRefresh(String route) async {
     await Navigator.pushNamed(context, route);
     setState(() {});
   }
 
-  // ─── BOTTOM NAV TAP HANDLER ───
   void _onNavTap(int index) {
     switch (index) {
       case 0:
@@ -40,10 +72,17 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  // ─── NOTIFICATIONS SHEET ───
+  // ─── Dipakai oleh AppDrawer: memutuskan pushReplacement (Dashboard) vs
+  // push+refresh (halaman lain) tanpa AppDrawer perlu tahu bedanya.
+  void _onDrawerNavigate(String route) {
+    if (route == AppRoutes.home) return; // sudah di Dashboard
+    _navigateAndRefresh(route);
+  }
+
   void _showNotifications() {
     final aktif = PeminjamanService.getSedangDipinjam();
     final kembali = PeminjamanService.getTelahKembali();
+    final terlambat = PeminjamanService.getTerlambat();
 
     showModalBottomSheet(
       context: context,
@@ -76,6 +115,22 @@ class _HomePageState extends State<HomePage> {
                 style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
+              if (terlambat > 0)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(
+                    Icons.warning_amber_rounded,
+                    color: AppTheme.dangerRed,
+                  ),
+                  title: Text('$terlambat dokumen sudah lewat batas waktu'),
+                  subtitle: const Text(
+                    'Segera proses pengembalian atau perpanjangan.',
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _navigateAndRefresh(AppRoutes.returnPage);
+                  },
+                ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(
@@ -95,7 +150,7 @@ class _HomePageState extends State<HomePage> {
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(
                   Icons.inventory_2_outlined,
-                  color: _accentGreen,
+                  color: AppTheme.accentGreen,
                 ),
                 title: Text('$kembali dokumen telah dikembalikan'),
                 subtitle: const Text('Lihat riwayat peminjaman terbaru.'),
@@ -111,7 +166,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // ─── PROFILE MENU ───
   void _showProfileMenu(TapDownDetails details) async {
     final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
     final selected = await showMenu<String>(
@@ -128,592 +182,745 @@ class _HomePageState extends State<HomePage> {
     );
     if (!mounted) return;
     if (selected == 'logout') {
+      AuthService.logout();
       Navigator.pushReplacementNamed(context, AppRoutes.login);
     } else if (selected == 'profile') {
+      final user = AuthService.currentUser;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Petugas Arsip - Kantor Pertanahan Cilegon'),
+        SnackBar(
+          content: Text(
+            user == null
+                ? 'Petugas Arsip - Kantor Pertanahan Cilegon'
+                : '${user.nama} - ${user.jabatan}',
+          ),
         ),
       );
     }
   }
 
-  // ─── DRAWER ───
-  Widget _buildDrawer() {
-    return Drawer(
-      child: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(20, 56, 20, 24),
-            color: _primaryGreen,
-            child: Row(
-              children: [
-                const CircleAvatar(
-                  radius: 28,
-                  backgroundColor: Colors.white24,
-                  child: Icon(Icons.person, color: Colors.white, size: 28),
-                ),
-                const SizedBox(width: 14),
-                const Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Petugas Arsip',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    SizedBox(height: 2),
-                    Text(
-                      'Kantor Pertanahan Cilegon',
-                      style: TextStyle(color: Colors.white70, fontSize: 12),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          _drawerItem(
-            Icons.dashboard,
-            'Dashboard',
-            isActive: true,
-            onTap: () => Navigator.pop(context),
-          ),
-          _drawerItem(
-            Icons.edit_document,
-            'Peminjaman',
-            onTap: () {
-              Navigator.pop(context);
-              _navigateAndRefresh(AppRoutes.form);
-            },
-          ),
-          _drawerItem(
-            Icons.list_alt,
-            'Daftar Peminjaman',
-            onTap: () {
-              Navigator.pop(context);
-              _navigateAndRefresh(AppRoutes.history);
-            },
-          ),
-          _drawerItem(
-            Icons.assignment_return,
-            'Pengembalian',
-            onTap: () {
-              Navigator.pop(context);
-              _navigateAndRefresh(AppRoutes.returnPage);
-            },
-          ),
-          const Spacer(),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
-            child: ListTile(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              leading: const Icon(Icons.logout, color: Colors.redAccent),
-              title: const Text(
-                'Logout',
-                style: TextStyle(color: Colors.redAccent),
-              ),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.pushReplacementNamed(context, AppRoutes.login);
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _drawerItem(
-    IconData icon,
-    String label, {
-    bool isActive = false,
-    required VoidCallback onTap,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-      child: ListTile(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        tileColor: isActive ? _primaryGreen : Colors.transparent,
-        leading: Icon(icon, color: isActive ? Colors.white : Colors.black54),
-        title: Text(
-          label,
-          style: TextStyle(
-            color: isActive ? Colors.white : Colors.black87,
-            fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-          ),
+  // ─── HEADER (gradient AppBar area + greeting) ───
+  Widget _buildHeader() {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [AppTheme.primaryGreen, AppTheme.accentGreen],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        onTap: onTap,
-      ),
-    );
-  }
-
-  // ─── HERO BANNER ───
-  Widget _buildHeroBanner() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        color: _accentGreen,
-      ),
-      child: const Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Selamat datang kembali,',
-            style: TextStyle(color: Colors.white70, fontSize: 13),
-          ),
-          SizedBox(height: 4),
-          Text(
-            'Halo, Admin!',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 26,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          SizedBox(height: 8),
-          Text(
-            'Pantau dan kelola seluruh dokumentasi pertanahan dengan sistem manajemen arsip digital yang presisi.',
-            style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.5),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ─── STAT CARD ───
-  Widget _buildStatCard({
-    required IconData icon,
-    required Color iconBgColor,
-    required Color iconColor,
-    required String label,
-    required String value,
-    required String subtitle,
-    required Color valueColor,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: iconBgColor,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: iconColor, size: 22),
-          ),
-          const SizedBox(width: 14),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: const TextStyle(fontSize: 12, color: Colors.black54),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                value,
-                style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.bold,
-                  color: valueColor,
-                ),
-              ),
-              Text(subtitle, style: TextStyle(fontSize: 12, color: valueColor)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ─── SECTION HEADER ───
-  Widget _buildSectionHeader(String title, String actionLabel, String route) {
-    return GestureDetector(
-      onTap: () => _navigateAndRefresh(route),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          Text(
-            actionLabel,
-            style: TextStyle(
-              fontSize: 12,
-              color: _accentGreen,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ─── MENU ITEM ───
-  // Delegates to a small stateful card so each item can animate its own
-  // pressed/hover shadow independently.
-  Widget _buildMenuItem({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required String route,
-  }) {
-    return _MenuItemCard(
-      icon: icon,
-      title: title,
-      subtitle: subtitle,
-      accentColor: _accentGreen,
-      onTap: () => _navigateAndRefresh(route),
-    );
-  }
-
-  // ─── BOTTOM NAV ───
-  Widget _buildBottomNav() {
-    final items = [
-      {'icon': Icons.home_rounded, 'label': 'Beranda'},
-      {'icon': Icons.folder_outlined, 'label': 'Arsip'},
-      {'icon': Icons.assignment_return, 'label': 'Kembali'},
-      {'icon': Icons.person_outline, 'label': 'Profil'},
-    ];
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 12,
-            offset: const Offset(0, -2),
-          ),
-        ],
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
       ),
       child: SafeArea(
-        top: false,
+        bottom: false,
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: List.generate(items.length, (index) {
-              final isSelected = _selectedNavIndex == index;
-              return GestureDetector(
-                onTap: () => _onNavTap(index),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      items[index]['icon'] as IconData,
-                      color: isSelected ? _primaryGreen : Colors.black38,
-                      size: 24,
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Top bar: menu, title, notif, avatar
+              Row(
+                children: [
+                  Builder(
+                    builder: (context) => IconButton(
+                      icon: const Icon(Icons.menu, color: Colors.white),
+                      onPressed: () => Scaffold.of(context).openDrawer(),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      items[index]['label'] as String,
+                  ),
+                  Container(
+                    width: 26,
+                    height: 26,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Icon(
+                      Icons.archive,
+                      color: AppTheme.primaryGreen,
+                      size: 15,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Arsip Pertanahan Cilegon',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 11,
-                        color: isSelected ? _primaryGreen : Colors.black38,
-                        fontWeight: isSelected
-                            ? FontWeight.w600
-                            : FontWeight.normal,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
                       ),
                     ),
-                    const SizedBox(height: 2),
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      width: isSelected ? 6 : 0,
-                      height: isSelected ? 6 : 0,
+                  ),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.notifications_outlined,
+                      color: Colors.white,
+                    ),
+                    onPressed: _showNotifications,
+                    tooltip: 'Notifikasi',
+                  ),
+                  GestureDetector(
+                    onTapDown: _showProfileMenu,
+                    child: const CircleAvatar(
+                      radius: 15,
+                      backgroundColor: Colors.white24,
+                      child: Icon(Icons.person, color: Colors.white, size: 16),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              // Greeting card (mengambang, ala "Halo, Budi Disini!")
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.10),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: Colors.white.withOpacity(0.15)),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Selamat datang kembali,',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Halo, ${AuthService.currentUser?.nama ?? 'Pengguna'}!',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
-                        color: _primaryGreen,
-                        shape: BoxShape.circle,
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.qr_code_scanner,
+                            size: 16,
+                            color: AppTheme.primaryGreen,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Scan',
+                            style: const TextStyle(
+                              color: AppTheme.primaryGreen,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
-              );
-            }),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  // ─── BUILD ───
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F7F5),
-      drawer: _buildDrawer(),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu, color: Colors.black87),
-            onPressed: () => Scaffold.of(context).openDrawer(),
-          ),
-        ),
-        title: Row(
-          children: [
-            Container(
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(
-                color: _primaryGreen,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: const Icon(Icons.archive, color: Colors.white, size: 16),
-            ),
-            const SizedBox(width: 10),
-            const Text(
-              'Arsip Pertanahan',
-              style: TextStyle(
-                color: Colors.black87,
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-              ),
+  // ─── QUICK ACCESS ICON GRID (ala grid Cari Berkas / Swapching dll) ───
+  Widget _buildQuickAccessGrid() {
+    final items = <Map<String, dynamic>>[
+      {
+        'icon': Icons.edit_document,
+        'label': 'Form\nPeminjaman',
+        'color': const Color(0xFF2D6A4F),
+        'route': AppRoutes.form,
+      },
+      {
+        'icon': Icons.list_alt,
+        'label': 'Daftar\nPeminjaman',
+        'color': const Color(0xFF1B4332),
+        'route': AppRoutes.history,
+      },
+      {
+        'icon': Icons.assignment_return,
+        'label': 'Pengem-\nbalian',
+        'color': const Color(0xFFB07A00),
+        'route': AppRoutes.returnPage,
+      },
+      {
+        'icon': Icons.qr_code_scanner,
+        'label': 'Scan QR\nCode',
+        'color': const Color(0xFF5C5FCD),
+        'route': AppRoutes.scan,
+      },
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(
-              Icons.notifications_outlined,
-              color: Colors.black54,
-            ),
-            onPressed: _showNotifications,
-            tooltip: 'Notifikasi',
-          ),
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: GestureDetector(
-              onTapDown: _showProfileMenu,
-              child: const CircleAvatar(
-                radius: 16,
-                backgroundColor: Color(0xFFD8F3DC),
-                child: Icon(Icons.person, color: Color(0xFF1B4332), size: 18),
-              ),
-            ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: _buildBottomNav(),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildHeroBanner(),
-            const SizedBox(height: 16),
-            _buildStatCard(
-              icon: Icons.sync_alt_rounded,
-              iconBgColor: const Color(0xFFFFF3E0),
-              iconColor: Colors.orange,
-              label: 'Peminjaman Aktif',
-              value: PeminjamanService.getSedangDipinjam().toString(),
-              subtitle: 'Sedang Dipinjam',
-              valueColor: Colors.orange,
-            ),
-            const SizedBox(height: 12),
-            _buildStatCard(
-              icon: Icons.inventory_2_outlined,
-              iconBgColor: const Color(0xFFE8F5E9),
-              iconColor: Colors.green,
-              label: 'Arsip Diproses',
-              value: PeminjamanService.getTelahKembali().toString(),
-              subtitle: 'Telah Kembali',
-              valueColor: Colors.green,
-            ),
-            const SizedBox(height: 24),
-            _buildSectionHeader(
-              'Menu Peminjaman',
-              'Lihat Semua',
-              AppRoutes.history,
-            ),
-            const SizedBox(height: 12),
-            _buildMenuItem(
-              icon: Icons.edit_document,
-              title: 'Form Peminjaman',
-              subtitle: 'Buat permohonan peminjaman arsip baru',
-              route: AppRoutes.form,
-            ),
-            const SizedBox(height: 10),
-            _buildMenuItem(
-              icon: Icons.list_alt,
-              title: 'Daftar Peminjaman',
-              subtitle: 'Pantau status seluruh dokumen keluar',
-              route: AppRoutes.history,
-            ),
-            const SizedBox(height: 24),
-            _buildSectionHeader(
-              'Menu Pengembalian',
-              'Log Harian',
-              AppRoutes.returnPage,
-            ),
-            const SizedBox(height: 12),
-            _buildMenuItem(
-              icon: Icons.assignment_return_outlined,
-              title: 'Pengembalian Dokumen',
-              subtitle: 'Proses verifikasi dokumen yang kembali',
-              route: AppRoutes.returnPage,
-            ),
-            const SizedBox(height: 10),
-            _buildMenuItem(
-              icon: Icons.qr_code_scanner,
-              title: 'Scan QR Code',
-              subtitle: 'Scan kode QR untuk verifikasi dokumen kembali',
-              route: AppRoutes.scan,
-            ),
-            const SizedBox(height: 16),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─── ANIMATED MENU ITEM CARD ───
-// Shows a growing shadow + subtle scale/border highlight while the card is
-// pressed, and a lighter version of the same highlight on hover (web/desktop).
-class _MenuItemCard extends StatefulWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final Color accentColor;
-  final VoidCallback onTap;
-
-  const _MenuItemCard({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.accentColor,
-    required this.onTap,
-  });
-
-  @override
-  State<_MenuItemCard> createState() => _MenuItemCardState();
-}
-
-class _MenuItemCardState extends State<_MenuItemCard> {
-  bool _pressed = false;
-  bool _hovering = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final bool active = _pressed || _hovering;
-
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovering = true),
-      onExit: (_) => setState(() => _hovering = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTapDown: (_) => setState(() => _pressed = true),
-        onTapUp: (_) => setState(() => _pressed = false),
-        onTapCancel: () => setState(() => _pressed = false),
-        onTap: widget.onTap,
-        child: AnimatedScale(
-          scale: _pressed ? 0.97 : 1.0,
-          duration: const Duration(milliseconds: 120),
-          curve: Curves.easeOut,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 160),
-            curve: Curves.easeOut,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            decoration: BoxDecoration(
-              color: active ? const Color(0xFFF7FBF9) : Colors.white,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: active
-                    ? widget.accentColor.withOpacity(0.35)
-                    : Colors.transparent,
-                width: 1.2,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: active
-                      ? widget.accentColor.withOpacity(0.20)
-                      : Colors.black.withOpacity(0.04),
-                  blurRadius: active ? 20 : 10,
-                  offset: Offset(0, active ? 8 : 3),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 160),
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: active
-                        ? widget.accentColor.withOpacity(0.14)
-                        : const Color(0xFFEDF4F1),
-                    borderRadius: BorderRadius.circular(10),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: items.map((item) {
+            return GestureDetector(
+              onTap: () => _navigateAndRefresh(item['route'] as String),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: (item['color'] as Color).withOpacity(0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      item['icon'] as IconData,
+                      color: item['color'] as Color,
+                      size: 24,
+                    ),
                   ),
-                  child: Icon(widget.icon, color: widget.accentColor, size: 20),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  const SizedBox(height: 8),
+                  Text(
+                    item['label'] as String,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                      height: 1.2,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  // ─── IMAGE CAROUSEL BANNER (foto kantor, swipeable + dots) ───
+  Widget _buildImageCarousel() {
+    return Column(
+      children: [
+        SizedBox(
+          height: 160,
+          child: PageView.builder(
+            controller: _bannerController,
+            itemCount: _bannerImages.length,
+            onPageChanged: (i) => setState(() => _currentBanner = i),
+            itemBuilder: (context, index) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: Stack(
+                    fit: StackFit.expand,
                     children: [
-                      Text(
-                        widget.title,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black87,
+                      Image.asset(
+                        _bannerImages[index],
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          decoration: const BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                AppTheme.primaryGreen,
+                                AppTheme.accentGreen,
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                          ),
+                          child: const Center(
+                            child: Icon(
+                              Icons.apartment_rounded,
+                              color: Colors.white38,
+                              size: 48,
+                            ),
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        widget.subtitle,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.black45,
+                      Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.black.withOpacity(0.55),
+                              Colors.transparent,
+                            ],
+                            begin: Alignment.bottomCenter,
+                            end: Alignment.topCenter,
+                          ),
+                        ),
+                      ),
+                      const Positioned(
+                        left: 16,
+                        bottom: 14,
+                        right: 16,
+                        child: Text(
+                          'Kantor Pertanahan Kota Cilegon',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 160),
-                  transform: Matrix4.translationValues(active ? 3 : 0, 0, 0),
-                  child: Icon(
-                    Icons.chevron_right,
-                    color: active ? widget.accentColor : Colors.black26,
-                    size: 20,
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(_bannerImages.length, (index) {
+            final isActive = index == _currentBanner;
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              width: isActive ? 18 : 6,
+              height: 6,
+              decoration: BoxDecoration(
+                color: isActive ? AppTheme.accentGreen : Colors.black12,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            );
+          }),
+        ),
+      ],
+    );
+  }
+
+  // ─── COMPACT STAT CHIPS (Aktif / Kembali / Terlambat) ───
+  Widget _buildStatChips() {
+    final aktif = PeminjamanService.getSedangDipinjam();
+    final kembali = PeminjamanService.getTelahKembali();
+    final terlambat = PeminjamanService.getTerlambat();
+
+    Widget chip({
+      required IconData icon,
+      required Color color,
+      required String value,
+      required String label,
+      required VoidCallback onTap,
+    }) {
+      return Expanded(
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            margin: const EdgeInsets.symmetric(horizontal: 4),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                Icon(icon, color: color, size: 20),
+                const SizedBox(height: 6),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: color,
                   ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 10.5, color: Colors.black45),
                 ),
               ],
             ),
           ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Row(
+        children: [
+          chip(
+            icon: Icons.sync_alt_rounded,
+            color: Colors.orange,
+            value: aktif.toString(),
+            label: 'Sedang\nDipinjam',
+            onTap: () => _navigateAndRefresh(AppRoutes.returnPage),
+          ),
+          chip(
+            icon: Icons.inventory_2_outlined,
+            color: Colors.green,
+            value: kembali.toString(),
+            label: 'Telah\nKembali',
+            onTap: () => _navigateAndRefresh(AppRoutes.history),
+          ),
+          chip(
+            icon: Icons.warning_amber_rounded,
+            color: AppTheme.dangerRed,
+            value: terlambat.toString(),
+            label: 'Terlambat\nKembali',
+            onTap: () => _navigateAndRefresh(AppRoutes.returnPage),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─── INFO TERBARU (aktivitas peminjaman terbaru, horizontal cards) ───
+  Widget _buildRecentActivity() {
+    final all = List<Peminjaman>.from(PeminjamanService.getAll())
+      ..sort((a, b) => b.tanggalPinjam.compareTo(a.tanggalPinjam));
+    final recent = all.take(6).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Aktivitas Terbaru',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              GestureDetector(
+                onTap: () => _navigateAndRefresh(AppRoutes.history),
+                child: Text(
+                  'Lihat Semua',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppTheme.accentGreen,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (recent.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Center(
+                child: Text(
+                  'Belum ada aktivitas peminjaman.',
+                  style: TextStyle(color: Colors.black45, fontSize: 13),
+                ),
+              ),
+            ),
+          )
+        else
+          SizedBox(
+            height: 128,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: recent.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 12),
+              itemBuilder: (context, index) {
+                final p = recent[index];
+                final overdue = p.isOverdue;
+                return Container(
+                  width: 190,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: overdue
+                              ? const Color(0xFFFDE2E1)
+                              : p.status == 'Dipinjam'
+                              ? const Color(0xFFFFF3D9)
+                              : const Color(0xFFD8F3DC),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          overdue
+                              ? 'Terlambat'
+                              : (p.status == 'Dipinjam'
+                                    ? 'Dipinjam'
+                                    : 'Kembali'),
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: overdue
+                                ? AppTheme.dangerRed
+                                : p.status == 'Dipinjam'
+                                ? const Color(0xFFB07A00)
+                                : AppTheme.accentGreen,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        p.nama,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${p.noHak}/${p.kelurahan}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.black45,
+                        ),
+                      ),
+                      const Spacer(),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.calendar_today_outlined,
+                            size: 11,
+                            color: Colors.black38,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              p.tanggalPinjamFormatted,
+                              style: const TextStyle(
+                                fontSize: 10.5,
+                                color: Colors.black45,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
+
+  // ─── ITEM 2 (Dashboard counters, khusus Pegawai): "Minjam brp / Blm
+  // kembali brp" milik pegawai yang sedang login, bukan angka kantor
+  // secara keseluruhan (itu tugas _buildStatChips di bawah). Cuma
+  // ditampilkan untuk role Pegawai — Admin sudah lihat gambaran penuh
+  // lewat _buildStatChips + banner persetujuan.
+  Widget _buildPersonalSummary() {
+    if (!AuthService.isPegawai) return const SizedBox.shrink();
+
+    final minjam = PeminjamanService.getMinjamBrp();
+    final belumKembali = PeminjamanService.getBelumKembaliBrp();
+
+    Widget stat(String value, String label, Color color) {
+      return Expanded(
+        child: Column(
+          children: [
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 11, color: Colors.black45),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            stat(
+              minjam.toString(),
+              'Sedang Anda\npinjam',
+              AppTheme.primaryGreen,
+            ),
+            Container(width: 1, height: 32, color: Colors.black12),
+            stat(
+              belumKembali.toString(),
+              'Belum Anda\nkembalikan',
+              AppTheme.dangerRed,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─── Item 3 lanjutan (approval flow, khusus Admin): banner kecil kalau
+  // ada pengajuan perpanjangan yang menunggu keputusan. Layar approval-nya
+  // sendiri belum dibangun, jadi tap-nya masih placeholder — sama seperti
+  // pola "belum tersedia" yang sudah dipakai di tempat lain.
+  Widget _buildAdminExtensionBanner() {
+    if (!AuthService.isAdmin) return const SizedBox.shrink();
+
+    final pending = PeminjamanService.getPengajuanPerpanjangan();
+    if (pending.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: GestureDetector(
+        onTap: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Halaman persetujuan perpanjangan belum tersedia.'),
+            ),
+          );
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFF3D9),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.pending_actions, color: Color(0xFFB07A00)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  '${pending.length} pengajuan perpanjangan menunggu persetujuan Anda.',
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFFB07A00),
+                  ),
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right,
+                color: Color(0xFFB07A00),
+                size: 20,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppTheme.background,
+      drawer: AppDrawer(
+        active: DrawerSection.dashboard,
+        onNavigate: _onDrawerNavigate,
+      ),
+      bottomNavigationBar: AppBottomNav(
+        activeIndex: _selectedNavIndex,
+        onItemSelected: _onNavTap,
+      ),
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildHeader(),
+            const SizedBox(height: 18),
+            _buildAdminExtensionBanner(),
+            _buildPersonalSummary(),
+            const SizedBox(height: 10),
+            _buildQuickAccessGrid(),
+            const SizedBox(height: 22),
+            _buildImageCarousel(),
+            const SizedBox(height: 20),
+            _buildStatChips(),
+            const SizedBox(height: 24),
+            _buildRecentActivity(),
+            const SizedBox(height: 24),
+          ],
         ),
       ),
     );

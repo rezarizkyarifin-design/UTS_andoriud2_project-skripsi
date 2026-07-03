@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:image_picker/image_picker.dart';
@@ -10,26 +11,42 @@ class ScanPage extends StatefulWidget {
   State<ScanPage> createState() => _ScanPageState();
 }
 
-class _ScanPageState extends State<ScanPage> {
-  final MobileScannerController _controller = MobileScannerController();
+class _ScanPageState extends State<ScanPage>
+    with SingleTickerProviderStateMixin {
+  // MENTOR FIX: Prevent the camera from auto-starting on page load to stabilize initialization.
+  final MobileScannerController _controller = MobileScannerController(
+    autoStart: false,
+  );
   final ImagePicker _imagePicker = ImagePicker();
 
   bool _isScanning = false;
   bool _hasDetected = false;
   bool _torchOn = false;
 
-  static const Color _accentGreen = Color(0xFF52B788);
-  static const Color _primaryGreen = Color(0xFF1B4332);
+  late final AnimationController _scanLineController;
+
+  static const Color _accentGreen = Color(0xFF2D6A4F);
+  static const Color _scanGreen = Color(0xFF52B788);
+
+  @override
+  void initState() {
+    super.initState();
+    _scanLineController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1800),
+    )..repeat(reverse: true);
+  }
 
   @override
   void dispose() {
     _controller.dispose();
+    _scanLineController.dispose();
     super.dispose();
   }
 
   // ─── CAMERA DETECT ───
   void _onDetect(BarcodeCapture capture) {
-    if (_hasDetected) return; // Cegah deteksi ganda
+    if (_hasDetected) return;
 
     final List<Barcode> barcodes = capture.barcodes;
     if (barcodes.isEmpty) return;
@@ -38,7 +55,7 @@ class _ScanPageState extends State<ScanPage> {
     if (rawValue == null || rawValue.isEmpty) return;
 
     setState(() => _hasDetected = true);
-    _controller.stop();
+    _controller.stop(); // Stop feed temporarily while processing
 
     _prosesHasilScan(rawValue);
   }
@@ -86,7 +103,7 @@ class _ScanPageState extends State<ScanPage> {
             ),
             title: const Text('Tidak Ditemukan'),
             content: Text(
-              'Tidak ada peminjaman aktif dengan No. Hak "$noHak".',
+              'Tidak ada peminjaman aktif dengan No. Hak "$noHak".\n\nPastikan QR Code yang discan sesuai dengan database.',
             ),
             actions: [
               TextButton(
@@ -99,7 +116,10 @@ class _ScanPageState extends State<ScanPage> {
               ),
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('Tutup'),
+                child: const Text(
+                  'Tutup',
+                  style: TextStyle(color: Colors.black54),
+                ),
               ),
             ],
           );
@@ -120,8 +140,6 @@ class _ScanPageState extends State<ScanPage> {
               Text('Seksi: ${p.seksi}'),
               const SizedBox(height: 4),
               Text('No. Hak: ${p.noHak}'),
-              const SizedBox(height: 4),
-              Text('Tgl. Kembali: ${p.tanggalKembaliFormatted}'),
               const SizedBox(height: 12),
               const Text(
                 'Kembalikan dokumen ini?',
@@ -158,12 +176,9 @@ class _ScanPageState extends State<ScanPage> {
                     ),
                     backgroundColor: _accentGreen,
                     behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
                   ),
                 );
-                Navigator.pop(context); // Balik ke halaman sebelumnya
+                Navigator.pop(context); // Return to previous page
               },
               child: const Text(
                 'Kembalikan',
@@ -181,6 +196,9 @@ class _ScanPageState extends State<ScanPage> {
       _isScanning = !_isScanning;
       _hasDetected = false;
     });
+
+    // Controller commands are now safely executed because the
+    // MobileScanner widget is permanently mounted in the background.
     if (_isScanning) {
       _controller.start();
     } else {
@@ -188,7 +206,7 @@ class _ScanPageState extends State<ScanPage> {
     }
   }
 
-  // ─── CORNER BRACKET OVERLAY ───
+  // ─── OVERLAYS AND UI HELPERS ───
   Widget _corner({
     required Alignment alignment,
     required bool top,
@@ -202,16 +220,16 @@ class _ScanPageState extends State<ScanPage> {
         decoration: BoxDecoration(
           border: Border(
             top: top
-                ? const BorderSide(color: _accentGreen, width: 4)
+                ? const BorderSide(color: _scanGreen, width: 4)
                 : BorderSide.none,
             bottom: !top
-                ? const BorderSide(color: _accentGreen, width: 4)
+                ? const BorderSide(color: _scanGreen, width: 4)
                 : BorderSide.none,
             left: left
-                ? const BorderSide(color: _accentGreen, width: 4)
+                ? const BorderSide(color: _scanGreen, width: 4)
                 : BorderSide.none,
             right: !left
-                ? const BorderSide(color: _accentGreen, width: 4)
+                ? const BorderSide(color: _scanGreen, width: 4)
                 : BorderSide.none,
           ),
           borderRadius: BorderRadius.only(
@@ -227,52 +245,135 @@ class _ScanPageState extends State<ScanPage> {
     );
   }
 
+  Widget _scanLine() {
+    return AnimatedBuilder(
+      animation: _scanLineController,
+      builder: (context, child) {
+        return Positioned(
+          top: 6 + (_scanLineController.value * 228),
+          left: 6,
+          right: 6,
+          child: Container(
+            height: 2.5,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(4),
+              gradient: LinearGradient(
+                colors: [
+                  _scanGreen.withOpacity(0),
+                  _scanGreen,
+                  _scanGreen.withOpacity(0),
+                ],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: _scanGreen.withOpacity(0.7),
+                  blurRadius: 8,
+                  spreadRadius: 1,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _scanFrame() {
+    final active = _isScanning && !_hasDetected;
     return Center(
       child: SizedBox(
         width: 240,
         height: 240,
         child: Stack(
+          clipBehavior: Clip.none,
           children: [
             _corner(alignment: Alignment.topLeft, top: true, left: true),
             _corner(alignment: Alignment.topRight, top: true, left: false),
             _corner(alignment: Alignment.bottomLeft, top: false, left: true),
             _corner(alignment: Alignment.bottomRight, top: false, left: false),
+            if (active) _scanLine(),
           ],
         ),
       ),
     );
   }
 
-  // ─── CUSTOM FLOATING APP BAR ───
+  Widget _glassPanel({
+    required Widget child,
+    double radius = 22,
+    EdgeInsetsGeometry padding = const EdgeInsets.all(16),
+  }) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(radius),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+        child: Container(
+          padding: padding,
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.32),
+            borderRadius: BorderRadius.circular(radius),
+            border: Border.all(color: Colors.white.withOpacity(0.12)),
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+
   Widget _floatingAppBar() {
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            _circleIconButton(
-              icon: Icons.arrow_back,
-              onTap: () => Navigator.pop(context),
-            ),
-            const Text(
-              'Scan QR',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+        child: _glassPanel(
+          radius: 20,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _circleIconButton(
+                icon: Icons.arrow_back,
+                onTap: () => Navigator.pop(context),
               ),
-            ),
-            _circleIconButton(
-              icon: _torchOn ? Icons.flash_on : Icons.flash_off,
-              onTap: () {
-                _controller.toggleTorch();
-                setState(() => _torchOn = !_torchOn);
-              },
-              highlighted: _torchOn,
-            ),
-          ],
+              Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    margin: const EdgeInsets.only(right: 8),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: _isScanning ? _scanGreen : Colors.white38,
+                      boxShadow: _isScanning
+                          ? [
+                              BoxShadow(
+                                color: _scanGreen.withOpacity(0.8),
+                                blurRadius: 6,
+                                spreadRadius: 1,
+                              ),
+                            ]
+                          : null,
+                    ),
+                  ),
+                  Text(
+                    _isScanning ? 'Memindai...' : 'Scan QR / Barcode',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+              _circleIconButton(
+                icon: _torchOn ? Icons.flash_on : Icons.flash_off,
+                onTap: () {
+                  _controller.toggleTorch();
+                  setState(() => _torchOn = !_torchOn);
+                },
+                highlighted: _torchOn,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -286,13 +387,13 @@ class _ScanPageState extends State<ScanPage> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 40,
-        height: 40,
+        width: 38,
+        height: 38,
         decoration: BoxDecoration(
-          color: highlighted ? _accentGreen : Colors.black.withOpacity(0.35),
+          color: highlighted ? _scanGreen : Colors.white.withOpacity(0.14),
           shape: BoxShape.circle,
         ),
-        child: Icon(icon, color: Colors.white, size: 20),
+        child: Icon(icon, color: Colors.white, size: 19),
       ),
     );
   }
@@ -303,30 +404,39 @@ class _ScanPageState extends State<ScanPage> {
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // ── Camera preview / placeholder
+          // MENTOR FIX: MobileScanner is now permanently mounted in the tree.
+          // This prevents the hardware race condition that causes freezing.
           Positioned.fill(
-            child: _isScanning
-                ? MobileScanner(controller: _controller, onDetect: _onDetect)
-                : Container(
-                    color: const Color(0xFF121212),
-                    child: const Center(
-                      child: Icon(
-                        Icons.qr_code_scanner,
-                        size: 90,
-                        color: Colors.white24,
-                      ),
-                    ),
-                  ),
+            child: MobileScanner(controller: _controller, onDetect: _onDetect),
           ),
 
-          // ── Dim overlay supaya teks & bracket lebih kontras
+          // If NOT scanning, overlay the dark placeholder view to hide the camera feed.
+          if (!_isScanning)
+            Positioned.fill(
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF0D0D0D), Color(0xFF1B1B1B)],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                  ),
+                ),
+                child: Center(
+                  child: Icon(
+                    Icons.qr_code_scanner,
+                    size: 90,
+                    color: _scanGreen.withOpacity(0.25),
+                  ),
+                ),
+              ),
+            ),
+
           Positioned.fill(
             child: IgnorePointer(
               child: Container(color: Colors.black.withOpacity(0.15)),
             ),
           ),
 
-          // ── Corner bracket + instruksi (hanya saat aktif)
           if (_isScanning) ...[
             Positioned(
               top: 0,
@@ -340,7 +450,7 @@ class _ScanPageState extends State<ScanPage> {
               right: 32,
               bottom: 250,
               child: Column(
-                children: const [
+                children: [
                   Text(
                     'Arahkan kamera ke barcode dokumen',
                     textAlign: TextAlign.center,
@@ -348,10 +458,16 @@ class _ScanPageState extends State<ScanPage> {
                       color: Colors.white,
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
+                      shadows: [
+                        Shadow(
+                          color: Colors.black.withOpacity(0.5),
+                          blurRadius: 8,
+                        ),
+                      ],
                     ),
                   ),
-                  SizedBox(height: 6),
-                  Text(
+                  const SizedBox(height: 6),
+                  const Text(
                     'Pastikan pencahayaan cukup dan barcode terlihat jelas di dalam kotak.',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: Colors.white70, fontSize: 12.5),
@@ -360,21 +476,21 @@ class _ScanPageState extends State<ScanPage> {
               ),
             ),
           ] else
-            const Positioned(
+            Positioned(
               left: 32,
               right: 32,
               bottom: 250,
-              child: Text(
-                'Kamera belum aktif. Tekan tombol di bawah untuk mulai scan.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white54, fontSize: 13),
+              child: _glassPanel(
+                child: const Text(
+                  'Kamera belum aktif. Tekan tombol di bawah untuk mulai scan.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white70, fontSize: 13),
+                ),
               ),
             ),
 
-          // ── Custom floating app bar
           Positioned(top: 0, left: 0, right: 0, child: _floatingAppBar()),
 
-          // ── Bottom panel
           Positioned(
             left: 0,
             right: 0,
@@ -382,90 +498,89 @@ class _ScanPageState extends State<ScanPage> {
             child: SafeArea(
               top: false,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Info pill
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 10,
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: _glassPanel(
+                  radius: 26,
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 9,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.10),
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              size: 14,
+                              color: Colors.white.withOpacity(0.75),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Mendukung QR Code & Barcode BPN',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.75),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.4),
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.info_outline,
-                            size: 14,
-                            color: Colors.white70,
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _toggleScan,
+                          icon: Icon(
+                            _isScanning
+                                ? Icons.stop_circle_outlined
+                                : Icons.qr_code_scanner,
+                            color: Colors.white,
                           ),
-                          const SizedBox(width: 8),
-                          const Text(
-                            'Mendukung QR Code & Barcode BPN',
-                            style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: 12,
+                          label: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            child: Text(
+                              _isScanning ? 'Stop Scan' : 'Mulai Scan',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Tombol Mulai/Stop Scan
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _toggleScan,
-                        icon: Icon(
-                          _isScanning
-                              ? Icons.stop_circle_outlined
-                              : Icons.qr_code_scanner,
-                          color: Colors.white,
-                        ),
-                        label: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          child: Text(
-                            _isScanning ? 'Stop Scan' : 'Mulai Scan',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _isScanning
+                                ? const Color(0xFFB3261E)
+                                : _scanGreen,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(30),
                             ),
                           ),
                         ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _isScanning
-                              ? const Color(0xFFB3261E)
-                              : _accentGreen,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(30),
-                          ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextButton.icon(
+                        onPressed: _pilihDariGaleri,
+                        icon: const Icon(
+                          Icons.image_outlined,
+                          size: 18,
+                          color: Colors.white70,
+                        ),
+                        label: const Text(
+                          'Pilih dari Galeri',
+                          style: TextStyle(color: Colors.white70, fontSize: 13),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 10),
-
-                    // Pilih dari Galeri
-                    TextButton.icon(
-                      onPressed: _pilihDariGaleri,
-                      icon: const Icon(
-                        Icons.image_outlined,
-                        size: 18,
-                        color: Colors.white70,
-                      ),
-                      label: const Text(
-                        'Pilih dari Galeri',
-                        style: TextStyle(color: Colors.white70, fontSize: 13),
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),

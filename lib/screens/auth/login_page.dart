@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../routes/app_routes.dart';
+import '../../services/auth_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -10,13 +11,10 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   bool isPasswordHidden = true;
+  bool _isSubmitting = false;
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
-
-  // Kredensial admin yang valid
-  static const String _adminUsername = 'admin';
-  static const String _adminPassword = 'cilegonmelesat';
 
   @override
   void dispose() {
@@ -30,7 +28,19 @@ class _LoginPageState extends State<LoginPage> {
       final username = _usernameController.text.trim();
       final password = _passwordController.text;
 
-      if (username == _adminUsername && password == _adminPassword) {
+      // Guard against double-tap re-entry while the (currently synchronous,
+      // in-memory) auth check runs.
+      setState(() => _isSubmitting = true);
+
+      final success = AuthService.login(username, password);
+
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+
+      if (success) {
+        // Role (Admin/Pegawai) is now on AuthService.currentUser — HomePage
+        // and everything downstream reads it from there, so this route is
+        // the same regardless of role.
         Navigator.pushReplacementNamed(context, AppRoutes.home);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -130,7 +140,10 @@ class _LoginPageState extends State<LoginPage> {
                 Expanded(
                   child: Center(
                     child: SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 24,
+                      ),
                       child: Container(
                         padding: const EdgeInsets.all(28),
                         decoration: BoxDecoration(
@@ -158,7 +171,10 @@ class _LoginPageState extends State<LoginPage> {
                             const Text(
                               'Masuk untuk mengelola peminjaman arsip dokumen Anda.',
                               textAlign: TextAlign.center,
-                              style: TextStyle(fontSize: 14, color: Colors.black54),
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.black54,
+                              ),
                             ),
                             const SizedBox(height: 28),
                             Form(
@@ -175,7 +191,8 @@ class _LoginPageState extends State<LoginPage> {
                                       ),
                                     ),
                                     validator: (value) {
-                                      if (value == null || value.trim().isEmpty) {
+                                      if (value == null ||
+                                          value.trim().isEmpty) {
                                         return 'Username tidak boleh kosong';
                                       }
                                       return null;
@@ -196,7 +213,8 @@ class _LoginPageState extends State<LoginPage> {
                                         ),
                                         onPressed: () {
                                           setState(() {
-                                            isPasswordHidden = !isPasswordHidden;
+                                            isPasswordHidden =
+                                                !isPasswordHidden;
                                           });
                                         },
                                       ),
@@ -205,7 +223,8 @@ class _LoginPageState extends State<LoginPage> {
                                       ),
                                     ),
                                     validator: (value) {
-                                      if (value == null || value.trim().isEmpty) {
+                                      if (value == null ||
+                                          value.trim().isEmpty) {
                                         return 'Password tidak boleh kosong';
                                       }
                                       return null;
@@ -216,13 +235,31 @@ class _LoginPageState extends State<LoginPage> {
                                     width: double.infinity,
                                     child: ElevatedButton(
                                       style: ElevatedButton.styleFrom(
-                                        padding: const EdgeInsets.symmetric(vertical: 16),
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 16,
+                                        ),
                                         shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(14),
+                                          borderRadius: BorderRadius.circular(
+                                            14,
+                                          ),
                                         ),
                                       ),
-                                      onPressed: _handleLogin,
-                                      child: const Text('Masuk', style: TextStyle(fontSize: 16)),
+                                      onPressed: _isSubmitting
+                                          ? null
+                                          : _handleLogin,
+                                      child: _isSubmitting
+                                          ? const SizedBox(
+                                              width: 20,
+                                              height: 20,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                color: Colors.white,
+                                              ),
+                                            )
+                                          : const Text(
+                                              'Masuk',
+                                              style: TextStyle(fontSize: 16),
+                                            ),
                                     ),
                                   ),
                                 ],
@@ -231,7 +268,10 @@ class _LoginPageState extends State<LoginPage> {
                             const SizedBox(height: 20),
                             const Text(
                               'Melayani Profesional dan Terpercaya',
-                              style: TextStyle(color: Colors.black54, fontSize: 12),
+                              style: TextStyle(
+                                color: Colors.black54,
+                                fontSize: 12,
+                              ),
                             ),
                           ],
                         ),
