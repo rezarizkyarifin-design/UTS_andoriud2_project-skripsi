@@ -53,6 +53,16 @@ class _HomePageState extends State<HomePage> {
     setState(() {});
   }
 
+  // ─── Item 1: jumlah notif yang relevan untuk role yang sedang login —
+  // dipakai buat badge di ikon bell. Admin: pengajuan perpanjangan yang
+  // menunggu keputusan. Pegawai: dokumen miliknya yang sudah lewat batas.
+  int _notifCount() {
+    if (AuthService.isAdmin) {
+      return PeminjamanService.getPengajuanPerpanjangan().length;
+    }
+    return PeminjamanService.getBelumKembaliBrp();
+  }
+
   void _onNavTap(int index) {
     switch (index) {
       case 0:
@@ -115,6 +125,23 @@ class _HomePageState extends State<HomePage> {
                 style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
+              if (AuthService.isAdmin &&
+                  PeminjamanService.getPengajuanPerpanjangan().isNotEmpty)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(
+                    Icons.pending_actions,
+                    color: Color(0xFFB07A00),
+                  ),
+                  title: Text(
+                    '${PeminjamanService.getPengajuanPerpanjangan().length} pengajuan perpanjangan menunggu persetujuan',
+                  ),
+                  subtitle: const Text('Ketuk untuk tinjau dan putuskan.'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showExtensionApprovalSheet();
+                  },
+                ),
               if (terlambat > 0)
                 ListTile(
                   contentPadding: EdgeInsets.zero,
@@ -232,10 +259,12 @@ class _HomePageState extends State<HomePage> {
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: const Icon(
-                      Icons.archive,
-                      color: AppTheme.primaryGreen,
-                      size: 15,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: Image.network(
+                        'https://pbs.twimg.com/profile_images/1525051472873783296/zBL0VecH_400x400.jpg',
+                        fit: BoxFit.cover,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -252,9 +281,41 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(
-                      Icons.notifications_outlined,
-                      color: Colors.white,
+                    icon: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        const Icon(
+                          Icons.notifications_outlined,
+                          color: Colors.white,
+                        ),
+                        if (_notifCount() > 0)
+                          Positioned(
+                            right: -2,
+                            top: -2,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                              ),
+                              constraints: const BoxConstraints(
+                                minWidth: 15,
+                                minHeight: 15,
+                              ),
+                              decoration: const BoxDecoration(
+                                color: Colors.redAccent,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Text(
+                                _notifCount() > 9 ? '9+' : '${_notifCount()}',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                     onPressed: _showNotifications,
                     tooltip: 'Notifikasi',
@@ -664,7 +725,7 @@ class _HomePageState extends State<HomePage> {
           )
         else
           SizedBox(
-            height: 128,
+            height: 148,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -673,95 +734,132 @@ class _HomePageState extends State<HomePage> {
               itemBuilder: (context, index) {
                 final p = recent[index];
                 final overdue = p.isOverdue;
-                return Container(
-                  width: 190,
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.04),
-                        blurRadius: 10,
-                        offset: const Offset(0, 3),
-                      ),
-                    ],
+                return GestureDetector(
+                  onTap: () => Navigator.pushNamed(
+                    context,
+                    AppRoutes.barcode,
+                    arguments: {
+                      'noHak': p.noHak,
+                      'nama': p.nama,
+                      'kelurahan': p.kelurahan,
+                      'tanggalPinjam': p.tanggalPinjamFormatted,
+                      'tanggalKembali': p.tanggalKembaliFormatted,
+                    },
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
+                  child: Container(
+                    width: 190,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.04),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
                         ),
-                        decoration: BoxDecoration(
-                          color: overdue
-                              ? const Color(0xFFFDE2E1)
-                              : p.status == 'Dipinjam'
-                              ? const Color(0xFFFFF3D9)
-                              : const Color(0xFFD8F3DC),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          overdue
-                              ? 'Terlambat'
-                              : (p.status == 'Dipinjam'
-                                    ? 'Dipinjam'
-                                    : 'Kembali'),
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
                             color: overdue
-                                ? AppTheme.dangerRed
+                                ? const Color(0xFFFDE2E1)
                                 : p.status == 'Dipinjam'
-                                ? const Color(0xFFB07A00)
-                                : AppTheme.accentGreen,
+                                ? const Color(0xFFFFF3D9)
+                                : const Color(0xFFD8F3DC),
+                            borderRadius: BorderRadius.circular(20),
                           ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        p.nama,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${p.noHak}/${p.kelurahan}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Colors.black45,
-                        ),
-                      ),
-                      const Spacer(),
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.calendar_today_outlined,
-                            size: 11,
-                            color: Colors.black38,
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              p.tanggalPinjamFormatted,
-                              style: const TextStyle(
-                                fontSize: 10.5,
-                                color: Colors.black45,
-                              ),
+                          child: Text(
+                            overdue
+                                ? 'Terlambat'
+                                : (p.status == 'Dipinjam'
+                                      ? 'Dipinjam'
+                                      : 'Kembali'),
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: overdue
+                                  ? AppTheme.dangerRed
+                                  : p.status == 'Dipinjam'
+                                  ? const Color(0xFFB07A00)
+                                  : AppTheme.accentGreen,
                             ),
                           ),
-                        ],
-                      ),
-                    ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          p.nama,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${p.noHak}/${p.kelurahan}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.black45,
+                          ),
+                        ),
+                        const Spacer(),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.calendar_today_outlined,
+                              size: 11,
+                              color: Colors.black38,
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                'Mulai: ${p.tanggalPinjamFormatted}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.black45,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.event_available_outlined,
+                              size: 11,
+                              color: Colors.black38,
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                'Batas: ${p.tanggalKembaliFormatted}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.black45,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 );
               },
@@ -852,13 +950,7 @@ class _HomePageState extends State<HomePage> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: GestureDetector(
-        onTap: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Halaman persetujuan perpanjangan belum tersedia.'),
-            ),
-          );
-        },
+        onTap: _showExtensionApprovalSheet,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
@@ -891,6 +983,246 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // ─── Item 1 (banner), khusus Pegawai: alert kalau ada dokumen milik
+  // sendiri yang sudah lewat batas — mirror visual banner Admin di atas,
+  // supaya Pegawai juga dapat "alert di atas layar", bukan cuma angka di
+  // ringkasan pribadi.
+  Widget _buildPegawaiOverdueBanner() {
+    if (!AuthService.isPegawai) return const SizedBox.shrink();
+
+    final belumKembali = PeminjamanService.getBelumKembaliBrp();
+    if (belumKembali == 0) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      child: GestureDetector(
+        onTap: () => _navigateAndRefresh(AppRoutes.returnPage),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFDE2E1),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.warning_amber_rounded,
+                color: AppTheme.dangerRed,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  '$belumKembali dokumen Anda sudah lewat batas waktu pengembalian.',
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.dangerRed,
+                  ),
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right,
+                color: AppTheme.dangerRed,
+                size: 20,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ─── Item 4: bottom sheet approval perpanjangan untuk Admin. Dibuka dari
+  // banner di atas maupun dari bell notifikasi. Pakai StatefulBuilder biar
+  // list-nya bisa refresh sendiri setelah Setujui/Tolak tanpa nutup sheet.
+  void _showExtensionApprovalSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            final pending = PeminjamanService.getPengajuanPerpanjangan();
+
+            void _decide(String noHak, bool approve) {
+              final ok = approve
+                  ? PeminjamanService.setujuiPerpanjangan(noHak)
+                  : PeminjamanService.tolakPerpanjangan(noHak);
+              if (!ok) return;
+              setSheetState(() {});
+              setState(() {}); // refresh badge + banner di HomePage
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    approve
+                        ? 'Perpanjangan $noHak disetujui.'
+                        : 'Perpanjangan $noHak ditolak.',
+                  ),
+                  backgroundColor: approve
+                      ? AppTheme.accentGreen
+                      : AppTheme.dangerRed,
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              );
+              if (pending.length <= 1) Navigator.pop(sheetContext);
+            }
+
+            return Container(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 16,
+                bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 24,
+              ),
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(sheetContext).size.height * 0.75,
+              ),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.black12,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ),
+                  const Text(
+                    'Pengajuan Perpanjangan',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${pending.length} pengajuan menunggu keputusan.',
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      color: Colors.black45,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  if (pending.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(
+                        child: Text(
+                          'Tidak ada pengajuan yang menunggu.',
+                          style: TextStyle(color: Colors.black45),
+                        ),
+                      ),
+                    )
+                  else
+                    Flexible(
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: pending.length,
+                        separatorBuilder: (_, __) => const Divider(height: 24),
+                        itemBuilder: (context, index) {
+                          final p = pending[index];
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${p.nama} — ${p.noHak}/${p.kelurahan}',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Batas saat ini: ${p.tanggalKembaliFormatted}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.black54,
+                                ),
+                              ),
+                              Text(
+                                'Diajukan menjadi: ${p.requestedTanggalKembali != null ? '${p.requestedTanggalKembali!.day.toString().padLeft(2, '0')}/${p.requestedTanggalKembali!.month.toString().padLeft(2, '0')}/${p.requestedTanggalKembali!.year}' : '-'}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppTheme.primaryGreen,
+                                ),
+                              ),
+                              if (p.extensionReason != null &&
+                                  p.extensionReason!.isNotEmpty) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Alasan: ${p.extensionReason}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.black45,
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: 10),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: OutlinedButton(
+                                      onPressed: () => _decide(p.noHak, false),
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: AppTheme.dangerRed,
+                                        side: const BorderSide(
+                                          color: AppTheme.dangerRed,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            30,
+                                          ),
+                                        ),
+                                      ),
+                                      child: const Text('Tolak'),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: ElevatedButton(
+                                      onPressed: () => _decide(p.noHak, true),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: AppTheme.accentGreen,
+                                        elevation: 0,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            30,
+                                          ),
+                                        ),
+                                      ),
+                                      child: const Text(
+                                        'Setujui',
+                                        style: TextStyle(color: Colors.white),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -910,6 +1242,7 @@ class _HomePageState extends State<HomePage> {
             _buildHeader(),
             const SizedBox(height: 18),
             _buildAdminExtensionBanner(),
+            _buildPegawaiOverdueBanner(),
             _buildPersonalSummary(),
             const SizedBox(height: 10),
             _buildQuickAccessGrid(),

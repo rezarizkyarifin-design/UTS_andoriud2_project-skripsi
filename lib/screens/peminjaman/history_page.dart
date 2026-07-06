@@ -3,6 +3,7 @@ import '../../models/peminjaman.dart';
 import '../../services/peminjaman_service.dart';
 import '../../data.dart';
 import '../../routes/app_routes.dart';
+import '../../services/auth_service.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/app_bottom_nav.dart';
 
@@ -56,6 +57,14 @@ class _HistoryPageState extends State<HistoryPage> {
   void _navigateAndRefresh(String route) async {
     await Navigator.pushNamed(context, route);
     _refresh();
+  }
+
+  // ─── Item 1: sama seperti HomePage — badge bell mengikuti role.
+  int _notifCount() {
+    if (AuthService.isAdmin) {
+      return PeminjamanService.getPengajuanPerpanjangan().length;
+    }
+    return PeminjamanService.getBelumKembaliBrp();
   }
 
   bool get _isFiltering =>
@@ -187,6 +196,25 @@ class _HistoryPageState extends State<HistoryPage> {
                 style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
+              if (AuthService.isAdmin &&
+                  PeminjamanService.getPengajuanPerpanjangan().isNotEmpty)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(
+                    Icons.pending_actions,
+                    color: Color(0xFFB07A00),
+                  ),
+                  title: Text(
+                    '${PeminjamanService.getPengajuanPerpanjangan().length} pengajuan perpanjangan menunggu persetujuan',
+                  ),
+                  subtitle: const Text(
+                    'Buka Dashboard untuk meninjau dan memutuskan.',
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.pushReplacementNamed(context, AppRoutes.home);
+                  },
+                ),
               if (terlambat > 0)
                 ListTile(
                   contentPadding: EdgeInsets.zero,
@@ -344,10 +372,12 @@ class _HistoryPageState extends State<HistoryPage> {
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: const Icon(
-                      Icons.list_alt,
-                      color: _primaryGreen,
-                      size: 15,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: Image.network(
+                        'https://pbs.twimg.com/profile_images/1525051472873783296/zBL0VecH_400x400.jpg',
+                        fit: BoxFit.cover,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -369,9 +399,41 @@ class _HistoryPageState extends State<HistoryPage> {
                     tooltip: 'Refresh',
                   ),
                   IconButton(
-                    icon: const Icon(
-                      Icons.notifications_outlined,
-                      color: Colors.white,
+                    icon: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        const Icon(
+                          Icons.notifications_outlined,
+                          color: Colors.white,
+                        ),
+                        if (_notifCount() > 0)
+                          Positioned(
+                            right: -2,
+                            top: -2,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                              ),
+                              constraints: const BoxConstraints(
+                                minWidth: 15,
+                                minHeight: 15,
+                              ),
+                              decoration: const BoxDecoration(
+                                color: Colors.redAccent,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Text(
+                                _notifCount() > 9 ? '9+' : '${_notifCount()}',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                     onPressed: _showNotifications,
                     tooltip: 'Notifikasi',
@@ -885,6 +947,44 @@ class _HistoryPageState extends State<HistoryPage> {
                 ),
                 if (p.status == 'Dipinjam') ...[
                   const SizedBox(height: 4),
+                  // ── Item 2: akses ulang QR/barcode selama dokumen masih
+                  // dipinjam (mis. label fisik hilang/rusak, perlu cetak lagi).
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        Navigator.pushNamed(
+                          context,
+                          AppRoutes.barcode,
+                          arguments: {
+                            'noHak': p.noHak,
+                            'nama': p.nama,
+                            'kelurahan': p.kelurahan,
+                            'tanggalPinjam': p.tanggalPinjamFormatted,
+                            'tanggalKembali': p.tanggalKembaliFormatted,
+                          },
+                        );
+                      },
+                      icon: const Icon(Icons.qr_code_2_rounded, size: 18),
+                      label: const Text(
+                        'Lihat Barcode',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: _accentGreen,
+                        side: const BorderSide(color: _accentGreen),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
@@ -1111,6 +1211,37 @@ class _HistoryPageState extends State<HistoryPage> {
                               style: const TextStyle(
                                 fontSize: 12,
                                 color: Colors.black38,
+                              ),
+                            ),
+                          ],
+                        ),
+                        // ── Item 3: mulai & batas peminjaman langsung di
+                        // card, tanpa perlu buka detail.
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Mulai: ${peminjaman.tanggalPinjamFormatted}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.black45,
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: Text(
+                                'Batas: ${peminjaman.tanggalKembaliFormatted}',
+                                textAlign: TextAlign.end,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color:
+                                      peminjaman.status == 'Dipinjam' &&
+                                          peminjaman.isOverdue
+                                      ? _overdueRed
+                                      : Colors.black45,
+                                ),
                               ),
                             ),
                           ],

@@ -154,8 +154,23 @@ class _ReturnPageState extends State<ReturnPage> {
     );
   }
 
-  // ─── PERPANJANG WAKTU (dengan konfirmasi) ───
+  // ─── AJUKAN PERPANJANGAN WAKTU (dengan konfirmasi + alasan) ───
+  // Item 4: Pegawai tidak lagi memperpanjang langsung — pengajuan masuk
+  // antrean (PeminjamanService.ajukanPerpanjangan) dan menunggu keputusan
+  // Admin lewat banner/notifikasi perpanjangan di HomePage.
   Future<void> _perpanjangWaktu(Peminjaman p) async {
+    if (p.isExtensionPending) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Sudah ada pengajuan perpanjangan yang menunggu persetujuan Admin.',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
     final now = DateTime.now();
     final picked = await showDatePicker(
       context: context,
@@ -178,18 +193,39 @@ class _ReturnPageState extends State<ReturnPage> {
     );
     if (picked == null || !mounted) return;
 
-    // Placeholder untuk approval admin: saat ini langsung diterapkan setelah
-    // konfirmasi. Kalau sistem role admin sudah ada, ganti alur ini jadi
-    // "kirim permintaan perpanjangan" yang butuh di-approve akun admin.
+    final alasanController = TextEditingController();
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: const Text('Konfirmasi Perpanjangan'),
-        content: Text(
-          'Perpanjang batas waktu peminjaman ${p.noHak} atas nama ${p.nama} '
-          'menjadi ${picked.day.toString().padLeft(2, '0')}/'
-          '${picked.month.toString().padLeft(2, '0')}/${picked.year}?',
+        title: const Text('Ajukan Perpanjangan'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Ajukan perpanjangan batas waktu peminjaman ${p.noHak} atas nama '
+              '${p.nama} menjadi ${picked.day.toString().padLeft(2, '0')}/'
+              '${picked.month.toString().padLeft(2, '0')}/${picked.year}?',
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: alasanController,
+              maxLines: 2,
+              decoration: InputDecoration(
+                hintText: 'Alasan perpanjangan',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                contentPadding: const EdgeInsets.all(12),
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Pengajuan ini akan masuk antrean dan menunggu persetujuan Admin.',
+              style: TextStyle(fontSize: 11.5, color: Colors.black45),
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -204,7 +240,7 @@ class _ReturnPageState extends State<ReturnPage> {
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            child: const Text('Ya, Perpanjang'),
+            child: const Text('Ajukan'),
           ),
         ],
       ),
@@ -212,13 +248,21 @@ class _ReturnPageState extends State<ReturnPage> {
 
     if (confirmed != true) return;
 
-    PeminjamanService.perpanjang(p.noHak, picked);
+    final ok = PeminjamanService.ajukanPerpanjangan(
+      p.noHak,
+      picked,
+      alasanController.text.trim(),
+    );
     _refresh();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: const Text('Waktu peminjaman berhasil diperpanjang.'),
-        backgroundColor: _accentGreen,
+        content: Text(
+          ok
+              ? 'Pengajuan perpanjangan terkirim, menunggu persetujuan Admin.'
+              : 'Gagal mengajukan perpanjangan. Coba lagi.',
+        ),
+        backgroundColor: ok ? _accentGreen : Colors.red.shade400,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
@@ -411,21 +455,36 @@ class _ReturnPageState extends State<ReturnPage> {
                       const SizedBox(width: 10),
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: () {
-                            Navigator.pop(context);
-                            _perpanjangWaktu(p);
-                          },
-                          icon: const Icon(Icons.more_time, size: 18),
-                          label: const Text(
-                            'Perpanjang',
-                            style: TextStyle(
+                          onPressed: p.isExtensionPending
+                              ? null
+                              : () {
+                                  Navigator.pop(context);
+                                  _perpanjangWaktu(p);
+                                },
+                          icon: Icon(
+                            p.isExtensionPending
+                                ? Icons.hourglass_top_rounded
+                                : Icons.more_time,
+                            size: 18,
+                          ),
+                          label: Text(
+                            p.isExtensionPending
+                                ? 'Menunggu Persetujuan'
+                                : 'Perpanjang',
+                            style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: _overdueRed,
-                            side: const BorderSide(color: _overdueRed),
+                            foregroundColor: p.isExtensionPending
+                                ? Colors.black45
+                                : _overdueRed,
+                            side: BorderSide(
+                              color: p.isExtensionPending
+                                  ? Colors.black26
+                                  : _overdueRed,
+                            ),
                             padding: const EdgeInsets.symmetric(vertical: 13),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(30),
@@ -555,10 +614,12 @@ class _ReturnPageState extends State<ReturnPage> {
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: const Icon(
-                      Icons.assignment_return,
-                      color: _primaryGreen,
-                      size: 15,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: Image.network(
+                        'https://pbs.twimg.com/profile_images/1525051472873783296/zBL0VecH_400x400.jpg',
+                        fit: BoxFit.cover,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -1109,18 +1170,33 @@ class _ReturnPageState extends State<ReturnPage> {
                               const SizedBox(width: 10),
                               Expanded(
                                 child: OutlinedButton.icon(
-                                  onPressed: () => _perpanjangWaktu(p),
-                                  icon: const Icon(Icons.more_time, size: 18),
-                                  label: const Text(
-                                    'Perpanjang',
-                                    style: TextStyle(
+                                  onPressed: p.isExtensionPending
+                                      ? null
+                                      : () => _perpanjangWaktu(p),
+                                  icon: Icon(
+                                    p.isExtensionPending
+                                        ? Icons.hourglass_top_rounded
+                                        : Icons.more_time,
+                                    size: 18,
+                                  ),
+                                  label: Text(
+                                    p.isExtensionPending
+                                        ? 'Menunggu Persetujuan'
+                                        : 'Perpanjang',
+                                    style: const TextStyle(
                                       fontSize: 13,
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),
                                   style: OutlinedButton.styleFrom(
-                                    foregroundColor: _overdueRed,
-                                    side: const BorderSide(color: _overdueRed),
+                                    foregroundColor: p.isExtensionPending
+                                        ? Colors.black45
+                                        : _overdueRed,
+                                    side: BorderSide(
+                                      color: p.isExtensionPending
+                                          ? Colors.black26
+                                          : _overdueRed,
+                                    ),
                                     padding: const EdgeInsets.symmetric(
                                       vertical: 12,
                                     ),
