@@ -5,6 +5,7 @@ import '../../data.dart';
 import '../../routes/app_routes.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/app_bottom_nav.dart';
+import '../../widgets/app_scan_fab.dart';
 
 class FormPage extends StatefulWidget {
   const FormPage({super.key});
@@ -447,11 +448,15 @@ class _FormPageState extends State<FormPage> {
                 color: isDisabled ? Colors.black26 : Colors.black38,
               ),
               const SizedBox(width: 10),
-              Text(
-                placeholder,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: isDisabled ? Colors.black26 : Colors.black38,
+              Expanded(
+                child: Text(
+                  placeholder,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: isDisabled ? Colors.black26 : Colors.black38,
+                  ),
                 ),
               ),
             ],
@@ -463,11 +468,15 @@ class _FormPageState extends State<FormPage> {
                     const SizedBox(width: 8),
                     Icon(icon, size: 18, color: _accentGreen),
                     const SizedBox(width: 10),
-                    Text(
-                      item,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Colors.black87,
+                    Expanded(
+                      child: Text(
+                        item,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Colors.black87,
+                        ),
                       ),
                     ),
                   ],
@@ -480,7 +489,12 @@ class _FormPageState extends State<FormPage> {
                     .map(
                       (item) => DropdownMenuItem<String>(
                         value: item,
-                        child: Text(item, style: const TextStyle(fontSize: 14)),
+                        child: Text(
+                          item,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 14),
+                        ),
                       ),
                     )
                     .toList(),
@@ -573,6 +587,10 @@ class _FormPageState extends State<FormPage> {
         activeIndex: _selectedNavIndex,
         onItemSelected: _onNavTap,
       ),
+      floatingActionButton: AppScanFab(
+        onTap: () => _navigateAndRefresh(AppRoutes.scan),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

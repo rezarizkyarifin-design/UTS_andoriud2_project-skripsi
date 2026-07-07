@@ -1022,6 +1022,8 @@ class _ReturnPageState extends State<ReturnPage> {
                                 children: [
                                   Text(
                                     p.nama,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
                                       fontSize: 15,
                                       fontWeight: FontWeight.bold,
@@ -1083,10 +1085,12 @@ class _ReturnPageState extends State<ReturnPage> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Text(
-                                      'NOMOR HAK',
-                                      style: TextStyle(
-                                        fontSize: 10,
+                                    Text(
+                                      p.jenisHak,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 11,
                                         fontWeight: FontWeight.w600,
                                         color: Colors.black38,
                                         letterSpacing: 0.3,
@@ -1095,6 +1099,8 @@ class _ReturnPageState extends State<ReturnPage> {
                                     const SizedBox(height: 3),
                                     Text(
                                       '${p.noHak}/${p.kelurahan}',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
                                         fontSize: 13,
                                         fontWeight: FontWeight.bold,

@@ -726,35 +726,53 @@ class _HomePageState extends State<HomePage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: overdue
-                                ? const Color(0xFFFDE2E1)
-                                : p.status == 'Dipinjam'
-                                ? const Color(0xFFFFF3D9)
-                                : const Color(0xFFD8F3DC),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            overdue
-                                ? 'Terlambat'
-                                : (p.status == 'Dipinjam'
-                                      ? 'Dipinjam'
-                                      : 'Kembali'),
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: overdue
-                                  ? AppTheme.dangerRed
-                                  : p.status == 'Dipinjam'
-                                  ? const Color(0xFFB07A00)
-                                  : AppTheme.accentGreen,
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                p.jenisHak,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black45,
+                                ),
+                              ),
                             ),
-                          ),
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: overdue
+                                    ? const Color(0xFFFDE2E1)
+                                    : p.status == 'Dipinjam'
+                                    ? const Color(0xFFFFF3D9)
+                                    : const Color(0xFFD8F3DC),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                overdue
+                                    ? 'Terlambat'
+                                    : (p.status == 'Dipinjam'
+                                          ? 'Dipinjam'
+                                          : 'Kembali'),
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: overdue
+                                      ? AppTheme.dangerRed
+                                      : p.status == 'Dipinjam'
+                                      ? const Color(0xFFB07A00)
+                                      : AppTheme.accentGreen,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 8),
                         Text(

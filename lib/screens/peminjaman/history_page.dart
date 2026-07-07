@@ -614,11 +614,26 @@ class _HistoryPageState extends State<HistoryPage> {
                     isExpanded: true,
                     hint: Text(
                       placeholder,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 14,
                         color: isDisabled ? Colors.black26 : Colors.black38,
                       ),
                     ),
+                    selectedItemBuilder: (ctx) => items
+                        .map(
+                          (item) => Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              item,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 14),
+                            ),
+                          ),
+                        )
+                        .toList(),
                     items: isDisabled
                         ? null
                         : items
@@ -627,6 +642,8 @@ class _HistoryPageState extends State<HistoryPage> {
                                   value: item,
                                   child: Text(
                                     item,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(fontSize: 14),
                                   ),
                                 ),
@@ -1082,12 +1099,27 @@ class _HistoryPageState extends State<HistoryPage> {
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            CircleAvatar(
+                              radius: 18,
+                              backgroundColor: const Color(0xFFD8F3DC),
+                              child: Text(
+                                _initials(peminjaman.nama),
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: _primaryGreen,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
                                     peminjaman.nama,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.bold,
@@ -1165,16 +1197,22 @@ class _HistoryPageState extends State<HistoryPage> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Text(
-                                      'Nomor Hak',
-                                      style: TextStyle(
+                                    Text(
+                                      peminjaman.jenisHak,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
                                         fontSize: 11,
+                                        fontWeight: FontWeight.w600,
                                         color: Colors.black38,
+                                        letterSpacing: 0.3,
                                       ),
                                     ),
                                     const SizedBox(height: 2),
                                     Text(
                                       '${peminjaman.noHak}/${peminjaman.kelurahan}',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
                                         fontSize: 14,
                                         fontWeight: FontWeight.bold,
@@ -1192,29 +1230,15 @@ class _HistoryPageState extends State<HistoryPage> {
                           ),
                         ),
                         const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 14,
-                              backgroundColor: const Color(0xFFD8F3DC),
-                              child: Text(
-                                _initials(peminjaman.nama),
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: _primaryGreen,
-                                ),
-                              ),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: Text(
+                            _relativeTime(peminjaman.tanggalPinjam),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.black38,
                             ),
-                            const Spacer(),
-                            Text(
-                              _relativeTime(peminjaman.tanggalPinjam),
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Colors.black38,
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                         // ── Item 3: mulai & batas peminjaman langsung di
                         // card, tanpa perlu buka detail.
