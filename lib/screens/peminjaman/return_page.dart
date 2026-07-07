@@ -5,6 +5,7 @@ import '../../data.dart';
 import '../../routes/app_routes.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/app_bottom_nav.dart';
+import '../../widgets/app_scan_fab.dart';
 
 class ReturnPage extends StatefulWidget {
   const ReturnPage({super.key});
@@ -1256,6 +1257,10 @@ class _ReturnPageState extends State<ReturnPage> {
         activeIndex: _selectedNavIndex,
         onItemSelected: _onNavTap,
       ),
+      floatingActionButton: AppScanFab(
+        onTap: () => _navigateAndRefresh(AppRoutes.scan),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       body: Column(
         children: [
           Stack(

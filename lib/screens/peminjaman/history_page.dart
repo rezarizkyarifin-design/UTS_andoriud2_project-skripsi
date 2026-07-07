@@ -6,6 +6,7 @@ import '../../routes/app_routes.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/app_bottom_nav.dart';
+import '../../widgets/app_scan_fab.dart';
 
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
@@ -1293,6 +1294,10 @@ class _HistoryPageState extends State<HistoryPage> {
         activeIndex: _selectedNavIndex,
         onItemSelected: _onNavTap,
       ),
+      floatingActionButton: AppScanFab(
+        onTap: () => _navigateAndRefresh(AppRoutes.scan),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       body: Column(
         children: [
           Stack(

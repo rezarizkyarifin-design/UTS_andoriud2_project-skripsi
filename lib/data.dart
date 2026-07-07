@@ -11,14 +11,49 @@ class DummyData {
   ];
 
   static const Map<String, List<String>> kelurahan = {
-    'Cibeber': ['Bulakan', 'Cibeber', 'Cikerai', 'Kalitimbang', 'Karangasem', 'Kedaleman'],
-    'Cilegon': [],
-    'Citangkil': [],
-    'Ciwand': [],
-    'Gerogol': [],
-    'Jombang': [],
-    'Pulomerak': [],
-    'Purwakarta': [],
+    'Cibeber': [
+      'Bulakan',
+      'Cibeber',
+      'Cikerai',
+      'Kalitimbang',
+      'Karangasem',
+      'Kedaleman',
+    ],
+    'Cilegon': ['Bagendung', 'Bendungan', 'Ciwaduk', 'Ciwedus', 'Ketileng'],
+    'Citangkil': [
+      'Citangkil',
+      'Deringo',
+      'Kebonsari',
+      'Lebakdenok',
+      'Samangraya',
+      'Tamanbaru',
+      'Warnasari',
+    ],
+    'Ciwand': [
+      'Banjarnegara',
+      'Gunungsugih',
+      'Kepuh',
+      'Kubangsari',
+      'Randakari',
+      'Tegalratu',
+    ],
+    'Gerogol': ['Gerem', 'Gerogol', 'Kotasari', 'Rawa Arum'],
+    'Jombang': [
+      'Gedong Dalem',
+      'Jombang Wetan',
+      'Masigit',
+      'Panggung Rawi',
+      'Sukmajaya',
+    ],
+    'Pulomerak': ['Lebak Gede', 'Mekarsari', 'Suralaya', 'Tamansari'],
+    'Purwakarta': [
+      'Kebondalem',
+      'Kotabumi',
+      'Pabean',
+      'Purwakarta',
+      'Ramanuju',
+      'Tegal Bunder',
+    ],
   };
 
   static const List<String> jenisHak = [

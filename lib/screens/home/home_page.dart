@@ -6,6 +6,7 @@ import '../../models/peminjaman.dart';
 import '../../core/theme/app_theme.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/app_bottom_nav.dart';
+import '../../widgets/app_scan_fab.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -340,58 +341,20 @@ class _HomePageState extends State<HomePage> {
                   borderRadius: BorderRadius.circular(18),
                   border: Border.all(color: Colors.white.withOpacity(0.15)),
                 ),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Selamat datang kembali,',
-                            style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: 12,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Halo, ${AuthService.currentUser?.nama ?? 'Pengguna'}!',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
+                    const Text(
+                      'Selamat datang kembali,',
+                      style: TextStyle(color: Colors.white70, fontSize: 12),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
+                    const SizedBox(height: 2),
+                    Text(
+                      'Halo, ${AuthService.currentUser?.nama ?? 'Pengguna'}!',
+                      style: const TextStyle(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.qr_code_scanner,
-                            size: 16,
-                            color: AppTheme.primaryGreen,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Scan',
-                            style: const TextStyle(
-                              color: AppTheme.primaryGreen,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ],
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ],
@@ -1235,6 +1198,10 @@ class _HomePageState extends State<HomePage> {
         activeIndex: _selectedNavIndex,
         onItemSelected: _onNavTap,
       ),
+      floatingActionButton: AppScanFab(
+        onTap: () => _navigateAndRefresh(AppRoutes.scan),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

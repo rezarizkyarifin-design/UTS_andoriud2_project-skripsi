@@ -1,13 +1,6 @@
 import 'package:flutter/material.dart';
 import '../core/theme/app_theme.dart';
 
-/// Shared bottom navigation bar, used identically across every main page.
-///
-/// This widget is intentionally "dumb" — it only renders and reports taps.
-/// Each page decides what a tap on a given index actually *does* (e.g.
-/// HomePage does `setState` on index 0 but pushes+refreshes on index 1;
-/// HistoryPage does the opposite for its own index). That behavior isn't
-/// something a shared widget should own, so it's left to `onItemSelected`.
 class AppBottomNav extends StatelessWidget {
   const AppBottomNav({
     super.key,
@@ -28,66 +21,79 @@ class AppBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 12,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
+    return BottomAppBar(
+      shape: const CircularNotchedRectangle(),
+      notchMargin: 8,
+      color: Colors.white,
+      elevation: 4,
+      height: 68,
       child: SafeArea(
         top: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: List.generate(_items.length, (index) {
-              final isSelected = activeIndex == index;
-              return GestureDetector(
-                onTap: () => onItemSelected(index),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      _items[index]['icon'] as IconData,
-                      color: isSelected
-                          ? AppTheme.primaryGreen
-                          : Colors.black38,
-                      size: 24,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _items[index]['label'] as String,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: isSelected
-                            ? AppTheme.primaryGreen
-                            : Colors.black38,
-                        fontWeight: isSelected
-                            ? FontWeight.w600
-                            : FontWeight.normal,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      width: isSelected ? 6 : 0,
-                      height: isSelected ? 6 : 0,
-                      decoration: const BoxDecoration(
-                        color: AppTheme.primaryGreen,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }),
-          ),
+        bottom: false,
+        child: Row(
+          children: [
+            Expanded(child: _buildItem(0)),
+            Expanded(child: _buildItem(1)),
+
+            const SizedBox(width: 52),
+
+            Expanded(child: _buildItem(2)),
+            Expanded(child: _buildItem(3)),
+          ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildItem(int index) {
+    final item = _items[index];
+    final isSelected = activeIndex == index;
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => onItemSelected(index),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            item['icon'] as IconData,
+            color: isSelected ? AppTheme.primaryGreen : Colors.black38,
+            size: 22,
+          ),
+          const SizedBox(height: 2),
+          Flexible(
+            child: Text(
+              item['label'] as String,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 10.5,
+                height: 1.0,
+                color: isSelected ? AppTheme.primaryGreen : Colors.black38,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
+          ),
+          const SizedBox(height: 2),
+          SizedBox(
+            height: 4,
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 200),
+              opacity: isSelected ? 1 : 0,
+              child: const SizedBox(
+                width: 4,
+                height: 4,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryGreen,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
