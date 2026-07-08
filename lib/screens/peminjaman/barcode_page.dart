@@ -33,12 +33,14 @@ class _BarcodePageState extends State<BarcodePage> {
     required String noHak,
     required String nama,
     required String kelurahan,
+    required String jenisHak,
     required String tanggalPinjam,
     required String tanggalKembali,
   }) async {
     setState(() => _isPrinting = true);
     try {
       await PrintingService.printBarcodeLabel(
+        jenisHak: jenisHak,
         noHak: noHak,
         nama: nama,
         kelurahan: kelurahan,
@@ -122,6 +124,7 @@ class _BarcodePageState extends State<BarcodePage> {
     final noHak = args?['noHak'] ?? 'UNKNOWN';
     final nama = args?['nama'] ?? '-';
     final kelurahan = args?['kelurahan'] ?? '-';
+    final jenisHak = args?['jenisHak'] ?? '-';
     final tanggalPinjam = args?['tanggalPinjam'] ?? '-';
     final tanggalKembali = args?['tanggalKembali'] ?? '-';
 
@@ -237,7 +240,7 @@ class _BarcodePageState extends State<BarcodePage> {
                       ),
                       const SizedBox(height: 18),
 
-                      // ── Nama + No. Hak box (with copy button)
+                      // ── Jenis Hak (label) + No. Hak box (with copy button)
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.symmetric(
@@ -260,9 +263,11 @@ class _BarcodePageState extends State<BarcodePage> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text(
-                                    'Nomor Hak',
-                                    style: TextStyle(
+                                  Text(
+                                    jenisHak,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
                                       fontSize: 11,
                                       color: Colors.black38,
                                     ),
@@ -333,6 +338,7 @@ class _BarcodePageState extends State<BarcodePage> {
                   onPressed: _isPrinting
                       ? null
                       : () => _cetak(
+                          jenisHak: jenisHak,
                           noHak: noHak,
                           nama: nama,
                           kelurahan: kelurahan,

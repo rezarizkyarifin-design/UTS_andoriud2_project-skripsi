@@ -14,13 +14,11 @@ import 'package:share_plus/share_plus.dart';
 class PrintingService {
   PrintingService._();
 
-  /// Opens the native Print Document dialog with a small label-sized PDF
-  /// (QR + nomor hak + tanggal) sized to be printed and stuck onto the
-  /// physical buku tanah.
   static Future<void> printBarcodeLabel({
     required String noHak,
     required String nama,
     required String kelurahan,
+    required String jenisHak,
     required String tanggalPinjam,
     required String tanggalKembali,
   }) async {
@@ -51,6 +49,12 @@ class PrintingService {
                 ),
               ),
               pw.SizedBox(height: 10),
+              pw.Text(
+                jenisHak,
+                style: const pw.TextStyle(fontSize: 8),
+                textAlign: pw.TextAlign.center,
+              ),
+              pw.SizedBox(height: 2),
               pw.Text(
                 noHak,
                 style: pw.TextStyle(

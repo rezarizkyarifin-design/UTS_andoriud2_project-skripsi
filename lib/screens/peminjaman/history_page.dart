@@ -979,6 +979,7 @@ class _HistoryPageState extends State<HistoryPage> {
                             'noHak': p.noHak,
                             'nama': p.nama,
                             'kelurahan': p.kelurahan,
+                            'jenisHak': p.jenisHak,
                             'tanggalPinjam': p.tanggalPinjamFormatted,
                             'tanggalKembali': p.tanggalKembaliFormatted,
                           },

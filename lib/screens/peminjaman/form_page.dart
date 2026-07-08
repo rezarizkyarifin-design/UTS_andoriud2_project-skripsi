@@ -173,6 +173,7 @@ class _FormPageState extends State<FormPage> {
         'noHak': peminjaman.noHak,
         'nama': peminjaman.nama,
         'kelurahan': peminjaman.kelurahan,
+        'jenisHak': peminjaman.jenisHak,
         'tanggalPinjam': _formatDate(peminjaman.tanggalPinjam),
         'tanggalKembali': _formatDate(peminjaman.tanggalKembali),
       },

@@ -139,6 +139,8 @@ class _ScanPageState extends State<ScanPage>
               const SizedBox(height: 4),
               Text('Seksi: ${p.seksi}'),
               const SizedBox(height: 4),
+              Text('Jenis Hak: ${p.jenisHak}'),
+              const SizedBox(height: 4),
               Text('No. Hak: ${p.noHak}'),
               const SizedBox(height: 12),
               const Text(
