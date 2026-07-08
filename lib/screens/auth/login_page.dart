@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../routes/app_routes.dart';
 import '../../services/auth_service.dart';
+import '../../core/theme/app_theme.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -16,6 +18,14 @@ class _LoginPageState extends State<LoginPage> {
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
+  static const _forestDark = Color(0xFF0F2A1E);
+  static const _sage = Color(0xFF3D8361);
+  static const _gold = Color(0xFFC08A3E);
+  static const _parchment = Color(0xFFFAF6EE);
+  static const _fieldFill = Color(0xFFF3EFE4);
+  static const _ink = Color(0xFF1E2A22);
+  static const _waveHeight = 320.0;
+
   @override
   void dispose() {
     _usernameController.dispose();
@@ -28,8 +38,6 @@ class _LoginPageState extends State<LoginPage> {
       final username = _usernameController.text.trim();
       final password = _passwordController.text;
 
-      // Guard against double-tap re-entry while the (currently synchronous,
-      // in-memory) auth check runs.
       setState(() => _isSubmitting = true);
 
       final success = AuthService.login(username, password);
@@ -38,9 +46,6 @@ class _LoginPageState extends State<LoginPage> {
       setState(() => _isSubmitting = false);
 
       if (success) {
-        // Role (Admin/Pegawai) is now on AuthService.currentUser — HomePage
-        // and everything downstream reads it from there, so this route is
-        // the same regardless of role.
         Navigator.pushReplacementNamed(context, AppRoutes.home);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -56,138 +61,222 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF0D47A1), Color(0xFF1976D2)],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-              ),
-            ),
-          ),
-          Positioned(
-            top: 40,
-            right: -50,
-            child: Container(
-              width: 150,
-              height: 150,
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.12),
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: -70,
-            left: -40,
-            child: Container(
-              width: 200,
-              height: 200,
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.14),
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
-          SafeArea(
-            child: Column(
-              children: [
-                // Header dengan Logo BPN dan Teks
-                Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 60,
-                        height: 60,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
-                              blurRadius: 8,
-                              offset: const Offset(0, 4),
+      backgroundColor: _parchment,
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: IntrinsicHeight(
+                child: Column(
+                  children: [
+                    // ── Header: terrain-line silhouette, not a water wave —
+                    SizedBox(
+                      height: _waveHeight,
+                      width: double.infinity,
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          ClipPath(
+                            clipper: _TerrainClipper(),
+                            child: Stack(
+                              children: [
+                                Container(
+                                  height: _waveHeight,
+                                  width: double.infinity,
+                                  decoration: const BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        _forestDark,
+                                        AppTheme.primaryGreen,
+                                        _sage,
+                                      ],
+                                      stops: [0.0, 0.55, 1.0],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    ),
+                                  ),
+                                ),
+                                // Faint cadastral grid — a quiet nod to
+                                // land-survey plot lines, not decoration
+                                // for its own sake.
+                                Positioned.fill(
+                                  child: CustomPaint(painter: _GridPainter()),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                        child: ClipOval(
-                          child: Image.network(
-                            'https://pbs.twimg.com/profile_images/1525051472873783296/zBL0VecH_400x400.jpg',
-                            fit: BoxFit.cover,
                           ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'Arsip Kantah Kota Cilegon',
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: Center(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 24,
-                      ),
-                      child: Container(
-                        padding: const EdgeInsets.all(28),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(24),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.12),
-                              blurRadius: 24,
-                              offset: const Offset(0, 8),
+                          Positioned(
+                            top: 18,
+                            right: 22,
+                            child: Transform.rotate(
+                              angle: 0.09,
+                              child: Container(
+                                width: 68,
+                                height: 68,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: _gold.withOpacity(0.55),
+                                    width: 1.3,
+                                  ),
+                                ),
+                                child: Center(
+                                  child: Container(
+                                    width: 48,
+                                    height: 48,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: _gold.withOpacity(0.4),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Icon(
+                                      Icons.shield_outlined,
+                                      color: _gold.withOpacity(0.85),
+                                      size: 20,
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ),
-                          ],
-                        ),
+                          ),
+                          SafeArea(
+                            bottom: false,
+                            child: Column(
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    20,
+                                    8,
+                                    20,
+                                    0,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 52,
+                                        height: 52,
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          shape: BoxShape.circle,
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.black.withOpacity(
+                                                0.2,
+                                              ),
+                                              blurRadius: 10,
+                                              offset: const Offset(0, 4),
+                                            ),
+                                          ],
+                                        ),
+                                        child: ClipOval(
+                                          child: Image.network(
+                                            'https://pbs.twimg.com/profile_images/1525051472873783296/zBL0VecH_400x400.jpg',
+                                            fit: BoxFit.cover,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Text(
+                                          'Arsip Kantah Kota Cilegon',
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: GoogleFonts.plusJakartaSans(
+                                            color: Colors.white,
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w700,
+                                            letterSpacing: 0.2,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 26),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 28,
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Selamat Datang,',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          color: Colors.white70,
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Silakan Masuk',
+                                        style: GoogleFonts.newsreader(
+                                          color: Colors.white,
+                                          fontSize: 34,
+                                          fontWeight: FontWeight.w600,
+                                          height: 1.05,
+                                          letterSpacing: -0.4,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // ── Form: warm parchment, centered in remaining space.
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(28, 28, 28, 24),
                         child: Column(
-                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            const Text(
-                              'Selamat Datang',
-                              style: TextStyle(
-                                fontSize: 26,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            const Text(
+                            Text(
                               'Masuk untuk mengelola peminjaman arsip dokumen Anda.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.black54,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 13.5,
+                                color: _ink.withOpacity(0.6),
+                                height: 1.4,
                               ),
                             ),
-                            const SizedBox(height: 28),
+                            const SizedBox(height: 22),
                             Form(
                               key: _formKey,
                               child: Column(
                                 children: [
                                   TextFormField(
                                     controller: _usernameController,
+                                    style: GoogleFonts.plusJakartaSans(
+                                      color: _ink,
+                                    ),
                                     decoration: InputDecoration(
                                       labelText: 'Username',
-                                      prefixIcon: const Icon(Icons.person),
+                                      labelStyle: GoogleFonts.plusJakartaSans(),
+                                      prefixIcon: const Icon(
+                                        Icons.person_outline,
+                                        color: _ink,
+                                      ),
+                                      filled: true,
+                                      fillColor: _fieldFill,
                                       border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(14),
+                                        borderRadius: BorderRadius.circular(16),
+                                        borderSide: BorderSide.none,
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                        borderSide: const BorderSide(
+                                          color: _gold,
+                                          width: 1.6,
+                                        ),
                                       ),
                                     ),
                                     validator: (value) {
@@ -202,14 +291,22 @@ class _LoginPageState extends State<LoginPage> {
                                   TextFormField(
                                     controller: _passwordController,
                                     obscureText: isPasswordHidden,
+                                    style: GoogleFonts.plusJakartaSans(
+                                      color: _ink,
+                                    ),
                                     decoration: InputDecoration(
                                       labelText: 'Password',
-                                      prefixIcon: const Icon(Icons.lock),
+                                      labelStyle: GoogleFonts.plusJakartaSans(),
+                                      prefixIcon: const Icon(
+                                        Icons.lock_outline,
+                                        color: _ink,
+                                      ),
                                       suffixIcon: IconButton(
                                         icon: Icon(
                                           isPasswordHidden
                                               ? Icons.visibility_off
                                               : Icons.visibility,
+                                          color: _ink,
                                         ),
                                         onPressed: () {
                                           setState(() {
@@ -218,8 +315,18 @@ class _LoginPageState extends State<LoginPage> {
                                           });
                                         },
                                       ),
+                                      filled: true,
+                                      fillColor: _fieldFill,
                                       border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(14),
+                                        borderRadius: BorderRadius.circular(16),
+                                        borderSide: BorderSide.none,
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                        borderSide: const BorderSide(
+                                          color: _gold,
+                                          width: 1.6,
+                                        ),
                                       ),
                                     ),
                                     validator: (value) {
@@ -230,60 +337,180 @@ class _LoginPageState extends State<LoginPage> {
                                       return null;
                                     },
                                   ),
-                                  const SizedBox(height: 24),
+                                  const SizedBox(height: 26),
                                   SizedBox(
                                     width: double.infinity,
-                                    child: ElevatedButton(
-                                      style: ElevatedButton.styleFrom(
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 16,
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            14,
+                                    height: 52,
+                                    child: Column(
+                                      children: [
+                                        Expanded(
+                                          child: DecoratedBox(
+                                            decoration: BoxDecoration(
+                                              borderRadius:
+                                                  BorderRadius.circular(16),
+                                              gradient: const LinearGradient(
+                                                colors: [
+                                                  _forestDark,
+                                                  AppTheme.primaryGreen,
+                                                  _sage,
+                                                ],
+                                                stops: [0.0, 0.5, 1.0],
+                                                begin: Alignment.centerLeft,
+                                                end: Alignment.centerRight,
+                                              ),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: AppTheme.primaryGreen
+                                                      .withOpacity(0.35),
+                                                  blurRadius: 14,
+                                                  offset: const Offset(0, 8),
+                                                ),
+                                              ],
+                                            ),
+                                            child: Material(
+                                              color: Colors.transparent,
+                                              child: InkWell(
+                                                borderRadius:
+                                                    BorderRadius.circular(16),
+                                                onTap: _isSubmitting
+                                                    ? null
+                                                    : _handleLogin,
+                                                child: Center(
+                                                  child: _isSubmitting
+                                                      ? const SizedBox(
+                                                          width: 20,
+                                                          height: 20,
+                                                          child:
+                                                              CircularProgressIndicator(
+                                                                strokeWidth: 2,
+                                                                color: Colors
+                                                                    .white,
+                                                              ),
+                                                        )
+                                                      : Text(
+                                                          'Masuk',
+                                                          style:
+                                                              GoogleFonts.plusJakartaSans(
+                                                                fontSize: 16,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w600,
+                                                                color: Colors
+                                                                    .white,
+                                                                letterSpacing:
+                                                                    0.2,
+                                                              ),
+                                                        ),
+                                                ),
+                                              ),
+                                            ),
                                           ),
                                         ),
-                                      ),
-                                      onPressed: _isSubmitting
-                                          ? null
-                                          : _handleLogin,
-                                      child: _isSubmitting
-                                          ? const SizedBox(
-                                              width: 20,
-                                              height: 20,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                color: Colors.white,
-                                              ),
-                                            )
-                                          : const Text(
-                                              'Masuk',
-                                              style: TextStyle(fontSize: 16),
-                                            ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Container(
+                                    width: 36,
+                                    height: 3,
+                                    decoration: BoxDecoration(
+                                      color: _gold,
+                                      borderRadius: BorderRadius.circular(99),
                                     ),
                                   ),
                                 ],
                               ),
                             ),
-                            const SizedBox(height: 20),
-                            const Text(
-                              'Melayani Profesional dan Terpercaya',
-                              style: TextStyle(
-                                color: Colors.black54,
-                                fontSize: 12,
+                            const SizedBox(height: 22),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppTheme.primaryGreen.withOpacity(0.08),
+                                borderRadius: BorderRadius.circular(99),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.verified_outlined,
+                                    size: 14,
+                                    color: _gold,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'Melayani Profesional dan Terpercaya',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      color: AppTheme.primaryGreen,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
                         ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }
+}
+
+class _TerrainClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    final path = Path()..lineTo(0, size.height * 0.68);
+    path.cubicTo(
+      size.width * 0.30,
+      size.height * 0.95,
+      size.width * 0.55,
+      size.height * 0.55,
+      size.width * 0.78,
+      size.height * 0.72,
+    );
+    path.cubicTo(
+      size.width * 0.92,
+      size.height * 0.82,
+      size.width * 0.97,
+      size.height * 0.60,
+      size.width,
+      size.height * 0.68,
+    );
+    path.lineTo(size.width, 0);
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
+}
+
+class _GridPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white.withOpacity(0.05)
+      ..strokeWidth = 0.6;
+    const spacing = 28.0;
+    for (double x = 0; x < size.width; x += spacing) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+    }
+    for (double y = 0; y < size.height; y += spacing) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
