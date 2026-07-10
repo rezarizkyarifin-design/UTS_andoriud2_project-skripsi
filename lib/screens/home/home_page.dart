@@ -210,7 +210,7 @@ class _HomePageState extends State<HomePage> {
     );
     if (!mounted) return;
     if (selected == 'logout') {
-      await AuthService.logout();
+      AuthService.logout();
       if (!mounted) return;
       Navigator.pushReplacementNamed(context, AppRoutes.login);
     } else if (selected == 'profile') {
