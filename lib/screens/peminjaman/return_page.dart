@@ -127,14 +127,26 @@ class _ReturnPageState extends State<ReturnPage> {
             child: const Text('Batal', style: TextStyle(color: Colors.black54)),
           ),
           ElevatedButton(
-            onPressed: () {
-              PeminjamanService.kembalikan(p.noHak);
+            onPressed: () async {
+              bool ok = false;
+              String? errorMsg;
+              try {
+                ok = await PeminjamanService.kembalikan(p.noHak);
+              } catch (e) {
+                errorMsg = e.toString();
+              }
+              if (!mounted) return;
               Navigator.pop(context);
-              _refresh();
+              if (ok) _refresh();
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: const Text('Dokumen berhasil dikembalikan.'),
-                  backgroundColor: _accentGreen,
+                  content: Text(
+                    ok
+                        ? 'Dokumen berhasil dikembalikan.'
+                        : 'Gagal mengembalikan dokumen'
+                              '${errorMsg != null ? ': $errorMsg' : ' (data tidak ditemukan / akses ditolak).'}',
+                  ),
+                  backgroundColor: ok ? _accentGreen : Colors.red.shade400,
                   behavior: SnackBarBehavior.floating,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -148,7 +160,7 @@ class _ReturnPageState extends State<ReturnPage> {
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            child: const Text('Ya, Kembalikan'),
+            child: const Text('Konfirmasi'),
           ),
         ],
       ),
@@ -249,11 +261,12 @@ class _ReturnPageState extends State<ReturnPage> {
 
     if (confirmed != true) return;
 
-    final ok = PeminjamanService.ajukanPerpanjangan(
+    final ok = await PeminjamanService.ajukanPerpanjangan(
       p.noHak,
       picked,
       alasanController.text.trim(),
     );
+    if (!mounted) return;
     _refresh();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(

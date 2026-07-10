@@ -1,126 +1,216 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/peminjaman.dart';
 import 'auth_service.dart';
 
+/// ─── ARCHITECTURE NOTE ──────────────────────────────────────────────
+/// Your existing screens call PeminjamanService.getAll(),
+/// getSedangDipinjam(), etc. synchronously, directly inside build().
+/// Rewriting every screen to use FutureBuilder/StreamBuilder would be a
+/// large, risky change this late in the project.
+///
+/// Instead, this service keeps an in-memory `_cache` (same as before)
+/// that mirrors Supabase. Read methods (getAll, getSedangDipinjam, ...)
+/// stay 100% synchronous and unchanged from the caller's point of view.
+/// Write methods (tambah, kembalikan, ajukanPerpanjangan, ...) are now
+/// `Future`-returning: they write to Supabase first, then update the
+/// cache once Supabase confirms the write. Calling code just needs to
+/// add `await` in front of these calls (see checklist in chat).
 class PeminjamanService {
-  static final List<Peminjaman> _data = [];
+  PeminjamanService._();
 
-  static List<Peminjaman> getAll() => List.unmodifiable(_data);
+  static final SupabaseClient _client = Supabase.instance.client;
+  static final List<Peminjaman> _cache = [];
 
-  static void tambah(Peminjaman peminjaman) {
-    // Item 1/Phase 1 link: catat siapa (Pegawai) yang memproses peminjaman
-    // ini, kalau si pemanggil belum set `diampuOleh` sendiri.
+  static List<Peminjaman> getAll() => List.unmodifiable(_cache);
+
+  /// Call once after login (see main.dart / AuthService.tryRestoreSession)
+  /// and whenever you want to force a full re-sync (e.g. HistoryPage's
+  /// refresh button) to pull the latest data from Supabase into the cache.
+  static Future<void> refresh() async {
+    final rows = await _client
+        .from('peminjaman')
+        .select()
+        .order('created_at', ascending: false);
+    _cache
+      ..clear()
+      ..addAll(rows.map((row) => Peminjaman.fromMap(row)));
+  }
+
+  static Peminjaman? _findActiveByNoHak(String noHak) {
+    for (final p in _cache) {
+      if (p.noHak == noHak && p.status == 'Dipinjam') return p;
+    }
+    return null;
+  }
+
+  static void _replaceInCache(Peminjaman updated) {
+    final index = _cache.indexWhere((p) => p.id == updated.id);
+    if (index == -1) {
+      _cache.insert(0, updated);
+    } else {
+      _cache[index] = updated;
+    }
+  }
+
+  /// True if a no_hak already has an active (status == 'Dipinjam') loan.
+  /// Checked directly against Supabase rather than the local cache, so
+  /// it still catches a duplicate even if the cache is stale or another
+  /// device/session created the active loan.
+  static Future<bool> existsActiveNoHak(String noHak) async {
+    final rows = await _client
+        .from('peminjaman')
+        .select('id')
+        .eq('no_hak', noHak)
+        .eq('status', 'Dipinjam')
+        .limit(1);
+    return rows.isNotEmpty;
+  }
+
+  static Future<void> tambah(Peminjaman peminjaman) async {
     final withOfficer = peminjaman.diampuOleh == null
         ? peminjaman.copyWith(diampuOleh: AuthService.currentUser?.id)
         : peminjaman;
-    _data.add(withOfficer);
+
+    final inserted = await _client
+        .from('peminjaman')
+        .insert(withOfficer.toMap())
+        .select()
+        .single();
+
+    _cache.insert(0, Peminjaman.fromMap(inserted));
   }
 
-  static void kembalikan(String noHak) {
-    final index = _data.indexWhere((p) => p.noHak == noHak);
-    if (index == -1) return;
-    _data[index] = _data[index].copyWith(status: 'Kembali');
+  /// Returns true if at least one row was updated. Returns false if no
+  /// matching row was found — including when RLS silently hides the row
+  /// from an UPDATE (Postgres doesn't error in that case, it just
+  /// matches 0 rows), so callers can now tell the difference between
+  /// "worked" and "silently did nothing".
+  ///
+  /// Uses .select() (a list) rather than .maybeSingle() because no_hak
+  /// isn't guaranteed unique in the table — if duplicate active rows
+  /// exist for the same no_hak (bad data from earlier testing, a double
+  /// submit, etc.) this marks all of them Kembali instead of throwing
+  /// PGRST116 ("result contains 2 rows"). Clean up real duplicates at
+  /// the data level when you find them; this is just a safety net.
+  static Future<bool> kembalikan(String noHak) async {
+    final rows = await _client
+        .from('peminjaman')
+        .update({'status': 'Kembali'})
+        .eq('no_hak', noHak)
+        .eq('status', 'Dipinjam')
+        .select();
+    if (rows.isEmpty) return false;
+    for (final row in rows) {
+      _replaceInCache(Peminjaman.fromMap(row));
+    }
+    return true;
   }
 
   // ─── PERPANJANG WAKTU PEMINJAMAN (langsung, tanpa approval) ───
-  // Dipertahankan apa adanya untuk kompatibilitas mundur (mis. dipakai
-  // admin sendiri untuk koreksi manual). Untuk alur Pegawai -> Admin yang
-  // butuh persetujuan, pakai [ajukanPerpanjangan] / [setujuiPerpanjangan] /
-  // [tolakPerpanjangan] di bawah.
-  static void perpanjang(String noHak, DateTime tanggalKembaliBaru) {
-    final index = _data.indexWhere((p) => p.noHak == noHak);
-    if (index == -1) return;
-    _data[index] = _data[index].copyWith(tanggalKembali: tanggalKembaliBaru);
+  // Same duplicate-safety note as kembalikan() above.
+  static Future<void> perpanjang(
+    String noHak,
+    DateTime tanggalKembaliBaru,
+  ) async {
+    final rows = await _client
+        .from('peminjaman')
+        .update({'tanggal_kembali': tanggalKembaliBaru.toIso8601String()})
+        .eq('no_hak', noHak)
+        .eq('status', 'Dipinjam')
+        .select();
+    for (final row in rows) {
+      _replaceInCache(Peminjaman.fromMap(row));
+    }
   }
 
   static int getSedangDipinjam() =>
-      _data.where((p) => p.status == 'Dipinjam').length;
+      _cache.where((p) => p.status == 'Dipinjam').length;
 
   static int getTelahKembali() =>
-      _data.where((p) => p.status == 'Kembali').length;
+      _cache.where((p) => p.status == 'Kembali').length;
 
-  static int getTerlambat() => _data.where((p) => p.isOverdue).length;
+  static int getTerlambat() => _cache.where((p) => p.isOverdue).length;
 
   // ══════════════════════════════════════════════════════════════════
-  // EXTENSION STATE MACHINE
-  //
-  //   ACTIVE ──(overdue)──► OVERDUE
-  //      │                     │
-  //      └────(Pegawai ajukan perpanjangan)────► EXTENSION_REQUESTED
-  //                                                  │           │
-  //                                     Admin setujui│           │Admin tolak
-  //                                                  ▼           ▼
-  //                                     tanggalKembali diupdate   tanggalKembali
-  //                                     & kembali ACTIVE          TETAP (harus
-  //                                                               segera dikembalikan)
-  //
-  // Pegawai TIDAK BISA memperpanjang sendiri — hanya bisa mengajukan.
+  // EXTENSION STATE MACHINE — same states/transitions as before, now
+  // persisted to Supabase instead of just an in-memory object.
   // ══════════════════════════════════════════════════════════════════
 
-  /// Dipanggil oleh Pegawai. Membekukan due-date lama secara visual (UI
-  /// cek `isExtensionPending`) sambil menunggu keputusan Admin.
-  /// Return false kalau data tidak ditemukan atau sudah ada pengajuan
-  /// aktif yang belum diputuskan (mencegah spam pengajuan berulang).
-  static bool ajukanPerpanjangan(
+  static Future<bool> ajukanPerpanjangan(
     String noHak,
     DateTime tanggalKembaliBaru,
     String alasan,
-  ) {
-    final index = _data.indexWhere((p) => p.noHak == noHak);
-    if (index == -1) return false;
-    if (_data[index].isExtensionPending) return false;
+  ) async {
+    final current = _findActiveByNoHak(noHak);
+    if (current == null || current.isExtensionPending) return false;
 
-    _data[index] = _data[index].copyWith(
-      extensionStatus: 'Diajukan',
-      requestedTanggalKembali: tanggalKembaliBaru,
-      extensionReason: alasan,
-    );
+    final updated = await _client
+        .from('peminjaman')
+        .update({
+          'extension_status': 'Diajukan',
+          'requested_tanggal_kembali': tanggalKembaliBaru.toIso8601String(),
+          'extension_reason': alasan,
+        })
+        .eq('id', current.id!)
+        .select()
+        .maybeSingle();
+    if (updated == null) return false;
+    _replaceInCache(Peminjaman.fromMap(updated));
     return true;
   }
 
-  /// Dipanggil oleh Admin. Menerapkan tanggal kembali baru & membersihkan
-  /// state pengajuan. Ditolak (return false) kalau pemanggil bukan Admin —
-  /// ini satu-satunya penjaga di layer service terhadap self-approval,
-  /// jadi jangan lewati service ini dari UI Pegawai.
-  static bool setujuiPerpanjangan(String noHak) {
+  static Future<bool> setujuiPerpanjangan(String noHak) async {
     if (!AuthService.isAdmin) return false;
-    final index = _data.indexWhere((p) => p.noHak == noHak);
-    if (index == -1 || !_data[index].isExtensionPending) return false;
+    final current = _findActiveByNoHak(noHak);
+    if (current == null || !current.isExtensionPending) return false;
 
-    final requested = _data[index].requestedTanggalKembali!;
-    _data[index] = _data[index].copyWith(
-      tanggalKembali: requested,
-      clearExtension: true,
-    );
+    final requested = current.requestedTanggalKembali!;
+    final updated = await _client
+        .from('peminjaman')
+        .update({
+          'tanggal_kembali': requested.toIso8601String(),
+          'extension_status': null,
+          'requested_tanggal_kembali': null,
+          'extension_reason': null,
+        })
+        .eq('id', current.id!)
+        .select()
+        .maybeSingle();
+    if (updated == null) return false;
+    _replaceInCache(Peminjaman.fromMap(updated));
     return true;
   }
 
-  /// Dipanggil oleh Admin. Menolak pengajuan — tanggalKembali TIDAK
-  /// berubah (dokumen tetap harus segera dikembalikan/overdue apa
-  /// adanya), hanya state pengajuannya yang dibersihkan.
-  static bool tolakPerpanjangan(String noHak) {
+  static Future<bool> tolakPerpanjangan(String noHak) async {
     if (!AuthService.isAdmin) return false;
-    final index = _data.indexWhere((p) => p.noHak == noHak);
-    if (index == -1 || !_data[index].isExtensionPending) return false;
+    final current = _findActiveByNoHak(noHak);
+    if (current == null || !current.isExtensionPending) return false;
 
-    _data[index] = _data[index].copyWith(clearExtension: true);
+    final updated = await _client
+        .from('peminjaman')
+        .update({
+          'extension_status': null,
+          'requested_tanggal_kembali': null,
+          'extension_reason': null,
+        })
+        .eq('id', current.id!)
+        .select()
+        .maybeSingle();
+    if (updated == null) return false;
+    _replaceInCache(Peminjaman.fromMap(updated));
     return true;
   }
 
-  /// Untuk dashboard Admin: daftar semua pengajuan yang masih menunggu
-  /// keputusan.
   static List<Peminjaman> getPengajuanPerpanjangan() =>
-      _data.where((p) => p.isExtensionPending).toList();
+      _cache.where((p) => p.isExtensionPending).toList();
 
   // ─── Item 2 (Dashboard counters), di-scope ke Pegawai yang login ───
-  // Kalau tidak ada user login (mis. dipanggil dari konteks Admin/global),
-  // fallback ke semua data seperti method getSedangDipinjam()/getTerlambat()
-  // di atas.
   static List<Peminjaman> getAktifUntukPegawaiSaatIni() {
     final officerId = AuthService.currentUser?.id;
     if (officerId == null) {
-      return _data.where((p) => p.status == 'Dipinjam').toList();
+      return _cache.where((p) => p.status == 'Dipinjam').toList();
     }
-    return _data
+    return _cache
         .where((p) => p.status == 'Dipinjam' && p.diampuOleh == officerId)
         .toList();
   }

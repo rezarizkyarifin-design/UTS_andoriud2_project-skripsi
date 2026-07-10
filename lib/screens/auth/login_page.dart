@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../routes/app_routes.dart';
 import '../../services/auth_service.dart';
+import '../../services/peminjaman_service.dart';
 import '../../core/theme/app_theme.dart';
 
 class LoginPage extends StatefulWidget {
@@ -33,20 +34,43 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  void _handleLogin() {
+  void _handleLogin() async {
     if (_formKey.currentState?.validate() ?? false) {
       final username = _usernameController.text.trim();
       final password = _passwordController.text;
 
       setState(() => _isSubmitting = true);
 
-      final success = AuthService.login(username, password);
+      final success = await AuthService.login(username, password);
+      String? refreshError;
+      if (success) {
+        // main.dart only calls this on a restored session — a fresh
+        // manual login here also needs the cache populated, or every
+        // page reads an empty PeminjamanService._cache until something
+        // gets written locally in this session.
+        try {
+          await PeminjamanService.refresh();
+        } catch (e) {
+          refreshError = e.toString();
+        }
+      }
 
       if (!mounted) return;
       setState(() => _isSubmitting = false);
 
       if (success) {
         Navigator.pushReplacementNamed(context, AppRoutes.home);
+        if (refreshError != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Login berhasil, tapi gagal memuat data: $refreshError',
+              ),
+              backgroundColor: Colors.orange.shade700,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

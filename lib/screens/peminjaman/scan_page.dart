@@ -168,19 +168,31 @@ class _ScanPageState extends State<ScanPage>
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              onPressed: () {
-                PeminjamanService.kembalikan(noHak);
+              onPressed: () async {
+                bool ok = false;
+                String? errorMsg;
+                try {
+                  ok = await PeminjamanService.kembalikan(noHak);
+                } catch (e) {
+                  errorMsg = e.toString();
+                }
+                if (!mounted) return;
                 Navigator.pop(ctx);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(
-                      'Dokumen No. Hak $noHak berhasil dikembalikan.',
+                      ok
+                          ? 'Dokumen No. Hak $noHak berhasil dikembalikan.'
+                          : 'Gagal mengembalikan dokumen No. Hak $noHak'
+                                '${errorMsg != null ? ': $errorMsg' : ' (data tidak ditemukan / akses ditolak).'}',
                     ),
-                    backgroundColor: _accentGreen,
+                    backgroundColor: ok ? _accentGreen : Colors.red.shade400,
                     behavior: SnackBarBehavior.floating,
                   ),
                 );
-                Navigator.pop(context); // Return to previous page
+                if (ok) {
+                  Navigator.pop(context); // Return to previous page
+                }
               },
               child: const Text(
                 'Kembalikan',

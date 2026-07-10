@@ -1007,16 +1007,28 @@ class _HistoryPageState extends State<HistoryPage> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: () {
-                        PeminjamanService.kembalikan(p.noHak);
+                      onPressed: () async {
+                        bool ok = false;
+                        String? errorMsg;
+                        try {
+                          ok = await PeminjamanService.kembalikan(p.noHak);
+                        } catch (e) {
+                          errorMsg = e.toString();
+                        }
+                        if (!mounted) return;
                         Navigator.pop(context);
-                        _refresh();
+                        if (ok) _refresh();
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: const Text(
-                              'Dokumen berhasil ditandai kembali.',
+                            content: Text(
+                              ok
+                                  ? 'Dokumen berhasil ditandai kembali.'
+                                  : 'Gagal menandai kembali'
+                                        '${errorMsg != null ? ': $errorMsg' : ' (data tidak ditemukan / akses ditolak).'}',
                             ),
-                            backgroundColor: _accentGreen,
+                            backgroundColor: ok
+                                ? _accentGreen
+                                : Colors.red.shade400,
                             behavior: SnackBarBehavior.floating,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),

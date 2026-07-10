@@ -122,7 +122,7 @@ class _FormPageState extends State<FormPage> {
   }
 
   // ─── SAVE ───
-  void _simpanPeminjaman() {
+  void _simpanPeminjaman() async {
     if (_namaController.text.isEmpty ||
         _selectedSeksi == null ||
         _selectedKecamatan == null ||
@@ -143,19 +143,41 @@ class _FormPageState extends State<FormPage> {
       return;
     }
 
+    final noHak = _noHakController.text.trim();
+
+    final sudahAda = await PeminjamanService.existsActiveNoHak(noHak);
+    if (!mounted) return;
+    if (sudahAda) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'No. Hak $noHak sudah dipinjam dan belum dikembalikan.',
+          ),
+          backgroundColor: Colors.red.shade400,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
+      return;
+    }
+
     final peminjaman = Peminjaman(
       nama: _namaController.text.trim(),
       seksi: _selectedSeksi!,
       kecamatan: _selectedKecamatan!,
       kelurahan: _selectedKelurahan!,
       jenisHak: _selectedJenisHak!,
-      noHak: _noHakController.text.trim(),
+      noHak: noHak,
       keperluan: _keperluanController.text.trim(),
       tanggalPinjam: _tanggalPinjam,
       tanggalKembali: _tanggalKembali,
     );
 
-    PeminjamanService.tambah(peminjaman);
+    await PeminjamanService.tambah(peminjaman);
+
+    if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(

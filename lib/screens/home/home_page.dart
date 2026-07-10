@@ -210,7 +210,8 @@ class _HomePageState extends State<HomePage> {
     );
     if (!mounted) return;
     if (selected == 'logout') {
-      AuthService.logout();
+      await AuthService.logout();
+      if (!mounted) return;
       Navigator.pushReplacementNamed(context, AppRoutes.login);
     } else if (selected == 'profile') {
       final user = AuthService.currentUser;
@@ -379,13 +380,13 @@ class _HomePageState extends State<HomePage> {
       {
         'icon': Icons.list_alt,
         'label': 'Daftar\nPeminjaman',
-        'color': const Color(0xFF1B4332),
+        'color': const Color(0xFF2D6A4F),
         'route': AppRoutes.history,
       },
       {
         'icon': Icons.assignment_return,
         'label': 'Pengem-\nbalian',
-        'color': const Color(0xFFB07A00),
+        'color': const Color(0xFF2D6A4F),
         'route': AppRoutes.returnPage,
       },
       {
@@ -1026,11 +1027,12 @@ class _HomePageState extends State<HomePage> {
           builder: (sheetContext, setSheetState) {
             final pending = PeminjamanService.getPengajuanPerpanjangan();
 
-            void _decide(String noHak, bool approve) {
+            Future<void> _decide(String noHak, bool approve) async {
               final ok = approve
-                  ? PeminjamanService.setujuiPerpanjangan(noHak)
-                  : PeminjamanService.tolakPerpanjangan(noHak);
+                  ? await PeminjamanService.setujuiPerpanjangan(noHak)
+                  : await PeminjamanService.tolakPerpanjangan(noHak);
               if (!ok) return;
+              if (!mounted) return;
               setSheetState(() {});
               setState(() {}); // refresh badge + banner di HomePage
               ScaffoldMessenger.of(context).showSnackBar(
