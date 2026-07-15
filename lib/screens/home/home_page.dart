@@ -54,6 +54,28 @@ class _HomePageState extends State<HomePage> {
     setState(() {});
   }
 
+  // ─── PULL-TO-REFRESH: re-fetches from Supabase and rebuilds. Wraps
+  // PeminjamanService.refresh() (network) with error handling so a
+  // dropped connection just shows a snackbar instead of crashing the
+  // refresh gesture.
+  Future<void> _onRefresh() async {
+    try {
+      await PeminjamanService.refresh();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal memuat data terbaru: $e'),
+          backgroundColor: Colors.red.shade400,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    if (!mounted) return;
+    setState(() {});
+  }
+
   // ─── Item 1: jumlah notif yang relevan untuk role yang sedang login —
   // dipakai buat badge di ikon bell. Admin: pengajuan perpanjangan yang
   // menunggu keputusan. Pegawai: dokumen miliknya yang sudah lewat batas.
@@ -76,9 +98,7 @@ class _HomePageState extends State<HomePage> {
         _navigateAndRefresh(AppRoutes.returnPage);
         break;
       case 3:
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Halaman Profil belum tersedia.')),
-        );
+        Navigator.pushNamed(context, AppRoutes.profile);
         break;
     }
   }
@@ -706,6 +726,7 @@ class _HomePageState extends State<HomePage> {
                       'noHak': p.noHak,
                       'nama': p.nama,
                       'kelurahan': p.kelurahan,
+                      'jenisHak': p.jenisHak,
                       'tanggalPinjam': p.tanggalPinjamFormatted,
                       'tanggalKembali': p.tanggalKembaliFormatted,
                     },
@@ -1222,25 +1243,30 @@ class _HomePageState extends State<HomePage> {
         onTap: () => _navigateAndRefresh(AppRoutes.scan),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildHeader(),
-            const SizedBox(height: 18),
-            _buildAdminExtensionBanner(),
-            _buildPegawaiOverdueBanner(),
-            _buildPersonalSummary(),
-            const SizedBox(height: 10),
-            _buildQuickAccessGrid(),
-            const SizedBox(height: 22),
-            _buildImageCarousel(),
-            const SizedBox(height: 20),
-            _buildStatChips(),
-            const SizedBox(height: 24),
-            _buildRecentActivity(),
-            const SizedBox(height: 24),
-          ],
+      body: RefreshIndicator(
+        onRefresh: _onRefresh,
+        color: AppTheme.accentGreen,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildHeader(),
+              const SizedBox(height: 18),
+              _buildAdminExtensionBanner(),
+              _buildPegawaiOverdueBanner(),
+              _buildPersonalSummary(),
+              const SizedBox(height: 10),
+              _buildQuickAccessGrid(),
+              const SizedBox(height: 22),
+              _buildImageCarousel(),
+              const SizedBox(height: 20),
+              _buildStatChips(),
+              const SizedBox(height: 24),
+              _buildRecentActivity(),
+              const SizedBox(height: 24),
+            ],
+          ),
         ),
       ),
     );

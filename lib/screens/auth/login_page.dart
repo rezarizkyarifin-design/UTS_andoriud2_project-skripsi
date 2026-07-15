@@ -4,6 +4,7 @@ import '../../routes/app_routes.dart';
 import '../../services/auth_service.dart';
 import '../../services/peminjaman_service.dart';
 import '../../core/theme/app_theme.dart';
+import 'signup_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -474,6 +475,34 @@ class _LoginPageState extends State<LoginPage> {
                                     ),
                                   ),
                                 ],
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+                            GestureDetector(
+                              onTap: _isSubmitting
+                                  ? null
+                                  : () => Navigator.pushNamed(
+                                      context,
+                                      AppRoutes.signup,
+                                    ),
+                              child: RichText(
+                                text: TextSpan(
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 13,
+                                    color: _ink.withOpacity(0.6),
+                                  ),
+                                  children: [
+                                    const TextSpan(text: 'Belum punya akun? '),
+                                    TextSpan(
+                                      text: 'Daftar di sini',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppTheme.primaryGreen,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ],

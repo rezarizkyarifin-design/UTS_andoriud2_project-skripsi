@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/peminjaman.dart';
 import '../../services/peminjaman_service.dart';
+import '../../services/auth_service.dart';
 import '../../data.dart';
 import '../../routes/app_routes.dart';
 import '../../widgets/app_drawer.dart';
@@ -175,7 +176,22 @@ class _FormPageState extends State<FormPage> {
       tanggalKembali: _tanggalKembali,
     );
 
-    await PeminjamanService.tambah(peminjaman);
+    try {
+      await PeminjamanService.tambah(peminjaman);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal menyimpan data: $e'),
+          backgroundColor: Colors.red.shade400,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
+      return;
+    }
 
     if (!mounted) return;
 
@@ -190,7 +206,7 @@ class _FormPageState extends State<FormPage> {
 
     Navigator.pushNamed(
       context,
-      '/barcode',
+      AppRoutes.barcode,
       arguments: {
         'noHak': peminjaman.noHak,
         'nama': peminjaman.nama,
@@ -586,9 +602,7 @@ class _FormPageState extends State<FormPage> {
         _navigateAndRefresh(AppRoutes.returnPage);
         break;
       case 3:
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Halaman Profil belum tersedia.')),
-        );
+        Navigator.pushNamed(context, AppRoutes.profile);
         break;
     }
   }
@@ -596,6 +610,55 @@ class _FormPageState extends State<FormPage> {
   // ─── BUILD ───
   @override
   Widget build(BuildContext context) {
+    if (!AuthService.isAdmin) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF5F7F5),
+        drawer: AppDrawer(
+          active: DrawerSection.peminjaman,
+          onNavigate: _onDrawerNavigate,
+        ),
+        bottomNavigationBar: AppBottomNav(
+          activeIndex: _selectedNavIndex,
+          onItemSelected: _onNavTap,
+        ),
+        appBar: AppBar(
+          backgroundColor: _primaryGreen,
+          title: const Text(
+            'Tambah Peminjaman',
+            style: TextStyle(color: Colors.white),
+          ),
+          iconTheme: const IconThemeData(color: Colors.white),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.lock_outline_rounded,
+                  size: 56,
+                  color: Colors.black26,
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Akses Terbatas',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Hanya admin yang dapat menambah data peminjaman. '
+                  'Hubungi admin jika Anda perlu mencatat peminjaman baru.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 13, color: Colors.black54),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     final kelurahanOptions = _kelurahanFor(_selectedKecamatan);
     final kelurahanDisabled =
         _selectedKecamatan == null || kelurahanOptions.isEmpty;

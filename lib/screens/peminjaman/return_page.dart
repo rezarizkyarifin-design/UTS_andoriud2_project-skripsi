@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/peminjaman.dart';
 import '../../services/peminjaman_service.dart';
+import '../../services/auth_service.dart';
 import '../../data.dart';
 import '../../routes/app_routes.dart';
 import '../../widgets/app_drawer.dart';
@@ -25,6 +26,14 @@ class _ReturnPageState extends State<ReturnPage> {
   late List<Peminjaman> _all;
   int _selectedNavIndex = 2;
 
+  bool _isLoading = true;
+  String? _loadError;
+
+  // ─── Note item #13: multi-select "Tandai Kembali" ───
+  bool _selectionMode = false;
+  final Set<String> _selectedNoHak = {};
+  bool _isBulkSaving = false;
+
   static const Color _primaryGreen = Color(0xFF1B4332);
   static const Color _accentGreen = Color(0xFF2D6A4F);
   static const Color _overdueRed = Color(0xFFC0392B);
@@ -38,6 +47,7 @@ class _ReturnPageState extends State<ReturnPage> {
         () => _searchQuery = _searchController.text.trim().toLowerCase(),
       );
     });
+    _loadFromSupabase();
   }
 
   @override
@@ -48,6 +58,134 @@ class _ReturnPageState extends State<ReturnPage> {
 
   void _refresh() {
     setState(() => _all = PeminjamanService.getAll());
+  }
+
+  void _toggleSelectionMode() {
+    setState(() {
+      _selectionMode = !_selectionMode;
+      _selectedNoHak.clear();
+    });
+  }
+
+  void _toggleSelected(String noHak) {
+    setState(() {
+      if (_selectedNoHak.contains(noHak)) {
+        _selectedNoHak.remove(noHak);
+      } else {
+        _selectedNoHak.add(noHak);
+      }
+    });
+  }
+
+  Future<void> _bulkKembalikan() async {
+    if (_selectedNoHak.isEmpty) return;
+    final targets = _selectedNoHak.toList();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text('Tandai Kembali'),
+        content: Text(
+          'Tandai ${targets.length} dokumen terpilih sebagai telah kembali?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal', style: TextStyle(color: Colors.black54)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _accentGreen,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text(
+              'Tandai Kembali',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _isBulkSaving = true);
+    List<String> berhasil = [];
+    String? errorMsg;
+    try {
+      berhasil = await PeminjamanService.kembalikanBanyak(targets);
+    } catch (e) {
+      errorMsg = e.toString();
+    }
+    if (!mounted) return;
+    setState(() {
+      _isBulkSaving = false;
+      _selectionMode = false;
+      _selectedNoHak.clear();
+      _all = PeminjamanService.getAll();
+    });
+
+    final gagal = targets.length - berhasil.length;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          errorMsg != null
+              ? 'Gagal menandai kembali: $errorMsg'
+              : gagal == 0
+              ? '${berhasil.length} dokumen berhasil ditandai kembali.'
+              : '${berhasil.length} dari ${targets.length} dokumen berhasil'
+                    ' ditandai kembali ($gagal gagal).',
+        ),
+        backgroundColor: errorMsg != null || gagal > 0
+            ? Colors.orange.shade700
+            : _accentGreen,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  Future<void> _loadFromSupabase() async {
+    setState(() {
+      _isLoading = true;
+      _loadError = null;
+    });
+    try {
+      await PeminjamanService.refresh();
+      if (!mounted) return;
+      setState(() {
+        _all = PeminjamanService.getAll();
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _all = PeminjamanService.getAll();
+        _isLoading = false;
+        _loadError = 'Gagal memuat data terbaru: $e';
+      });
+    }
+  }
+
+  // ─── PULL-TO-REFRESH: re-fetches from Supabase, then re-reads the cache.
+  Future<void> _onPullRefresh() async {
+    try {
+      await PeminjamanService.refresh();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal memuat data terbaru: $e'),
+          backgroundColor: Colors.red.shade400,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    _refresh();
   }
 
   void _navigateAndRefresh(String route) async {
@@ -113,6 +251,15 @@ class _ReturnPageState extends State<ReturnPage> {
 
   // ─── PROSES KEMBALI ───
   void _konfirmasiKembalikan(Peminjaman p) {
+    if (!AuthService.isAdmin) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Hanya admin yang dapat memproses pengembalian.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -172,6 +319,17 @@ class _ReturnPageState extends State<ReturnPage> {
   // antrean (PeminjamanService.ajukanPerpanjangan) dan menunggu keputusan
   // Admin lewat banner/notifikasi perpanjangan di HomePage.
   Future<void> _perpanjangWaktu(Peminjaman p) async {
+    if (!AuthService.isAdmin) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Hanya admin yang dapat mengajukan perpanjangan waktu.',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
     if (p.isExtensionPending) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -261,20 +419,26 @@ class _ReturnPageState extends State<ReturnPage> {
 
     if (confirmed != true) return;
 
-    final ok = await PeminjamanService.ajukanPerpanjangan(
-      p.noHak,
-      picked,
-      alasanController.text.trim(),
-    );
+    bool ok = false;
+    String? errorMsg;
+    try {
+      ok = await PeminjamanService.ajukanPerpanjangan(
+        p.noHak,
+        picked,
+        alasanController.text.trim(),
+      );
+    } catch (e) {
+      errorMsg = e.toString();
+    }
     if (!mounted) return;
-    _refresh();
+    if (ok) _refresh();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
           ok
               ? 'Pengajuan perpanjangan terkirim, menunggu persetujuan Admin.'
-              : 'Gagal mengajukan perpanjangan. Coba lagi.',
+              : errorMsg ?? 'Gagal mengajukan perpanjangan. Coba lagi.',
         ),
         backgroundColor: ok ? _accentGreen : Colors.red.shade400,
         behavior: SnackBarBehavior.floating,
@@ -976,16 +1140,30 @@ class _ReturnPageState extends State<ReturnPage> {
   // ─── CARD ITEM ───
   Widget _item(Peminjaman p) {
     final accent = p.isOverdue ? _overdueRed : const Color(0xFFB07A00);
+    final selected = _selectedNoHak.contains(p.noHak);
 
     return Material(
-      color: Colors.white,
+      color: selected ? _accentGreen.withOpacity(0.06) : Colors.white,
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
-        onTap: () => _showDetail(p),
+        onTap: _selectionMode
+            ? () => _toggleSelected(p.noHak)
+            : () => _showDetail(p),
+        onLongPress: AuthService.isAdmin
+            ? () {
+                if (!_selectionMode) {
+                  setState(() => _selectionMode = true);
+                }
+                _toggleSelected(p.noHak);
+              }
+            : null,
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
+            border: selected
+                ? Border.all(color: _accentGreen, width: 1.5)
+                : null,
             boxShadow: const [
               BoxShadow(
                 color: Color.fromRGBO(0, 0, 0, 0.06),
@@ -998,6 +1176,17 @@ class _ReturnPageState extends State<ReturnPage> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                if (_selectionMode)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: Center(
+                      child: Checkbox(
+                        value: selected,
+                        activeColor: _accentGreen,
+                        onChanged: (_) => _toggleSelected(p.noHak),
+                      ),
+                    ),
+                  ),
                 Container(
                   width: 4,
                   decoration: BoxDecoration(
@@ -1254,9 +1443,7 @@ class _ReturnPageState extends State<ReturnPage> {
         setState(() => _selectedNavIndex = 2);
         break;
       case 3:
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Halaman Profil belum tersedia.')),
-        );
+        Navigator.pushNamed(context, AppRoutes.profile);
         break;
     }
   }
@@ -1272,9 +1459,65 @@ class _ReturnPageState extends State<ReturnPage> {
         active: DrawerSection.pengembalian,
         onNavigate: _onDrawerNavigate,
       ),
-      bottomNavigationBar: AppBottomNav(
-        activeIndex: _selectedNavIndex,
-        onItemSelected: _onNavTap,
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_selectionMode && _selectedNoHak.isNotEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+              color: Colors.white,
+              child: SafeArea(
+                top: false,
+                bottom: false,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${_selectedNoHak.length} dokumen dipilih',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: _isBulkSaving ? null : _bulkKembalikan,
+                      icon: _isBulkSaving
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.assignment_turned_in_outlined,
+                              size: 16,
+                              color: Colors.white,
+                            ),
+                      label: const Text(
+                        'Tandai Kembali',
+                        style: TextStyle(color: Colors.white, fontSize: 13),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _accentGreen,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          AppBottomNav(
+            activeIndex: _selectedNavIndex,
+            onItemSelected: _onNavTap,
+          ),
+        ],
       ),
       floatingActionButton: AppScanFab(
         onTap: () => _navigateAndRefresh(AppRoutes.scan),
@@ -1336,59 +1579,161 @@ class _ReturnPageState extends State<ReturnPage> {
                     color: Colors.black87,
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFD8F3DC),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    '${aktif.length} Berkas',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: _primaryGreen,
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD8F3DC),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        '${aktif.length} Berkas',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: _primaryGreen,
+                        ),
+                      ),
                     ),
-                  ),
+                    if (AuthService.isAdmin && aktif.isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: _toggleSelectionMode,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _selectionMode
+                                ? _accentGreen
+                                : _accentGreen.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            _selectionMode ? 'Batal' : 'Pilih',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: _selectionMode
+                                  ? Colors.white
+                                  : _accentGreen,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),
           ),
           const SizedBox(height: 12),
+          if (_loadError != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFDE2E1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      size: 18,
+                      color: _overdueRed,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _loadError!,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: _overdueRed,
+                        ),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: _loadFromSupabase,
+                      child: const Text(
+                        'Coba lagi',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: _overdueRed,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
 
           Expanded(
-            child: aktif.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
+            child: RefreshIndicator(
+              onRefresh: _onPullRefresh,
+              color: _accentGreen,
+              child: _isLoading && _all.isEmpty
+                  ? ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
                       children: [
-                        Icon(
-                          Icons.inventory_2_outlined,
-                          size: 56,
-                          color: Colors.blueGrey.shade200,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          _pinjamanAktifRaw.isEmpty
-                              ? 'Tidak ada dokumen yang sedang dipinjam.'
-                              : 'Tidak ada hasil yang cocok.',
-                          style: const TextStyle(
-                            fontSize: 15,
-                            color: Colors.black54,
+                        SizedBox(
+                          height: MediaQuery.of(context).size.height * 0.55,
+                          child: const Center(
+                            child: CircularProgressIndicator(),
                           ),
                         ),
                       ],
+                    )
+                  : aktif.isEmpty
+                  ? ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        SizedBox(
+                          height: MediaQuery.of(context).size.height * 0.55,
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.inventory_2_outlined,
+                                  size: 56,
+                                  color: Colors.blueGrey.shade200,
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  _pinjamanAktifRaw.isEmpty
+                                      ? 'Tidak ada dokumen yang sedang dipinjam.'
+                                      : 'Tidak ada hasil yang cocok.',
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    color: Colors.black54,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : ListView.separated(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                      itemCount: aktif.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      itemBuilder: (context, index) => _item(aktif[index]),
                     ),
-                  )
-                : ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                    itemCount: aktif.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 12),
-                    itemBuilder: (context, index) => _item(aktif[index]),
-                  ),
+            ),
           ),
         ],
       ),

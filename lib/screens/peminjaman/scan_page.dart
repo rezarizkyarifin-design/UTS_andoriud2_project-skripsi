@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../services/peminjaman_service.dart';
+import '../../services/auth_service.dart';
 
 class ScanPage extends StatefulWidget {
   const ScanPage({super.key});
@@ -22,6 +23,7 @@ class _ScanPageState extends State<ScanPage>
   bool _isScanning = false;
   bool _hasDetected = false;
   bool _torchOn = false;
+  bool _isVerifying = false;
 
   late final AnimationController _scanLineController;
 
@@ -57,7 +59,43 @@ class _ScanPageState extends State<ScanPage>
     setState(() => _hasDetected = true);
     _controller.stop(); // Stop feed temporarily while processing
 
-    _prosesHasilScan(rawValue);
+    _handleDetected(rawValue);
+  }
+
+  // Pulls fresh data from Supabase before checking the scanned no_hak
+  // against the cache — the cache can be stale (someone else
+  // returned/edited it from another device), which used to make the
+  // scanner show the wrong "found/not found" result.
+  Future<void> _handleDetected(String noHak) async {
+    if (!mounted) return;
+    setState(() => _isVerifying = true);
+    String? refreshError;
+    try {
+      await PeminjamanService.refresh();
+    } catch (e) {
+      refreshError = e.toString();
+    }
+    if (!mounted) return;
+    setState(() => _isVerifying = false);
+
+    if (refreshError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Gagal memuat data terbaru, menampilkan data tersimpan terakhir.'
+            ' ($refreshError)',
+          ),
+          backgroundColor: Colors.orange.shade700,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
+    }
+
+    if (!mounted) return;
+    _prosesHasilScan(noHak);
   }
 
   // ─── PILIH DARI GALERI ───
@@ -126,6 +164,7 @@ class _ScanPageState extends State<ScanPage>
         }
 
         final p = peminjaman.first;
+        final bool canManage = AuthService.isAdmin;
         return AlertDialog(
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
@@ -143,9 +182,14 @@ class _ScanPageState extends State<ScanPage>
               const SizedBox(height: 4),
               Text('No. Hak: ${p.noHak}'),
               const SizedBox(height: 12),
-              const Text(
-                'Kembalikan dokumen ini?',
-                style: TextStyle(fontWeight: FontWeight.bold),
+              Text(
+                canManage
+                    ? 'Kembalikan dokumen ini?'
+                    : 'Hanya admin yang dapat menandai dokumen ini kembali.',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: canManage ? null : Colors.black54,
+                ),
               ),
             ],
           ),
@@ -156,49 +200,50 @@ class _ScanPageState extends State<ScanPage>
                 setState(() => _hasDetected = false);
                 if (_isScanning) _controller.start();
               },
-              child: const Text(
-                'Batal',
-                style: TextStyle(color: Colors.black54),
+              child: Text(
+                canManage ? 'Batal' : 'Tutup',
+                style: const TextStyle(color: Colors.black54),
               ),
             ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _accentGreen,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+            if (canManage)
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _accentGreen,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: () async {
+                  bool ok = false;
+                  String? errorMsg;
+                  try {
+                    ok = await PeminjamanService.kembalikan(noHak);
+                  } catch (e) {
+                    errorMsg = e.toString();
+                  }
+                  if (!mounted) return;
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        ok
+                            ? 'Dokumen No. Hak $noHak berhasil dikembalikan.'
+                            : 'Gagal mengembalikan dokumen No. Hak $noHak'
+                                  '${errorMsg != null ? ': $errorMsg' : ' (data tidak ditemukan / akses ditolak).'}',
+                      ),
+                      backgroundColor: ok ? _accentGreen : Colors.red.shade400,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                  if (ok) {
+                    Navigator.pop(context); // Return to previous page
+                  }
+                },
+                child: const Text(
+                  'Kembalikan',
+                  style: TextStyle(color: Colors.white),
                 ),
               ),
-              onPressed: () async {
-                bool ok = false;
-                String? errorMsg;
-                try {
-                  ok = await PeminjamanService.kembalikan(noHak);
-                } catch (e) {
-                  errorMsg = e.toString();
-                }
-                if (!mounted) return;
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      ok
-                          ? 'Dokumen No. Hak $noHak berhasil dikembalikan.'
-                          : 'Gagal mengembalikan dokumen No. Hak $noHak'
-                                '${errorMsg != null ? ': $errorMsg' : ' (data tidak ditemukan / akses ditolak).'}',
-                    ),
-                    backgroundColor: ok ? _accentGreen : Colors.red.shade400,
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-                if (ok) {
-                  Navigator.pop(context); // Return to previous page
-                }
-              },
-              child: const Text(
-                'Kembalikan',
-                style: TextStyle(color: Colors.white),
-              ),
-            ),
           ],
         );
       },
@@ -499,6 +544,38 @@ class _ScanPageState extends State<ScanPage>
                   'Kamera belum aktif. Tekan tombol di bawah untuk mulai scan.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.white70, fontSize: 13),
+                ),
+              ),
+            ),
+
+          if (_isVerifying)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: Container(
+                  color: Colors.black.withOpacity(0.35),
+                  child: Center(
+                    child: _glassPanel(
+                      radius: 16,
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.4,
+                              color: Colors.white,
+                            ),
+                          ),
+                          SizedBox(width: 12),
+                          Text(
+                            'Memeriksa data terbaru...',
+                            style: TextStyle(color: Colors.white, fontSize: 13),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),

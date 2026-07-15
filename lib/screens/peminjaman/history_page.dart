@@ -28,6 +28,9 @@ class _HistoryPageState extends State<HistoryPage> {
 
   int _selectedNavIndex = 1; // Arsip aktif di halaman ini
 
+  bool _isLoading = true;
+  String? _loadError;
+
   static const Color _primaryGreen = Color(0xFF1B4332);
   static const Color _accentGreen = Color(0xFF2D6A4F);
   static const Color _overdueRed = Color(0xFFC0392B);
@@ -35,12 +38,15 @@ class _HistoryPageState extends State<HistoryPage> {
   @override
   void initState() {
     super.initState();
+    // Show whatever's cached immediately so the page isn't blank while
+    // the network refresh below is in flight.
     _history = PeminjamanService.getAll();
     _searchController.addListener(() {
       setState(
         () => _searchQuery = _searchController.text.trim().toLowerCase(),
       );
     });
+    _loadFromSupabase();
   }
 
   @override
@@ -53,6 +59,53 @@ class _HistoryPageState extends State<HistoryPage> {
     setState(() {
       _history = PeminjamanService.getAll();
     });
+  }
+
+  // Pulls fresh data from Supabase (not just the local cache) and tracks
+  // loading/error state — used on first open. Newly-added or externally
+  // updated loans used to not show up here until a full logout/login
+  // because this page only ever re-read the cache.
+  Future<void> _loadFromSupabase() async {
+    setState(() {
+      _isLoading = true;
+      _loadError = null;
+    });
+    try {
+      await PeminjamanService.refresh();
+      if (!mounted) return;
+      setState(() {
+        _history = PeminjamanService.getAll();
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _history = PeminjamanService.getAll();
+        _isLoading = false;
+        _loadError = 'Gagal memuat data terbaru: $e';
+      });
+    }
+  }
+
+  // ─── PULL-TO-REFRESH: same as _loadFromSupabase but without touching
+  // the full-page loading spinner (RefreshIndicator shows its own).
+  Future<void> _onPullRefresh() async {
+    try {
+      await PeminjamanService.refresh();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal memuat data terbaru: $e'),
+          backgroundColor: Colors.red.shade400,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    if (!mounted) return;
+    setState(() => _loadError = null);
+    _refresh();
   }
 
   void _navigateAndRefresh(String route) async {
@@ -393,11 +446,6 @@ class _HistoryPageState extends State<HistoryPage> {
                         fontSize: 15,
                       ),
                     ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.refresh, color: Colors.white),
-                    onPressed: _refresh,
-                    tooltip: 'Refresh',
                   ),
                   IconButton(
                     icon: Stack(
@@ -1003,61 +1051,119 @@ class _HistoryPageState extends State<HistoryPage> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () async {
-                        bool ok = false;
-                        String? errorMsg;
-                        try {
-                          ok = await PeminjamanService.kembalikan(p.noHak);
-                        } catch (e) {
-                          errorMsg = e.toString();
-                        }
-                        if (!mounted) return;
-                        Navigator.pop(context);
-                        if (ok) _refresh();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              ok
-                                  ? 'Dokumen berhasil ditandai kembali.'
-                                  : 'Gagal menandai kembali'
-                                        '${errorMsg != null ? ': $errorMsg' : ' (data tidak ditemukan / akses ditolak).'}',
+                  // ── Item #1: pegawai adalah read-only, jadi tombol proses
+                  // kembali hanya untuk admin.
+                  if (AuthService.isAdmin) ...[
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          bool ok = false;
+                          String? errorMsg;
+                          try {
+                            ok = await PeminjamanService.kembalikan(p.noHak);
+                          } catch (e) {
+                            errorMsg = e.toString();
+                          }
+                          if (!mounted) return;
+                          Navigator.pop(context);
+                          if (ok) _refresh();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                ok
+                                    ? 'Dokumen berhasil ditandai kembali.'
+                                    : 'Gagal menandai kembali'
+                                          '${errorMsg != null ? ': $errorMsg' : ' (data tidak ditemukan / akses ditolak).'}',
+                              ),
+                              backgroundColor: ok
+                                  ? _accentGreen
+                                  : Colors.red.shade400,
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                             ),
-                            backgroundColor: ok
-                                ? _accentGreen
-                                : Colors.red.shade400,
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                        );
-                      },
-                      icon: const Icon(
-                        Icons.assignment_turned_in_outlined,
-                        size: 18,
-                        color: Colors.white,
-                      ),
-                      label: const Text(
-                        'Tandai Telah Kembali',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
+                          );
+                        },
+                        icon: const Icon(
+                          Icons.assignment_turned_in_outlined,
+                          size: 18,
                           color: Colors.white,
                         ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _accentGreen,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
+                        label: const Text(
+                          'Tandai Telah Kembali',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
                         ),
-                        elevation: 0,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _accentGreen,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                          elevation: 0,
+                        ),
                       ),
                     ),
+                  ],
+                ],
+                // ── Item #1: Edit / Hapus — admin only, any status. This is
+                // the Update/Delete half of admin-only CRUD (Create lives in
+                // FormPage, the "Tandai Telah Kembali" above is the other
+                // Update path).
+                if (AuthService.isAdmin) ...[
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            _editPeminjaman(p);
+                          },
+                          icon: const Icon(Icons.edit_outlined, size: 18),
+                          label: const Text('Edit'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: _primaryGreen,
+                            side: const BorderSide(color: _primaryGreen),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(30),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            _hapusPeminjaman(p);
+                          },
+                          icon: Icon(
+                            Icons.delete_outline,
+                            size: 18,
+                            color: Colors.red.shade400,
+                          ),
+                          label: Text(
+                            'Hapus',
+                            style: TextStyle(color: Colors.red.shade400),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: Colors.red.shade200),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(30),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ],
@@ -1065,6 +1171,180 @@ class _HistoryPageState extends State<HistoryPage> {
           ),
         );
       },
+    );
+  }
+
+  // ─── EDIT (admin only) ───
+  // Lightweight dialog rather than reusing FormPage's multi-step layout —
+  // covers the fields an admin realistically needs to correct after the
+  // fact (name, keperluan, tanggal kembali) without re-implementing the
+  // whole intake form here.
+  void _editPeminjaman(Peminjaman p) {
+    final namaController = TextEditingController(text: p.nama);
+    final keperluanController = TextEditingController(text: p.keperluan);
+    DateTime tanggalKembali = p.tanggalKembali;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          title: const Text('Edit Peminjaman'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'No. Hak: ${p.noHak}',
+                  style: const TextStyle(fontSize: 12, color: Colors.black45),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: namaController,
+                  decoration: const InputDecoration(labelText: 'Nama'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: keperluanController,
+                  maxLines: 3,
+                  decoration: const InputDecoration(labelText: 'Keperluan'),
+                ),
+                const SizedBox(height: 12),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Tanggal Kembali'),
+                  subtitle: Text(
+                    '${tanggalKembali.day.toString().padLeft(2, '0')}/'
+                    '${tanggalKembali.month.toString().padLeft(2, '0')}/'
+                    '${tanggalKembali.year}',
+                  ),
+                  trailing: const Icon(Icons.calendar_month_outlined),
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: tanggalKembali,
+                      firstDate: p.tanggalPinjam,
+                      lastDate: DateTime(2030),
+                    );
+                    if (picked != null) {
+                      setDialogState(() => tanggalKembali = picked);
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text(
+                'Batal',
+                style: TextStyle(color: Colors.black54),
+              ),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _accentGreen,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onPressed: () async {
+                final updated = p.copyWith(
+                  nama: namaController.text.trim(),
+                  keperluan: keperluanController.text.trim(),
+                  tanggalKembali: tanggalKembali,
+                );
+                bool ok = false;
+                String? errorMsg;
+                try {
+                  ok = await PeminjamanService.editPeminjaman(updated);
+                } catch (e) {
+                  errorMsg = e.toString();
+                }
+                if (!mounted) return;
+                Navigator.pop(context);
+                if (ok) _refresh();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      ok
+                          ? 'Data peminjaman berhasil diperbarui.'
+                          : errorMsg ?? 'Gagal memperbarui data.',
+                    ),
+                    backgroundColor: ok ? _accentGreen : Colors.red.shade400,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
+              child: const Text(
+                'Simpan',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─── HAPUS (admin only) ───
+  void _hapusPeminjaman(Peminjaman p) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text('Hapus Data Peminjaman'),
+        content: Text(
+          'Hapus permanen data peminjaman No. Hak ${p.noHak} atas nama '
+          '${p.nama}? Tindakan ini tidak dapat dibatalkan.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal', style: TextStyle(color: Colors.black54)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade400,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            onPressed: () async {
+              if (p.id == null) {
+                Navigator.pop(context);
+                return;
+              }
+              bool ok = false;
+              String? errorMsg;
+              try {
+                ok = await PeminjamanService.hapus(p.id!);
+              } catch (e) {
+                errorMsg = e.toString();
+              }
+              if (!mounted) return;
+              Navigator.pop(context);
+              if (ok) _refresh();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    ok
+                        ? 'Data peminjaman berhasil dihapus.'
+                        : errorMsg ?? 'Gagal menghapus data.',
+                  ),
+                  backgroundColor: ok ? _accentGreen : Colors.red.shade400,
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
+            child: const Text('Hapus', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1310,9 +1590,7 @@ class _HistoryPageState extends State<HistoryPage> {
         _navigateAndRefresh(AppRoutes.returnPage);
         break;
       case 3:
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Halaman Profil belum tersedia.')),
-        );
+        Navigator.pushNamed(context, AppRoutes.profile);
         break;
     }
   }
@@ -1377,36 +1655,106 @@ class _HistoryPageState extends State<HistoryPage> {
               ),
             ),
           const SizedBox(height: 14),
-          Expanded(
-            child: filtered.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.history,
-                          size: 56,
-                          color: Colors.blueGrey.shade200,
+          if (_loadError != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFDE2E1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      size: 18,
+                      color: _overdueRed,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _loadError!,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: _overdueRed,
                         ),
-                        const SizedBox(height: 12),
-                        Text(
-                          _history.isEmpty
-                              ? 'Belum ada data peminjaman.'
-                              : 'Tidak ada hasil yang cocok.',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            color: Colors.black54,
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: _loadFromSupabase,
+                      child: const Text(
+                        'Coba lagi',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: _overdueRed,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _onPullRefresh,
+              color: _accentGreen,
+              child: _isLoading && _history.isEmpty
+                  ? ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        SizedBox(
+                          height: MediaQuery.of(context).size.height * 0.55,
+                          child: const Center(
+                            child: CircularProgressIndicator(),
                           ),
                         ),
                       ],
+                    )
+                  : filtered.isEmpty
+                  ? ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        SizedBox(
+                          height: MediaQuery.of(context).size.height * 0.55,
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.history,
+                                  size: 56,
+                                  color: Colors.blueGrey.shade200,
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  _history.isEmpty
+                                      ? 'Belum ada data peminjaman.'
+                                      : 'Tidak ada hasil yang cocok.',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.black54,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : ListView.separated(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                      itemCount: filtered.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      itemBuilder: (context, index) => _item(filtered[index]),
                     ),
-                  )
-                : ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                    itemCount: filtered.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 12),
-                    itemBuilder: (context, index) => _item(filtered[index]),
-                  ),
+            ),
           ),
         ],
       ),
