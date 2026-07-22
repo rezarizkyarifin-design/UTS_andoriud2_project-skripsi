@@ -183,14 +183,11 @@ lib/
     ├── home/                     # Dashboard
     ├── peminjaman/
     │   ├── form_page.dart
-    │   └── barcode_page.dart
-    ├── arsip/
-    │   └── history_page.dart
-    ├── pengembalian/
+    │   ├── barcode_page.dart
+    │   ├── history_page.dart
     │   ├── return_page.dart
-    │   └── scan_page.dart
-    └── profil/
-        └── profile_page.dart
+    │   ├── scan_page.dart
+    |   └── profile_page.dart
 ```
 
 Design conventions applied consistently across pages:
