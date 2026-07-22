@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/peminjaman.dart';
 import '../../services/peminjaman_service.dart';
-import '../../services/auth_service.dart';
-import '../../data.dart';
+import '../../data/data.dart';
 import '../../routes/app_routes.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/app_bottom_nav.dart';
@@ -50,11 +49,11 @@ class _FormPageState extends State<FormPage> {
   // ─── ROBUST KELURAHAN LOOKUP ───
   List<String> _kelurahanFor(String? kecamatan) {
     if (kecamatan == null) return const [];
-    final direct = DummyData.kelurahan[kecamatan];
+    final direct = Data.kelurahan[kecamatan];
     if (direct != null && direct.isNotEmpty) return direct;
 
     final normalized = kecamatan.trim().toLowerCase();
-    for (final entry in DummyData.kelurahan.entries) {
+    for (final entry in Data.kelurahan.entries) {
       if (entry.key.trim().toLowerCase() == normalized) {
         return entry.value;
       }
@@ -120,6 +119,23 @@ class _FormPageState extends State<FormPage> {
         }
       });
     }
+  }
+
+  // ─── RESET FORM (dipanggil setelah simpan berhasil, supaya kalau user
+  // balik dari halaman Barcode via tombol back, form tidak menampilkan
+  // data peminjaman yang baru saja disimpan seolah belum tersimpan) ───
+  void _resetForm() {
+    _namaController.clear();
+    _noHakController.clear();
+    _keperluanController.clear();
+    setState(() {
+      _selectedSeksi = null;
+      _selectedKecamatan = null;
+      _selectedKelurahan = null;
+      _selectedJenisHak = null;
+      _tanggalPinjam = DateTime.now();
+      _tanggalKembali = _tanggalPinjam.add(const Duration(days: 7));
+    });
   }
 
   // ─── SAVE ───
@@ -204,18 +220,20 @@ class _FormPageState extends State<FormPage> {
       ),
     );
 
-    Navigator.pushNamed(
-      context,
-      AppRoutes.barcode,
-      arguments: {
-        'noHak': peminjaman.noHak,
-        'nama': peminjaman.nama,
-        'kelurahan': peminjaman.kelurahan,
-        'jenisHak': peminjaman.jenisHak,
-        'tanggalPinjam': _formatDate(peminjaman.tanggalPinjam),
-        'tanggalKembali': _formatDate(peminjaman.tanggalKembali),
-      },
-    );
+    // Simpan data buat argumen navigasi dulu sebelum form direset, karena
+    // _resetForm() mengosongkan controller yang jadi sumber data ini.
+    final args = {
+      'noHak': peminjaman.noHak,
+      'nama': peminjaman.nama,
+      'kelurahan': peminjaman.kelurahan,
+      'jenisHak': peminjaman.jenisHak,
+      'tanggalPinjam': _formatDate(peminjaman.tanggalPinjam),
+      'tanggalKembali': _formatDate(peminjaman.tanggalKembali),
+    };
+
+    _resetForm();
+
+    Navigator.pushNamed(context, AppRoutes.barcode, arguments: args);
   }
 
   void _navigateAndRefresh(String route) async {
@@ -610,55 +628,6 @@ class _FormPageState extends State<FormPage> {
   // ─── BUILD ───
   @override
   Widget build(BuildContext context) {
-    if (!AuthService.isAdmin) {
-      return Scaffold(
-        backgroundColor: const Color(0xFFF5F7F5),
-        drawer: AppDrawer(
-          active: DrawerSection.peminjaman,
-          onNavigate: _onDrawerNavigate,
-        ),
-        bottomNavigationBar: AppBottomNav(
-          activeIndex: _selectedNavIndex,
-          onItemSelected: _onNavTap,
-        ),
-        appBar: AppBar(
-          backgroundColor: _primaryGreen,
-          title: const Text(
-            'Tambah Peminjaman',
-            style: TextStyle(color: Colors.white),
-          ),
-          iconTheme: const IconThemeData(color: Colors.white),
-        ),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.lock_outline_rounded,
-                  size: 56,
-                  color: Colors.black26,
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Akses Terbatas',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Hanya admin yang dapat menambah data peminjaman. '
-                  'Hubungi admin jika Anda perlu mencatat peminjaman baru.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 13, color: Colors.black54),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
     final kelurahanOptions = _kelurahanFor(_selectedKecamatan);
     final kelurahanDisabled =
         _selectedKecamatan == null || kelurahanOptions.isEmpty;
@@ -706,7 +675,7 @@ class _FormPageState extends State<FormPage> {
                       _dropdownField(
                         placeholder: 'Pilih Seksi / Unit Kerja',
                         icon: Icons.apartment_outlined,
-                        items: DummyData.seksi,
+                        items: Data.seksi,
                         value: _selectedSeksi,
                         onChanged: (v) => setState(() => _selectedSeksi = v),
                       ),
@@ -722,7 +691,7 @@ class _FormPageState extends State<FormPage> {
                       _dropdownField(
                         placeholder: 'Pilih Kecamatan',
                         icon: Icons.location_city_outlined,
-                        items: DummyData.kecamatan,
+                        items: Data.kecamatan,
                         value: _selectedKecamatan,
                         onChanged: (v) => setState(() {
                           _selectedKecamatan = v;
@@ -759,7 +728,7 @@ class _FormPageState extends State<FormPage> {
                                 _dropdownField(
                                   placeholder: 'Pilih Hak',
                                   icon: Icons.shield_outlined,
-                                  items: DummyData.jenisHak,
+                                  items: Data.jenisHak,
                                   value: _selectedJenisHak,
                                   onChanged: (v) =>
                                       setState(() => _selectedJenisHak = v),

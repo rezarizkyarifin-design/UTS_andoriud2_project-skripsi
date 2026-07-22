@@ -1,4 +1,4 @@
-class DummyData {
+class Data {
   static const List<String> kecamatan = [
     'Cibeber',
     'Cilegon',

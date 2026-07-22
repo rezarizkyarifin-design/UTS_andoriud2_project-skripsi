@@ -9,7 +9,7 @@ import '../screens/peminjaman/history_page.dart';
 import '../screens/peminjaman/scan_page.dart';
 import '../screens/peminjaman/return_page.dart';
 import '../screens/peminjaman/barcode_page.dart';
-import '../screens/peminjaman/profile.dart';
+import '../screens/peminjaman/profile_page.dart';
 
 class AppRoutes {
   static const String login = '/login';

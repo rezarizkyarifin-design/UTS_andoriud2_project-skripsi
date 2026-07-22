@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../routes/app_routes.dart';
 import '../../services/printing_service.dart';
 
 class BarcodePage extends StatefulWidget {
@@ -426,7 +427,7 @@ class _BarcodePageState extends State<BarcodePage> {
                 child: TextButton.icon(
                   onPressed: () => Navigator.pushNamedAndRemoveUntil(
                     context,
-                    '/home',
+                    AppRoutes.home,
                     (route) => false,
                   ),
                   icon: const Icon(

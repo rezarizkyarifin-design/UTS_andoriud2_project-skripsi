@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/peminjaman.dart';
 import '../../services/peminjaman_service.dart';
-import '../../services/auth_service.dart';
-import '../../data.dart';
+import '../../data/data.dart';
 import '../../routes/app_routes.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/app_bottom_nav.dart';
@@ -57,6 +56,10 @@ class _ReturnPageState extends State<ReturnPage> {
   }
 
   void _refresh() {
+    // Guard: a caller like _navigateAndRefresh awaits a pushed page that
+    // could end in a logout (stack wiped via pushNamedAndRemoveUntil to
+    // Login), which disposes this page before the await resolves.
+    if (!mounted) return;
     setState(() => _all = PeminjamanService.getAll());
   }
 
@@ -200,10 +203,10 @@ class _ReturnPageState extends State<ReturnPage> {
 
   List<String> _kelurahanFor(String? kecamatan) {
     if (kecamatan == null) return const [];
-    final direct = DummyData.kelurahan[kecamatan];
+    final direct = Data.kelurahan[kecamatan];
     if (direct != null && direct.isNotEmpty) return direct;
     final normalized = kecamatan.trim().toLowerCase();
-    for (final entry in DummyData.kelurahan.entries) {
+    for (final entry in Data.kelurahan.entries) {
       if (entry.key.trim().toLowerCase() == normalized) {
         return entry.value;
       }
@@ -251,15 +254,6 @@ class _ReturnPageState extends State<ReturnPage> {
 
   // ─── PROSES KEMBALI ───
   void _konfirmasiKembalikan(Peminjaman p) {
-    if (!AuthService.isAdmin) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Hanya admin yang dapat memproses pengembalian.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -317,19 +311,10 @@ class _ReturnPageState extends State<ReturnPage> {
   // ─── AJUKAN PERPANJANGAN WAKTU (dengan konfirmasi + alasan) ───
   // Item 4: Pegawai tidak lagi memperpanjang langsung — pengajuan masuk
   // antrean (PeminjamanService.ajukanPerpanjangan) dan menunggu keputusan
-  // Admin lewat banner/notifikasi perpanjangan di HomePage.
+  // Admin lewat banner/notifikasi perpanjangan di HomePage. Pegawai DOES
+  // still submit the request itself — only the approve/reject decision
+  // (setujuiPerpanjangan/tolakPerpanjangan) is admin-only.
   Future<void> _perpanjangWaktu(Peminjaman p) async {
-    if (!AuthService.isAdmin) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Hanya admin yang dapat mengajukan perpanjangan waktu.',
-          ),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
     if (p.isExtensionPending) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -417,16 +402,14 @@ class _ReturnPageState extends State<ReturnPage> {
       ),
     );
 
+    final alasan = alasanController.text.trim();
+    alasanController.dispose();
     if (confirmed != true) return;
 
     bool ok = false;
     String? errorMsg;
     try {
-      ok = await PeminjamanService.ajukanPerpanjangan(
-        p.noHak,
-        picked,
-        alasanController.text.trim(),
-      );
+      ok = await PeminjamanService.ajukanPerpanjangan(p.noHak, picked, alasan);
     } catch (e) {
       errorMsg = e.toString();
     }
@@ -1064,7 +1047,7 @@ class _ReturnPageState extends State<ReturnPage> {
                   const SizedBox(height: 8),
                   dropdown(
                     placeholder: 'Semua Kecamatan',
-                    items: DummyData.kecamatan,
+                    items: Data.kecamatan,
                     value: tempKecamatan,
                     onChanged: (v) => setSheetState(() {
                       tempKecamatan = v;
@@ -1094,7 +1077,7 @@ class _ReturnPageState extends State<ReturnPage> {
                   const SizedBox(height: 8),
                   dropdown(
                     placeholder: 'Semua Jenis Hak',
-                    items: DummyData.jenisHak,
+                    items: Data.jenisHak,
                     value: tempJenisHak,
                     onChanged: (v) => setSheetState(() => tempJenisHak = v),
                   ),
@@ -1150,14 +1133,12 @@ class _ReturnPageState extends State<ReturnPage> {
         onTap: _selectionMode
             ? () => _toggleSelected(p.noHak)
             : () => _showDetail(p),
-        onLongPress: AuthService.isAdmin
-            ? () {
-                if (!_selectionMode) {
-                  setState(() => _selectionMode = true);
-                }
-                _toggleSelected(p.noHak);
-              }
-            : null,
+        onLongPress: () {
+          if (!_selectionMode) {
+            setState(() => _selectionMode = true);
+          }
+          _toggleSelected(p.noHak);
+        },
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
@@ -1599,7 +1580,7 @@ class _ReturnPageState extends State<ReturnPage> {
                         ),
                       ),
                     ),
-                    if (AuthService.isAdmin && aktif.isNotEmpty) ...[
+                    if (aktif.isNotEmpty) ...[
                       const SizedBox(width: 8),
                       GestureDetector(
                         onTap: _toggleSelectionMode,

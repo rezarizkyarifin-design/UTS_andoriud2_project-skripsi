@@ -51,7 +51,10 @@ class _HomePageState extends State<HomePage> {
 
   void _navigateAndRefresh(String route) async {
     await Navigator.pushNamed(context, route);
-    setState(() {});
+    // Guard: if the pushed page ended in a logout (pushNamedAndRemoveUntil
+    // to Login), HomePage is disposed by the time this await resolves —
+    // calling setState() here would crash without this check.
+    if (mounted) setState(() {});
   }
 
   // ─── PULL-TO-REFRESH: re-fetches from Supabase and rebuilds. Wraps
@@ -74,6 +77,15 @@ class _HomePageState extends State<HomePage> {
     }
     if (!mounted) return;
     setState(() {});
+  }
+
+  // ─── Sapaan berdasarkan jam saat ini, bukan teks statis ───
+  String _greetingByTime() {
+    final hour = DateTime.now().hour;
+    if (hour < 10) return 'Selamat pagi,';
+    if (hour < 15) return 'Selamat siang,';
+    if (hour < 18) return 'Selamat sore,';
+    return 'Selamat malam,';
   }
 
   // ─── Item 1: jumlah notif yang relevan untuk role yang sedang login —
@@ -365,9 +377,12 @@ class _HomePageState extends State<HomePage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Selamat datang kembali,',
-                      style: TextStyle(color: Colors.white70, fontSize: 12),
+                    Text(
+                      _greetingByTime(),
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
@@ -378,6 +393,16 @@ class _HomePageState extends State<HomePage> {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
+                    if (AuthService.currentUser?.jabatan != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        AuthService.currentUser!.jabatan,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

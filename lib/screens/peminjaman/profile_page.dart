@@ -5,6 +5,7 @@ import '../../services/auth_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/user_roles.dart';
 import '../../widgets/app_bottom_nav.dart';
+import '../../widgets/app_scan_fab.dart';
 
 class ProfilPage extends StatefulWidget {
   const ProfilPage({super.key});
@@ -166,7 +167,13 @@ class _ProfilPageState extends State<ProfilPage> {
           );
         },
       ),
-    );
+    ).then((_) {
+      // Dipanggil di setiap jalur keluar dialog (Batal, Simpan, atau
+      // tap di luar dialog) supaya controller tidak bocor.
+      currentCtrl.dispose();
+      newCtrl.dispose();
+      confirmCtrl.dispose();
+    });
   }
 
   Future<void> _confirmLogout() async {
@@ -296,6 +303,10 @@ class _ProfilPageState extends State<ProfilPage> {
         activeIndex: _selectedNavIndex,
         onItemSelected: _onNavTap,
       ),
+      floatingActionButton: AppScanFab(
+        onTap: () => Navigator.pushNamed(context, AppRoutes.scan),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
