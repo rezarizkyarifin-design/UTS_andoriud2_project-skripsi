@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import '../../models/peminjaman.dart';
 import '../../services/peminjaman_service.dart';
+import '../../services/auth_service.dart';
 import '../../data/data.dart';
 import '../../routes/app_routes.dart';
 import '../../widgets/app_drawer.dart';
@@ -32,6 +34,9 @@ class _ReturnPageState extends State<ReturnPage> {
   bool _selectionMode = false;
   final Set<String> _selectedNoHak = {};
   bool _isBulkSaving = false;
+
+  // Item #6: drives the collapsing header/search-bar behavior on scroll.
+  bool _showHeader = true;
 
   static const Color _primaryGreen = Color(0xFF1B4332);
   static const Color _accentGreen = Color(0xFF2D6A4F);
@@ -192,6 +197,11 @@ class _ReturnPageState extends State<ReturnPage> {
   }
 
   void _navigateAndRefresh(String route) async {
+    // Unfocus first: pushing a route while the search field (or another
+    // TextField) still holds focus tears down its InheritedElement before
+    // the keyboard/toolbar overlay detaches, tripping framework.dart's
+    // '_dependents.isEmpty' assertion. Unfocusing first avoids it.
+    FocusManager.instance.primaryFocus?.unfocus();
     await Navigator.pushNamed(context, route);
     _refresh();
   }
@@ -315,6 +325,24 @@ class _ReturnPageState extends State<ReturnPage> {
   // still submit the request itself — only the approve/reject decision
   // (setujuiPerpanjangan/tolakPerpanjangan) is admin-only.
   Future<void> _perpanjangWaktu(Peminjaman p) async {
+    // Defense in depth: the two call sites above already hide/disable
+    // this action for non-owners, but guard here too in case a future
+    // call site forgets to check first.
+    final isOwner =
+        p.diampuOleh == null || p.diampuOleh == AuthService.currentUser?.id;
+    if (!isOwner) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Hanya pegawai yang mengajukan peminjaman ini yang dapat '
+            'mengajukan perpanjangan.',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
     if (p.isExtensionPending) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -350,55 +378,107 @@ class _ReturnPageState extends State<ReturnPage> {
     if (picked == null || !mounted) return;
 
     final alasanController = TextEditingController();
+    // Must live OUTSIDE the StatefulBuilder's builder callback — a local
+    // var declared inside it gets re-initialized to null on every
+    // setDialogState-triggered rebuild, which would silently wipe the
+    // error message out the instant it's set.
+    String? alasanError;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: const Text('Ajukan Perpanjangan'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Ajukan perpanjangan batas waktu peminjaman ${p.noHak} atas nama '
-              '${p.nama} menjadi ${picked.day.toString().padLeft(2, '0')}/'
-              '${picked.month.toString().padLeft(2, '0')}/${picked.year}?',
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
             ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: alasanController,
-              maxLines: 2,
-              decoration: InputDecoration(
-                hintText: 'Alasan perpanjangan',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+            title: const Text('Ajukan Perpanjangan'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Ajukan perpanjangan batas waktu peminjaman ${p.noHak} '
+                  'atas nama ${p.nama} menjadi '
+                  '${picked.day.toString().padLeft(2, '0')}/'
+                  '${picked.month.toString().padLeft(2, '0')}/${picked.year}?',
                 ),
-                contentPadding: const EdgeInsets.all(12),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: alasanController,
+                  maxLines: 2,
+                  // Toolbar Copy/Paste dimatikan: field ini cuma dipakai
+                  // sekali pakai untuk alasan, tidak butuh toolbar
+                  // tersebut — dan toolbar itu ternyata sumber
+                  // sebenarnya dari crash '_dependents.isEmpty' (overlay
+                  // toolbar-nya belum sempat lepas saat dialog di-pop,
+                  // unfocus() saja tidak cukup cepat karena masih butuh
+                  // minimal satu frame). Mematikan toolbar menghilangkan
+                  // overlay yang jadi sumber race-nya sama sekali.
+                  contextMenuBuilder: (context, editableTextState) =>
+                      const SizedBox.shrink(),
+                  onChanged: (_) {
+                    if (alasanError != null) {
+                      setDialogState(() => alasanError = null);
+                    }
+                  },
+                  decoration: InputDecoration(
+                    hintText: 'Alasan perpanjangan (wajib diisi)',
+                    errorText: alasanError,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    contentPadding: const EdgeInsets.all(12),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Pengajuan ini akan masuk antrean dan menunggu '
+                  'persetujuan Admin.',
+                  style: TextStyle(fontSize: 11.5, color: Colors.black45),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () async {
+                  // Unfocus + tunggu satu frame: unfocus() saja menjadwalkan
+                  // rebuild tapi tidak langsung melepas overlay toolbar/
+                  // handle selection dalam frame yang sama — makanya perlu
+                  // jeda sebentar sebelum benar-benar pop.
+                  FocusManager.instance.primaryFocus?.unfocus();
+                  await Future.delayed(const Duration(milliseconds: 50));
+                  if (context.mounted) Navigator.pop(context, false);
+                },
+                child: const Text(
+                  'Batal',
+                  style: TextStyle(color: Colors.black54),
+                ),
               ),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Pengajuan ini akan masuk antrean dan menunggu persetujuan Admin.',
-              style: TextStyle(fontSize: 11.5, color: Colors.black45),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Batal', style: TextStyle(color: Colors.black54)),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _accentGreen,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+              ElevatedButton(
+                onPressed: () async {
+                  // Item #4: alasan is not optional — none of the inputs
+                  // in this form are — so block submission and surface an
+                  // inline error instead of silently sending an empty
+                  // reason through to the admin's approval queue.
+                  if (alasanController.text.trim().isEmpty) {
+                    setDialogState(() => alasanError = 'Alasan wajib diisi.');
+                    return;
+                  }
+                  FocusManager.instance.primaryFocus?.unfocus();
+                  await Future.delayed(const Duration(milliseconds: 50));
+                  if (context.mounted) Navigator.pop(context, true);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _accentGreen,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text('Ajukan'),
               ),
-            ),
-            child: const Text('Ajukan'),
-          ),
-        ],
+            ],
+          );
+        },
       ),
     );
 
@@ -431,6 +511,8 @@ class _ReturnPageState extends State<ReturnPage> {
   }
 
   void _showDetail(Peminjaman p) {
+    final isOwner =
+        p.diampuOleh == null || p.diampuOleh == AuthService.currentUser?.id;
     Widget row(IconData icon, String label, String value) {
       return Padding(
         padding: const EdgeInsets.only(bottom: 14),
@@ -616,20 +698,24 @@ class _ReturnPageState extends State<ReturnPage> {
                       const SizedBox(width: 10),
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: p.isExtensionPending
+                          onPressed: (!isOwner || p.isExtensionPending)
                               ? null
                               : () {
                                   Navigator.pop(context);
                                   _perpanjangWaktu(p);
                                 },
                           icon: Icon(
-                            p.isExtensionPending
+                            !isOwner
+                                ? Icons.lock_outline
+                                : p.isExtensionPending
                                 ? Icons.hourglass_top_rounded
                                 : Icons.more_time,
                             size: 18,
                           ),
                           label: Text(
-                            p.isExtensionPending
+                            !isOwner
+                                ? 'Perpanjang'
+                                : p.isExtensionPending
                                 ? 'Menunggu Persetujuan'
                                 : 'Perpanjang',
                             style: const TextStyle(
@@ -638,11 +724,11 @@ class _ReturnPageState extends State<ReturnPage> {
                             ),
                           ),
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: p.isExtensionPending
+                            foregroundColor: (!isOwner || p.isExtensionPending)
                                 ? Colors.black45
                                 : _overdueRed,
                             side: BorderSide(
-                              color: p.isExtensionPending
+                              color: (!isOwner || p.isExtensionPending)
                                   ? Colors.black26
                                   : _overdueRed,
                             ),
@@ -680,6 +766,9 @@ class _ReturnPageState extends State<ReturnPage> {
     );
     if (!mounted) return;
     if (selected == 'logout') {
+      FocusManager.instance.primaryFocus?.unfocus();
+      await AuthService.logout();
+      if (!mounted) return;
       Navigator.pushReplacementNamed(context, AppRoutes.login);
     } else if (selected == 'profile') {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -694,6 +783,7 @@ class _ReturnPageState extends State<ReturnPage> {
   // push + refresh saat kembali (sama seperti HomePage).
   void _onDrawerNavigate(String route) {
     if (route == AppRoutes.home) {
+      FocusManager.instance.primaryFocus?.unfocus();
       Navigator.pushReplacementNamed(context, AppRoutes.home);
     } else {
       _navigateAndRefresh(route);
@@ -1124,6 +1214,13 @@ class _ReturnPageState extends State<ReturnPage> {
   Widget _item(Peminjaman p) {
     final accent = p.isOverdue ? _overdueRed : const Color(0xFFB07A00);
     final selected = _selectedNoHak.contains(p.noHak);
+    // Item #1 fix: the "Perpanjang" button is only meaningful for the
+    // pegawai who actually borrowed this document — see the ownership
+    // gate in PeminjamanService.ajukanPerpanjangan for the enforcement
+    // side of this. Legacy rows with no recorded owner (diampuOleh ==
+    // null) are treated as open, same as the service-layer check.
+    final isOwner =
+        p.diampuOleh == null || p.diampuOleh == AuthService.currentUser?.id;
 
     return Material(
       color: selected ? _accentGreen.withOpacity(0.06) : Colors.white,
@@ -1359,42 +1456,78 @@ class _ReturnPageState extends State<ReturnPage> {
                             if (p.isOverdue) ...[
                               const SizedBox(width: 10),
                               Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: p.isExtensionPending
-                                      ? null
-                                      : () => _perpanjangWaktu(p),
-                                  icon: Icon(
-                                    p.isExtensionPending
-                                        ? Icons.hourglass_top_rounded
-                                        : Icons.more_time,
-                                    size: 18,
-                                  ),
-                                  label: Text(
-                                    p.isExtensionPending
-                                        ? 'Menunggu Persetujuan'
-                                        : 'Perpanjang',
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: p.isExtensionPending
-                                        ? Colors.black45
-                                        : _overdueRed,
-                                    side: BorderSide(
-                                      color: p.isExtensionPending
-                                          ? Colors.black26
-                                          : _overdueRed,
-                                    ),
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 12,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(30),
-                                    ),
-                                  ),
-                                ),
+                                child: !isOwner
+                                    ? Tooltip(
+                                        message:
+                                            'Hanya pegawai yang mengajukan '
+                                            'peminjaman ini yang dapat '
+                                            'mengajukan perpanjangan.',
+                                        child: OutlinedButton.icon(
+                                          onPressed: null,
+                                          icon: const Icon(
+                                            Icons.lock_outline,
+                                            size: 16,
+                                          ),
+                                          label: const Text(
+                                            'Perpanjang',
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: Colors.black38,
+                                            side: const BorderSide(
+                                              color: Colors.black12,
+                                            ),
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 12,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(30),
+                                            ),
+                                          ),
+                                        ),
+                                      )
+                                    : OutlinedButton.icon(
+                                        onPressed: p.isExtensionPending
+                                            ? null
+                                            : () => _perpanjangWaktu(p),
+                                        icon: Icon(
+                                          p.isExtensionPending
+                                              ? Icons.hourglass_top_rounded
+                                              : Icons.more_time,
+                                          size: 18,
+                                        ),
+                                        label: Text(
+                                          p.isExtensionPending
+                                              ? 'Menunggu Persetujuan'
+                                              : 'Perpanjang',
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: p.isExtensionPending
+                                              ? Colors.black45
+                                              : _overdueRed,
+                                          side: BorderSide(
+                                            color: p.isExtensionPending
+                                                ? Colors.black26
+                                                : _overdueRed,
+                                          ),
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 12,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              30,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
                               ),
                             ],
                           ],
@@ -1415,6 +1548,7 @@ class _ReturnPageState extends State<ReturnPage> {
   void _onNavTap(int index) {
     switch (index) {
       case 0:
+        FocusManager.instance.primaryFocus?.unfocus();
         Navigator.pushReplacementNamed(context, AppRoutes.home);
         break;
       case 1:
@@ -1424,6 +1558,7 @@ class _ReturnPageState extends State<ReturnPage> {
         setState(() => _selectedNavIndex = 2);
         break;
       case 3:
+        FocusManager.instance.primaryFocus?.unfocus();
         Navigator.pushNamed(context, AppRoutes.profile);
         break;
     }
@@ -1506,17 +1641,30 @@ class _ReturnPageState extends State<ReturnPage> {
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       body: Column(
         children: [
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              _buildHeader(),
-              Positioned(
-                left: 20,
-                right: 20,
-                bottom: -24,
-                child: _buildFloatingSearchBar(),
+          // Item #6: collapses (slides up) on scroll-down, reappears on
+          // scroll-up — see the NotificationListener around the list
+          // below that drives _showHeader. ClipRect avoids the floating
+          // search bar's negative-bottom overshoot spilling out mid-
+          // animation.
+          ClipRect(
+            child: AnimatedAlign(
+              duration: const Duration(milliseconds: 260),
+              curve: Curves.easeInOut,
+              alignment: Alignment.topCenter,
+              heightFactor: _showHeader ? 1.0 : 0.0,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  _buildHeader(),
+                  Positioned(
+                    left: 20,
+                    right: 20,
+                    bottom: -24,
+                    child: _buildFloatingSearchBar(),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
           const SizedBox(height: 36),
           if (_isFiltering)
@@ -1661,59 +1809,137 @@ class _ReturnPageState extends State<ReturnPage> {
             ),
 
           Expanded(
-            child: RefreshIndicator(
-              onRefresh: _onPullRefresh,
-              color: _accentGreen,
-              child: _isLoading && _all.isEmpty
-                  ? ListView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      children: [
-                        SizedBox(
-                          height: MediaQuery.of(context).size.height * 0.55,
-                          child: const Center(
-                            child: CircularProgressIndicator(),
-                          ),
-                        ),
-                      ],
-                    )
-                  : aktif.isEmpty
-                  ? ListView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      children: [
-                        SizedBox(
-                          height: MediaQuery.of(context).size.height * 0.55,
-                          child: Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.inventory_2_outlined,
-                                  size: 56,
-                                  color: Colors.blueGrey.shade200,
-                                ),
-                                const SizedBox(height: 12),
-                                Text(
-                                  _pinjamanAktifRaw.isEmpty
-                                      ? 'Tidak ada dokumen yang sedang dipinjam.'
-                                      : 'Tidak ada hasil yang cocok.',
-                                  style: const TextStyle(
-                                    fontSize: 15,
-                                    color: Colors.black54,
-                                  ),
-                                ),
-                              ],
+            child: NotificationListener<UserScrollNotification>(
+              onNotification: (notification) {
+                if (notification.direction == ScrollDirection.reverse &&
+                    _showHeader) {
+                  setState(() => _showHeader = false);
+                } else if (notification.direction == ScrollDirection.forward &&
+                    !_showHeader) {
+                  setState(() => _showHeader = true);
+                }
+                return false;
+              },
+              child: RefreshIndicator(
+                onRefresh: _onPullRefresh,
+                color: _accentGreen,
+                child: _isLoading && _all.isEmpty
+                    ? ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: [
+                          SizedBox(
+                            height: MediaQuery.of(context).size.height * 0.55,
+                            child: const Center(
+                              child: CircularProgressIndicator(),
                             ),
                           ),
-                        ),
-                      ],
-                    )
-                  : ListView.separated(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                      itemCount: aktif.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 12),
-                      itemBuilder: (context, index) => _item(aktif[index]),
-                    ),
+                        ],
+                      )
+                    : aktif.isEmpty
+                    ? ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: [
+                          SizedBox(
+                            height: MediaQuery.of(context).size.height * 0.55,
+                            child: Center(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 36,
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      width: 92,
+                                      height: 92,
+                                      decoration: const BoxDecoration(
+                                        color: Color(0xFFD8F3DC),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Icon(
+                                        Icons.inventory_2_outlined,
+                                        size: 40,
+                                        color: _accentGreen,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 20),
+                                    Text(
+                                      _pinjamanAktifRaw.isEmpty
+                                          ? 'Tidak Ada Pinjaman Aktif'
+                                          : 'Tidak Ada Hasil',
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.black87,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      _pinjamanAktifRaw.isEmpty
+                                          ? 'Semua dokumen sudah dikembalikan. '
+                                                'Dokumen yang sedang dipinjam '
+                                                'akan muncul di sini.'
+                                          : 'Coba ubah kata kunci pencarian '
+                                                'atau filter yang sedang aktif.',
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        color: Colors.black45,
+                                        height: 1.4,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 22),
+                                    if (_pinjamanAktifRaw.isEmpty)
+                                      OutlinedButton.icon(
+                                        onPressed: () =>
+                                            _navigateAndRefresh(AppRoutes.form),
+                                        icon: const Icon(Icons.add, size: 18),
+                                        label: const Text('Catat Peminjaman'),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: _accentGreen,
+                                          side: const BorderSide(
+                                            color: _accentGreen,
+                                          ),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 22,
+                                            vertical: 12,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              30,
+                                            ),
+                                          ),
+                                        ),
+                                      )
+                                    else
+                                      TextButton(
+                                        onPressed: () {
+                                          _searchController.clear();
+                                          _resetFilters();
+                                        },
+                                        child: Text(
+                                          'Hapus Pencarian & Filter',
+                                          style: TextStyle(
+                                            color: _accentGreen,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                    : ListView.separated(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                        itemCount: aktif.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 12),
+                        itemBuilder: (context, index) => _item(aktif[index]),
+                      ),
+              ),
             ),
           ),
         ],

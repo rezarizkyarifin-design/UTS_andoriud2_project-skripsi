@@ -12,24 +12,28 @@ class AppScanFab extends StatelessWidget {
     // open so it doesn't float on top of whatever the user is typing.
     // viewInsets.bottom > 0 means the keyboard (or another bottom inset
     // like an IME) is currently showing.
+    //
+    // Deliberately NOT using AnimatedOpacity/AnimatedSwitcher here: this
+    // FAB is almost always used with
+    // floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+    // which makes Scaffold track the FAB's geometry internally for the
+    // BottomAppBar notch. An implicit animation on top of that geometry
+    // tracking can trip framework.dart's '_dependents.isEmpty' assertion
+    // if the Scaffold hosting it gets torn down (route change, logout,
+    // pushReplacementNamed, etc.) mid-tick. A plain conditional swap has
+    // no animation controller in play, so there's nothing to race.
     final keyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
+    if (keyboardOpen) return const SizedBox.shrink();
 
-    return AnimatedOpacity(
-      duration: const Duration(milliseconds: 180),
-      opacity: keyboardOpen ? 0 : 1,
-      child: IgnorePointer(
-        ignoring: keyboardOpen,
-        child: FloatingActionButton(
-          onPressed: onTap,
-          backgroundColor: AppTheme.primaryGreen,
-          elevation: 2,
-          shape: const CircleBorder(),
-          child: const Icon(
-            Icons.qr_code_scanner_rounded,
-            color: Colors.white,
-            size: 26,
-          ),
-        ),
+    return FloatingActionButton(
+      onPressed: onTap,
+      backgroundColor: AppTheme.primaryGreen,
+      elevation: 2,
+      shape: const CircleBorder(),
+      child: const Icon(
+        Icons.qr_code_scanner_rounded,
+        color: Colors.white,
+        size: 26,
       ),
     );
   }

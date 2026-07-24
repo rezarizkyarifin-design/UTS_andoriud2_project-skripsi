@@ -60,6 +60,11 @@ class _LoginPageState extends State<LoginPage> {
       setState(() => _isSubmitting = false);
 
       if (success) {
+        // Unfocus first: replacing this route while the username/password
+        // field still holds focus tears down its InheritedElement before
+        // the keyboard/focus overlay detaches, tripping framework.dart's
+        // '_dependents.isEmpty' assertion. Unfocusing first avoids it.
+        FocusManager.instance.primaryFocus?.unfocus();
         Navigator.pushReplacementNamed(context, AppRoutes.home);
         if (refreshError != null) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -481,10 +486,14 @@ class _LoginPageState extends State<LoginPage> {
                             GestureDetector(
                               onTap: _isSubmitting
                                   ? null
-                                  : () => Navigator.pushNamed(
-                                      context,
-                                      AppRoutes.signup,
-                                    ),
+                                  : () {
+                                      FocusManager.instance.primaryFocus
+                                          ?.unfocus();
+                                      Navigator.pushNamed(
+                                        context,
+                                        AppRoutes.signup,
+                                      );
+                                    },
                               child: RichText(
                                 text: TextSpan(
                                   style: GoogleFonts.plusJakartaSans(

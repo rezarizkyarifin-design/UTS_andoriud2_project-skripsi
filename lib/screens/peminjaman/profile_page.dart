@@ -34,6 +34,7 @@ class _ProfilPageState extends State<ProfilPage> {
     bool isSaving = false;
     bool hideCurrent = true;
     bool hideNew = true;
+    bool hideConfirm = true;
 
     showDialog(
       context: context,
@@ -62,6 +63,12 @@ class _ProfilPageState extends State<ProfilPage> {
               newPassword: newCtrl.text,
             );
             if (!mounted) return;
+            // Toolbar sudah dimatikan lewat contextMenuBuilder di atas —
+            // ini jaga-jaga tambahan untuk overlay selection handle bawaan
+            // OS (mis. Android) yang tidak dikontrol contextMenuBuilder.
+            FocusManager.instance.primaryFocus?.unfocus();
+            await Future.delayed(const Duration(milliseconds: 50));
+            if (!dialogContext.mounted) return;
             Navigator.pop(dialogContext);
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -90,6 +97,12 @@ class _ProfilPageState extends State<ProfilPage> {
                   TextField(
                     controller: currentCtrl,
                     obscureText: hideCurrent,
+                    // Toolbar Copy/Paste dimatikan: sumber sebenarnya dari
+                    // crash '_dependents.isEmpty' — overlay toolbar-nya
+                    // belum sempat lepas saat dialog di-pop. Password
+                    // field juga sebaiknya memang tidak bisa di-copy.
+                    contextMenuBuilder: (context, editableTextState) =>
+                        const SizedBox.shrink(),
                     decoration: InputDecoration(
                       labelText: 'Password Saat Ini',
                       suffixIcon: IconButton(
@@ -108,6 +121,8 @@ class _ProfilPageState extends State<ProfilPage> {
                   TextField(
                     controller: newCtrl,
                     obscureText: hideNew,
+                    contextMenuBuilder: (context, editableTextState) =>
+                        const SizedBox.shrink(),
                     decoration: InputDecoration(
                       labelText: 'Password Baru',
                       suffixIcon: IconButton(
@@ -125,9 +140,26 @@ class _ProfilPageState extends State<ProfilPage> {
                   const SizedBox(height: 12),
                   TextField(
                     controller: confirmCtrl,
-                    obscureText: hideNew,
-                    decoration: const InputDecoration(
+                    obscureText: hideConfirm,
+                    contextMenuBuilder: (context, editableTextState) =>
+                        const SizedBox.shrink(),
+                    decoration: InputDecoration(
                       labelText: 'Konfirmasi Password Baru',
+                      // Item #5 fix: this used to reuse hideNew, so
+                      // revealing "Password Baru" silently revealed this
+                      // field too with no toggle of its own to hide it
+                      // back independently. Now it has its own state and
+                      // its own eye icon, matching the other two fields.
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          hideConfirm
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                          size: 20,
+                        ),
+                        onPressed: () =>
+                            setDialogState(() => hideConfirm = !hideConfirm),
+                      ),
                     ),
                   ),
                 ],
@@ -135,7 +167,11 @@ class _ProfilPageState extends State<ProfilPage> {
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
+                onPressed: () async {
+                  FocusManager.instance.primaryFocus?.unfocus();
+                  await Future.delayed(const Duration(milliseconds: 50));
+                  if (dialogContext.mounted) Navigator.pop(dialogContext);
+                },
                 child: const Text(
                   'Batal',
                   style: TextStyle(color: Colors.black54),
@@ -240,6 +276,7 @@ class _ProfilPageState extends State<ProfilPage> {
   }
 
   void _onNavTap(int index) {
+    FocusManager.instance.primaryFocus?.unfocus();
     switch (index) {
       case 0:
         Navigator.pushReplacementNamed(context, AppRoutes.home);

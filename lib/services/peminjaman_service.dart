@@ -204,6 +204,23 @@ class PeminjamanService {
     final current = _findActiveByNoHak(noHak);
     if (current == null || current.isExtensionPending) return false;
 
+    // Ownership gate: only the pegawai who originally borrowed this
+    // document (diampuOleh) may request an extension for it. Without
+    // this check, any logged-in pegawai could open any other pegawai's
+    // active loan from ReturnPage and submit an extension request on
+    // their behalf — return_page.dart now also hides/disables the
+    // button client-side, but that's UX only; this is the real gate.
+    // NOTE: this is still just an application-level check. The
+    // authoritative enforcement belongs in a Supabase RLS policy /
+    // trigger on `peminjaman` UPDATE (mirroring the admin-only checks
+    // in supabase_rls_admin_controls.sql), so a modified or bypassed
+    // client can't work around it. Legacy rows with a null diampuOleh
+    // (no owner recorded) are left open rather than permanently locked.
+    final requesterId = AuthService.currentUser?.id;
+    if (current.diampuOleh != null && current.diampuOleh != requesterId) {
+      return false;
+    }
+
     try {
       final updated = await _client
           .from('peminjaman')

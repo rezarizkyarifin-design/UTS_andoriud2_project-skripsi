@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import '../../models/peminjaman.dart';
 import '../../services/peminjaman_service.dart';
 import '../../data/data.dart';
@@ -29,6 +30,9 @@ class _HistoryPageState extends State<HistoryPage> {
   int _selectedNavIndex = 1; // Arsip aktif di halaman ini
 
   bool _isLoading = true;
+
+  // Item #6: drives the collapsing header/search-bar behavior on scroll.
+  bool _showHeader = true;
   String? _loadError;
 
   static const Color _primaryGreen = Color(0xFF1B4332);
@@ -113,6 +117,7 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   void _navigateAndRefresh(String route) async {
+    FocusManager.instance.primaryFocus?.unfocus();
     await Navigator.pushNamed(context, route);
     _refresh();
   }
@@ -349,6 +354,7 @@ class _HistoryPageState extends State<HistoryPage> {
   // push + refresh saat kembali (sama seperti HomePage).
   void _onDrawerNavigate(String route) {
     if (route == AppRoutes.home) {
+      FocusManager.instance.primaryFocus?.unfocus();
       Navigator.pushReplacementNamed(context, AppRoutes.home);
     } else {
       _navigateAndRefresh(route);
@@ -1179,30 +1185,717 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   // ─── EDIT (admin only) ───
-  // Opens a dedicated full-screen page (mirrors FormPage's layout: gradient
-  // header, spaced-out section cards, pill inputs) instead of the old
-  // cramped AlertDialog. Covers every field PeminjamanService.editPeminjaman()
-  // actually writes to Supabase (nama, seksi, kecamatan, kelurahan, jenisHak,
-  // noHak, keperluan, tanggalPinjam, tanggalKembali).
-  void _editPeminjaman(Peminjaman p) async {
-    final saved = await Navigator.push<bool>(
-      context,
-      MaterialPageRoute(
-        fullscreenDialog: true,
-        builder: (context) => _EditPeminjamanPage(peminjaman: p),
-      ),
-    );
-    if (!mounted) return;
-    if (saved == true) {
-      _refresh();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Data peminjaman berhasil diperbarui.'),
-          backgroundColor: _accentGreen,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+  // Covers every field PeminjamanService.editPeminjaman() actually writes
+  // to Supabase (nama, seksi, kecamatan, kelurahan, jenisHak, noHak,
+  // keperluan, tanggalPinjam, tanggalKembali) — previously this dialog
+  // only exposed 3 of them, so most corrections needed a delete+recreate.
+  void _editPeminjaman(Peminjaman p) {
+    final namaController = TextEditingController(text: p.nama);
+    final noHakController = TextEditingController(text: p.noHak);
+    final keperluanController = TextEditingController(text: p.keperluan);
+
+    String? seksi = p.seksi;
+    String? kecamatan = p.kecamatan;
+    String? kelurahan = p.kelurahan;
+    String? jenisHak = p.jenisHak;
+    DateTime tanggalPinjam = p.tanggalPinjam;
+    DateTime tanggalKembali = p.tanggalKembali;
+
+    List<String> kelurahanFor(String? kec) {
+      if (kec == null) return const [];
+      final direct = Data.kelurahan[kec];
+      if (direct != null && direct.isNotEmpty) return direct;
+      final normalized = kec.trim().toLowerCase();
+      for (final entry in Data.kelurahan.entries) {
+        if (entry.key.trim().toLowerCase() == normalized) return entry.value;
+      }
+      return const [];
     }
+
+    String fmtDate(DateTime d) =>
+        '${d.day.toString().padLeft(2, '0')}/'
+        '${d.month.toString().padLeft(2, '0')}/${d.year}';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) {
+          final kelurahanOptions = kelurahanFor(kecamatan);
+          final kelurahanValue = kelurahanOptions.contains(kelurahan)
+              ? kelurahan
+              : null;
+
+          Future<void> pickDate({required bool isPinjam}) async {
+            final picked = await showDatePicker(
+              context: sheetContext,
+              initialDate: isPinjam
+                  ? tanggalPinjam
+                  : (tanggalKembali.isBefore(tanggalPinjam)
+                        ? tanggalPinjam
+                        : tanggalKembali),
+              firstDate: isPinjam ? DateTime(2020) : tanggalPinjam,
+              lastDate: DateTime(2030),
+              builder: (context, child) {
+                return Theme(
+                  data: Theme.of(context).copyWith(
+                    colorScheme: ColorScheme.light(
+                      primary: _accentGreen,
+                      onPrimary: Colors.white,
+                      surface: Colors.white,
+                    ),
+                  ),
+                  child: child!,
+                );
+              },
+            );
+            if (picked == null) return;
+            setSheetState(() {
+              if (isPinjam) {
+                tanggalPinjam = picked;
+                if (tanggalKembali.isBefore(tanggalPinjam)) {
+                  tanggalKembali = tanggalPinjam.add(const Duration(days: 7));
+                }
+              } else {
+                tanggalKembali = picked;
+              }
+            });
+          }
+
+          Widget label(String text, {bool isDisabled = false}) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                text,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: isDisabled ? Colors.black38 : Colors.black54,
+                ),
+              ),
+            );
+          }
+
+          Widget textField({
+            required TextEditingController controller,
+            required String placeholder,
+            required IconData icon,
+            int maxLines = 1,
+            TextInputType keyboardType = TextInputType.text,
+          }) {
+            return Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFFF5F5F5),
+                borderRadius: BorderRadius.circular(maxLines > 1 ? 20 : 30),
+              ),
+              child: TextField(
+                controller: controller,
+                maxLines: maxLines,
+                keyboardType: keyboardType,
+                style: const TextStyle(fontSize: 14, color: Colors.black87),
+                decoration: InputDecoration(
+                  hintText: placeholder,
+                  hintStyle: const TextStyle(
+                    color: Colors.black38,
+                    fontSize: 14,
+                  ),
+                  prefixIcon: maxLines > 1
+                      ? Padding(
+                          padding: const EdgeInsets.only(top: 14, left: 4),
+                          child: Icon(icon, size: 18, color: Colors.black38),
+                        )
+                      : Icon(icon, size: 18, color: Colors.black38),
+                  prefixIconConstraints: maxLines > 1
+                      ? const BoxConstraints(minWidth: 44, minHeight: 0)
+                      : null,
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: maxLines > 1 ? 16 : 14,
+                  ),
+                ),
+              ),
+            );
+          }
+
+          Widget dropdownField({
+            required String placeholder,
+            required IconData icon,
+            required List<String> items,
+            required String? value,
+            required ValueChanged<String?> onChanged,
+            bool isDisabled = false,
+          }) {
+            return Container(
+              decoration: BoxDecoration(
+                color: isDisabled
+                    ? const Color(0xFFEEEEEE)
+                    : const Color(0xFFF5F5F5),
+                borderRadius: BorderRadius.circular(30),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: items.contains(value) ? value : null,
+                  isExpanded: true,
+                  hint: Row(
+                    children: [
+                      const SizedBox(width: 8),
+                      Icon(
+                        icon,
+                        size: 18,
+                        color: isDisabled ? Colors.black26 : Colors.black38,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          placeholder,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: isDisabled ? Colors.black26 : Colors.black38,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  selectedItemBuilder: (ctx) => items
+                      .map(
+                        (item) => Row(
+                          children: [
+                            const SizedBox(width: 8),
+                            Icon(icon, size: 18, color: _accentGreen),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                item,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                      .toList(),
+                  items: isDisabled
+                      ? null
+                      : items
+                            .map(
+                              (item) => DropdownMenuItem<String>(
+                                value: item,
+                                child: Text(
+                                  item,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 14),
+                                ),
+                              ),
+                            )
+                            .toList(),
+                  onChanged: isDisabled ? null : onChanged,
+                  icon: Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    color: isDisabled ? Colors.black26 : Colors.black45,
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                ),
+              ),
+            );
+          }
+
+          Widget dateField({
+            required DateTime date,
+            required VoidCallback onTap,
+          }) {
+            return GestureDetector(
+              onTap: onTap,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF5F5F5),
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.calendar_month_outlined,
+                      size: 18,
+                      color: Colors.black45,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        fmtDate(date),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ),
+                    const Icon(
+                      Icons.edit_calendar_outlined,
+                      size: 16,
+                      color: Colors.black26,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
+          Widget sectionCard({
+            required IconData icon,
+            required String title,
+            required List<Widget> children,
+          }) {
+            return Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(icon, size: 18, color: _accentGreen),
+                        const SizedBox(width: 8),
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    const Divider(height: 1),
+                    const SizedBox(height: 16),
+                    ...children,
+                  ],
+                ),
+              ),
+            );
+          }
+
+          Future<void> save() async {
+            if (namaController.text.trim().isEmpty ||
+                noHakController.text.trim().isEmpty ||
+                seksi == null ||
+                kecamatan == null ||
+                kelurahan == null ||
+                jenisHak == null) {
+              ScaffoldMessenger.of(sheetContext).showSnackBar(
+                const SnackBar(
+                  content: Text('Lengkapi semua kolom sebelum menyimpan.'),
+                ),
+              );
+              return;
+            }
+
+            final updated = p.copyWith(
+              nama: namaController.text.trim(),
+              noHak: noHakController.text.trim(),
+              seksi: seksi,
+              kecamatan: kecamatan,
+              kelurahan: kelurahan,
+              jenisHak: jenisHak,
+              keperluan: keperluanController.text.trim(),
+              tanggalPinjam: tanggalPinjam,
+              tanggalKembali: tanggalKembali,
+            );
+            bool ok = false;
+            String? errorMsg;
+            try {
+              ok = await PeminjamanService.editPeminjaman(updated);
+            } catch (e) {
+              errorMsg = e.toString();
+            }
+            if (!mounted) return;
+            FocusManager.instance.primaryFocus?.unfocus();
+            Navigator.pop(sheetContext);
+            if (ok) _refresh();
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  ok
+                      ? 'Data peminjaman berhasil diperbarui.'
+                      : errorMsg ?? 'Gagal memperbarui data.',
+                ),
+                backgroundColor: ok ? _accentGreen : Colors.red.shade400,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            );
+          }
+
+          return DraggableScrollableSheet(
+            initialChildSize: 0.92,
+            minChildSize: 0.5,
+            maxChildSize: 0.95,
+            expand: false,
+            builder: (_, scrollController) {
+              return Container(
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF7F8F7),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                ),
+                child: Column(
+                  children: [
+                    // ── Header — gradient, matches FormPage's header style
+                    Container(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [_primaryGreen, _accentGreen],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.vertical(
+                          top: Radius.circular(28),
+                        ),
+                      ),
+                      child: SafeArea(
+                        bottom: false,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 18, 16, 20),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                child: const Icon(
+                                  Icons.edit_document,
+                                  size: 20,
+                                  color: _primaryGreen,
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Edit Peminjaman',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'No. Hak: ${p.noHak}',
+                                      style: const TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 12.5,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              GestureDetector(
+                                onTap: () {
+                                  FocusManager.instance.primaryFocus?.unfocus();
+                                  Navigator.pop(sheetContext);
+                                },
+                                child: const CircleAvatar(
+                                  radius: 16,
+                                  backgroundColor: Colors.white24,
+                                  child: Icon(
+                                    Icons.close,
+                                    color: Colors.white,
+                                    size: 18,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // ── Body — same 3-section layout as FormPage
+                    Expanded(
+                      child: SingleChildScrollView(
+                        controller: scrollController,
+                        padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            sectionCard(
+                              icon: Icons.person_search_outlined,
+                              title: 'Identitas Peminjam',
+                              children: [
+                                label('Nama Lengkap'),
+                                textField(
+                                  controller: namaController,
+                                  placeholder: 'Masukkan nama peminjam',
+                                  icon: Icons.badge_outlined,
+                                ),
+                                const SizedBox(height: 16),
+                                label('Seksi / Unit Kerja'),
+                                dropdownField(
+                                  placeholder: 'Pilih Seksi / Unit Kerja',
+                                  icon: Icons.apartment_outlined,
+                                  items: Data.seksi,
+                                  value: seksi,
+                                  onChanged: (v) =>
+                                      setSheetState(() => seksi = v),
+                                ),
+                              ],
+                            ),
+                            sectionCard(
+                              icon: Icons.inventory_2_outlined,
+                              title: 'Detail Objek Arsip',
+                              children: [
+                                label('Kecamatan'),
+                                dropdownField(
+                                  placeholder: 'Pilih Kecamatan',
+                                  icon: Icons.location_city_outlined,
+                                  items: Data.kecamatan,
+                                  value: kecamatan,
+                                  onChanged: (v) => setSheetState(() {
+                                    kecamatan = v;
+                                    kelurahan = null;
+                                  }),
+                                ),
+                                const SizedBox(height: 16),
+                                label(
+                                  kelurahanOptions.isEmpty
+                                      ? 'Kelurahan (Non-aktif)'
+                                      : 'Kelurahan',
+                                  isDisabled: kelurahanOptions.isEmpty,
+                                ),
+                                dropdownField(
+                                  placeholder: kecamatan == null
+                                      ? 'Pilih Kecamatan dahulu'
+                                      : 'Pilih Kelurahan',
+                                  icon: Icons.map_outlined,
+                                  items: kelurahanOptions,
+                                  value: kelurahanValue,
+                                  isDisabled: kelurahanOptions.isEmpty,
+                                  onChanged: (v) =>
+                                      setSheetState(() => kelurahan = v),
+                                ),
+                                const SizedBox(height: 16),
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          label('Jenis Hak'),
+                                          dropdownField(
+                                            placeholder: 'Pilih Hak',
+                                            icon: Icons.shield_outlined,
+                                            items: Data.jenisHak,
+                                            value: jenisHak,
+                                            onChanged: (v) => setSheetState(
+                                              () => jenisHak = v,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          label('Nomor Hak'),
+                                          textField(
+                                            controller: noHakController,
+                                            placeholder: 'Contoh: 12345',
+                                            icon: Icons.tag,
+                                            keyboardType: TextInputType.number,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            sectionCard(
+                              icon: Icons.access_time_outlined,
+                              title: 'Keperluan & Waktu',
+                              children: [
+                                label('Keperluan Peminjaman'),
+                                textField(
+                                  controller: keperluanController,
+                                  placeholder:
+                                      'Jelaskan alasan peminjaman dokumen...',
+                                  icon: Icons.description_outlined,
+                                  maxLines: 4,
+                                ),
+                                const SizedBox(height: 16),
+                                label('Tanggal Mulai'),
+                                dateField(
+                                  date: tanggalPinjam,
+                                  onTap: () => pickDate(isPinjam: true),
+                                ),
+                                const SizedBox(height: 4),
+                                const Padding(
+                                  padding: EdgeInsets.only(left: 4),
+                                  child: Text(
+                                    'Ketuk untuk mengubah tanggal mulai peminjaman.',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.black38,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                label('Tanggal Pengembalian'),
+                                dateField(
+                                  date: tanggalKembali,
+                                  onTap: () => pickDate(isPinjam: false),
+                                ),
+                                const SizedBox(height: 4),
+                                const Padding(
+                                  padding: EdgeInsets.only(left: 4),
+                                  child: Text(
+                                    'Tidak bisa lebih awal dari Tanggal Mulai.',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.black38,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    // ── Bottom action bar — pinned, respects the keyboard
+                    Container(
+                      padding: EdgeInsets.fromLTRB(
+                        16,
+                        14,
+                        16,
+                        MediaQuery.of(sheetContext).viewInsets.bottom > 0
+                            ? 14
+                            : 24,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 12,
+                            offset: const Offset(0, -3),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () {
+                                FocusManager.instance.primaryFocus?.unfocus();
+                                Navigator.pop(sheetContext);
+                              },
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(30),
+                                ),
+                                side: const BorderSide(color: Colors.black26),
+                              ),
+                              child: const Text(
+                                'Batal',
+                                style: TextStyle(
+                                  color: Colors.black54,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            flex: 2,
+                            child: ElevatedButton.icon(
+                              onPressed: save,
+                              icon: const Icon(
+                                Icons.save_outlined,
+                                size: 18,
+                                color: Colors.white,
+                              ),
+                              label: const Text(
+                                'Simpan Perubahan',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _accentGreen,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(30),
+                                ),
+                                elevation: 0,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
+      ),
+    ).then((_) {
+      // Dipanggil di setiap jalur keluar (Batal, Simpan, tombol close, atau
+      // swipe-down) supaya controller tidak bocor.
+      namaController.dispose();
+      noHakController.dispose();
+      keperluanController.dispose();
+    });
   }
 
   // ─── HAPUS (admin only) ───
@@ -1493,6 +2186,7 @@ class _HistoryPageState extends State<HistoryPage> {
   // ─── BOTTOM NAV ───
   // ─── Dipakai oleh AppBottomNav ───
   void _onNavTap(int index) {
+    FocusManager.instance.primaryFocus?.unfocus();
     switch (index) {
       case 0:
         Navigator.pushReplacementNamed(context, AppRoutes.home);
@@ -1529,17 +2223,28 @@ class _HistoryPageState extends State<HistoryPage> {
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       body: Column(
         children: [
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              _buildHeader(),
-              Positioned(
-                left: 20,
-                right: 20,
-                bottom: -24,
-                child: _buildFloatingSearchBar(),
+          // Item #6: collapses (slides up) on scroll-down, reappears on
+          // scroll-up — see the NotificationListener around the list
+          // below that drives _showHeader.
+          ClipRect(
+            child: AnimatedAlign(
+              duration: const Duration(milliseconds: 260),
+              curve: Curves.easeInOut,
+              alignment: Alignment.topCenter,
+              heightFactor: _showHeader ? 1.0 : 0.0,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  _buildHeader(),
+                  Positioned(
+                    left: 20,
+                    right: 20,
+                    bottom: -24,
+                    child: _buildFloatingSearchBar(),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
           const SizedBox(height: 36),
           if (_isFiltering)
@@ -1615,813 +2320,140 @@ class _HistoryPageState extends State<HistoryPage> {
               ),
             ),
           Expanded(
-            child: RefreshIndicator(
-              onRefresh: _onPullRefresh,
-              color: _accentGreen,
-              child: _isLoading && _history.isEmpty
-                  ? ListView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      children: [
-                        SizedBox(
-                          height: MediaQuery.of(context).size.height * 0.55,
-                          child: const Center(
-                            child: CircularProgressIndicator(),
-                          ),
-                        ),
-                      ],
-                    )
-                  : filtered.isEmpty
-                  ? ListView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      children: [
-                        SizedBox(
-                          height: MediaQuery.of(context).size.height * 0.55,
-                          child: Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.history,
-                                  size: 56,
-                                  color: Colors.blueGrey.shade200,
-                                ),
-                                const SizedBox(height: 12),
-                                Text(
-                                  _history.isEmpty
-                                      ? 'Belum ada data peminjaman.'
-                                      : 'Tidak ada hasil yang cocok.',
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    color: Colors.black54,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    )
-                  : ListView.separated(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                      itemCount: filtered.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 12),
-                      itemBuilder: (context, index) => _item(filtered[index]),
-                    ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── EDIT PEMINJAMAN — FULL PAGE ───
-// Dedicated full-screen editor for HistoryPage's admin-only "Edit" action.
-// Deliberately mirrors FormPage's layout (gradient header, breathing-room
-// section cards, pill-shaped inputs) instead of squeezing the same fields
-// into a compact AlertDialog. Pops `true` when a save succeeds so the
-// caller knows to refresh + show a confirmation snackbar.
-class _EditPeminjamanPage extends StatefulWidget {
-  final Peminjaman peminjaman;
-
-  const _EditPeminjamanPage({required this.peminjaman});
-
-  @override
-  State<_EditPeminjamanPage> createState() => _EditPeminjamanPageState();
-}
-
-class _EditPeminjamanPageState extends State<_EditPeminjamanPage> {
-  late final TextEditingController _namaController;
-  late final TextEditingController _noHakController;
-  late final TextEditingController _keperluanController;
-
-  String? _seksi;
-  String? _kecamatan;
-  String? _kelurahan;
-  String? _jenisHak;
-  late DateTime _tanggalPinjam;
-  late DateTime _tanggalKembali;
-
-  bool _saving = false;
-
-  static const Color _primaryGreen = Color(0xFF1B4332);
-  static const Color _accentGreen = Color(0xFF2D6A4F);
-
-  @override
-  void initState() {
-    super.initState();
-    final p = widget.peminjaman;
-    _namaController = TextEditingController(text: p.nama);
-    _noHakController = TextEditingController(text: p.noHak);
-    _keperluanController = TextEditingController(text: p.keperluan);
-    _seksi = p.seksi;
-    _kecamatan = p.kecamatan;
-    _kelurahan = p.kelurahan;
-    _jenisHak = p.jenisHak;
-    _tanggalPinjam = p.tanggalPinjam;
-    _tanggalKembali = p.tanggalKembali;
-  }
-
-  @override
-  void dispose() {
-    _namaController.dispose();
-    _noHakController.dispose();
-    _keperluanController.dispose();
-    super.dispose();
-  }
-
-  // ─── ROBUST KELURAHAN LOOKUP (matches FormPage) ───
-  List<String> _kelurahanFor(String? kecamatan) {
-    if (kecamatan == null) return const [];
-    final direct = Data.kelurahan[kecamatan];
-    if (direct != null && direct.isNotEmpty) return direct;
-    final normalized = kecamatan.trim().toLowerCase();
-    for (final entry in Data.kelurahan.entries) {
-      if (entry.key.trim().toLowerCase() == normalized) {
-        return entry.value;
-      }
-    }
-    return const [];
-  }
-
-  String _formatDate(DateTime date) {
-    const bulan = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'Mei',
-      'Jun',
-      'Jul',
-      'Agu',
-      'Sep',
-      'Okt',
-      'Nov',
-      'Des',
-    ];
-    return '${date.day.toString().padLeft(2, '0')} ${bulan[date.month - 1]} ${date.year}';
-  }
-
-  Future<void> _pickDate({required bool isPinjam}) async {
-    final DateTime firstDate = isPinjam ? DateTime(2020) : _tanggalPinjam;
-    final DateTime initial = isPinjam
-        ? _tanggalPinjam
-        : (_tanggalKembali.isBefore(_tanggalPinjam)
-              ? _tanggalPinjam
-              : _tanggalKembali);
-
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: initial,
-      firstDate: firstDate,
-      lastDate: DateTime(2030),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.light(
-              primary: _accentGreen,
-              onPrimary: Colors.white,
-              surface: Colors.white,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-    if (picked == null) return;
-    setState(() {
-      if (isPinjam) {
-        _tanggalPinjam = picked;
-        if (_tanggalKembali.isBefore(_tanggalPinjam)) {
-          _tanggalKembali = _tanggalPinjam.add(const Duration(days: 7));
-        }
-      } else {
-        _tanggalKembali = picked;
-      }
-    });
-  }
-
-  void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red.shade400,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
-  }
-
-  // ─── SIMPAN ───
-  Future<void> _simpan() async {
-    if (_namaController.text.trim().isEmpty ||
-        _noHakController.text.trim().isEmpty ||
-        _seksi == null ||
-        _kecamatan == null ||
-        _kelurahan == null ||
-        _jenisHak == null) {
-      _showError('Lengkapi semua kolom sebelum menyimpan.');
-      return;
-    }
-
-    setState(() => _saving = true);
-
-    final updated = widget.peminjaman.copyWith(
-      nama: _namaController.text.trim(),
-      noHak: _noHakController.text.trim(),
-      seksi: _seksi,
-      kecamatan: _kecamatan,
-      kelurahan: _kelurahan,
-      jenisHak: _jenisHak,
-      keperluan: _keperluanController.text.trim(),
-      tanggalPinjam: _tanggalPinjam,
-      tanggalKembali: _tanggalKembali,
-    );
-
-    bool ok = false;
-    String? errorMsg;
-    try {
-      ok = await PeminjamanService.editPeminjaman(updated);
-    } catch (e) {
-      errorMsg = e.toString();
-    }
-
-    if (!mounted) return;
-
-    if (ok) {
-      Navigator.pop(context, true);
-      return;
-    }
-
-    setState(() => _saving = false);
-    _showError(errorMsg ?? 'Gagal memperbarui data.');
-  }
-
-  // ─── HEADER (mirrors FormPage's gradient header, adapted: close instead
-  // of drawer/avatar, since this page is a standalone push, not a tab) ───
-  Widget _buildHeader() {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [_primaryGreen, _accentGreen],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'Arsip Pertanahan',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                      ),
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: const CircleAvatar(
-                      radius: 15,
-                      backgroundColor: Colors.white24,
-                      child: Icon(Icons.close, color: Colors.white, size: 16),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.10),
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: Colors.white.withOpacity(0.15)),
-                ),
-                child: Row(
-                  children: [
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+            child: NotificationListener<UserScrollNotification>(
+              onNotification: (notification) {
+                if (notification.direction == ScrollDirection.reverse &&
+                    _showHeader) {
+                  setState(() => _showHeader = false);
+                } else if (notification.direction == ScrollDirection.forward &&
+                    !_showHeader) {
+                  setState(() => _showHeader = true);
+                }
+                return false;
+              },
+              child: RefreshIndicator(
+                onRefresh: _onPullRefresh,
+                color: _accentGreen,
+                child: _isLoading && _history.isEmpty
+                    ? ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
                         children: [
-                          Text(
-                            'Perbarui data peminjaman,',
-                            style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: 12,
-                            ),
-                          ),
-                          SizedBox(height: 2),
-                          Text(
-                            'Edit Peminjaman',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          SizedBox(height: 6),
-                          Text(
-                            'Sesuaikan data di bawah, lalu simpan\nperubahan pada arsip pertanahan ini.',
-                            style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: 11.5,
-                              height: 1.4,
+                          SizedBox(
+                            height: MediaQuery.of(context).size.height * 0.55,
+                            child: const Center(
+                              child: CircularProgressIndicator(),
                             ),
                           ),
                         ],
-                      ),
-                    ),
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                      child: const Icon(
-                        Icons.edit_document,
-                        size: 20,
-                        color: _primaryGreen,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ─── SECTION CARD (matches FormPage) ───
-  Widget _sectionCard({
-    required IconData icon,
-    required String title,
-    required List<Widget> children,
-  }) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, size: 18, color: _accentGreen),
-                const SizedBox(width: 8),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            const Divider(height: 1),
-            const SizedBox(height: 16),
-            ...children,
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ─── FIELD LABEL (matches FormPage) ───
-  Widget _label(String text, {bool isDisabled = false}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w500,
-          color: isDisabled ? Colors.black38 : Colors.black54,
-        ),
-      ),
-    );
-  }
-
-  // ─── TEXT FIELD (matches FormPage) ───
-  Widget _textField({
-    required TextEditingController controller,
-    required String placeholder,
-    required IconData icon,
-    int maxLines = 1,
-    TextInputType keyboardType = TextInputType.text,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFFF5F5F5),
-        borderRadius: BorderRadius.circular(30),
-      ),
-      child: TextField(
-        controller: controller,
-        maxLines: maxLines,
-        keyboardType: keyboardType,
-        style: const TextStyle(fontSize: 14, color: Colors.black87),
-        decoration: InputDecoration(
-          hintText: placeholder,
-          hintStyle: const TextStyle(color: Colors.black38, fontSize: 14),
-          prefixIcon: Icon(icon, size: 18, color: Colors.black38),
-          border: InputBorder.none,
-          contentPadding: EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: maxLines > 1 ? 16 : 14,
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ─── DROPDOWN FIELD (matches FormPage) ───
-  Widget _dropdownField({
-    required String placeholder,
-    required IconData icon,
-    required List<String> items,
-    required String? value,
-    required ValueChanged<String?> onChanged,
-    bool isDisabled = false,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: isDisabled ? const Color(0xFFEEEEEE) : const Color(0xFFF5F5F5),
-        borderRadius: BorderRadius.circular(30),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: items.contains(value) ? value : null,
-          isExpanded: true,
-          hint: Row(
-            children: [
-              const SizedBox(width: 8),
-              Icon(
-                icon,
-                size: 18,
-                color: isDisabled ? Colors.black26 : Colors.black38,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  placeholder,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: isDisabled ? Colors.black26 : Colors.black38,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          selectedItemBuilder: (ctx) => items
-              .map(
-                (item) => Row(
-                  children: [
-                    const SizedBox(width: 8),
-                    Icon(icon, size: 18, color: _accentGreen),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        item,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: Colors.black87,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              )
-              .toList(),
-          items: isDisabled
-              ? null
-              : items
-                    .map(
-                      (item) => DropdownMenuItem<String>(
-                        value: item,
-                        child: Text(
-                          item,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                      ),
-                    )
-                    .toList(),
-          onChanged: isDisabled ? null : onChanged,
-          icon: Icon(
-            Icons.keyboard_arrow_down_rounded,
-            color: isDisabled ? Colors.black26 : Colors.black45,
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        ),
-      ),
-    );
-  }
-
-  // ─── DATE FIELD (matches FormPage) ───
-  Widget _dateField({required DateTime date, required bool isPinjam}) {
-    return GestureDetector(
-      onTap: () => _pickDate(isPinjam: isPinjam),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF5F5F5),
-          borderRadius: BorderRadius.circular(30),
-        ),
-        child: Row(
-          children: [
-            const Icon(
-              Icons.calendar_month_outlined,
-              size: 18,
-              color: Colors.black45,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                _formatDate(date),
-                style: const TextStyle(fontSize: 14, color: Colors.black87),
-              ),
-            ),
-            const Icon(
-              Icons.edit_calendar_outlined,
-              size: 16,
-              color: Colors.black26,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final kelurahanOptions = _kelurahanFor(_kecamatan);
-    final kelurahanDisabled = _kecamatan == null || kelurahanOptions.isEmpty;
-
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F7F5),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildHeader(),
-            const SizedBox(height: 18),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // ── Seksi 1: Identitas Peminjam
-                  _sectionCard(
-                    icon: Icons.person_search_outlined,
-                    title: 'Identitas Peminjam',
-                    children: [
-                      _label('Nama Lengkap'),
-                      _textField(
-                        controller: _namaController,
-                        placeholder: 'Masukkan nama peminjam',
-                        icon: Icons.badge_outlined,
-                      ),
-                      const SizedBox(height: 16),
-                      _label('Seksi / Unit Kerja'),
-                      _dropdownField(
-                        placeholder: 'Pilih Seksi / Unit Kerja',
-                        icon: Icons.apartment_outlined,
-                        items: Data.seksi,
-                        value: _seksi,
-                        onChanged: (v) => setState(() => _seksi = v),
-                      ),
-                    ],
-                  ),
-
-                  // ── Seksi 2: Detail Objek Arsip
-                  _sectionCard(
-                    icon: Icons.inventory_2_outlined,
-                    title: 'Detail Objek Arsip',
-                    children: [
-                      _label('Kecamatan'),
-                      _dropdownField(
-                        placeholder: 'Pilih Kecamatan',
-                        icon: Icons.location_city_outlined,
-                        items: Data.kecamatan,
-                        value: _kecamatan,
-                        onChanged: (v) => setState(() {
-                          _kecamatan = v;
-                          _kelurahan = null;
-                        }),
-                      ),
-                      const SizedBox(height: 16),
-                      _label(
-                        kelurahanDisabled
-                            ? 'Kelurahan (Non-aktif)'
-                            : 'Kelurahan',
-                        isDisabled: kelurahanDisabled,
-                      ),
-                      _dropdownField(
-                        placeholder: _kecamatan == null
-                            ? 'Pilih Kecamatan dahulu'
-                            : 'Pilih Kelurahan',
-                        icon: Icons.map_outlined,
-                        items: kelurahanOptions,
-                        value: _kelurahan,
-                        onChanged: (v) => setState(() => _kelurahan = v),
-                        isDisabled: kelurahanDisabled,
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      )
+                    : filtered.isEmpty
+                    ? ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
                         children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                _label('Jenis Hak'),
-                                _dropdownField(
-                                  placeholder: 'Pilih Hak',
-                                  icon: Icons.shield_outlined,
-                                  items: Data.jenisHak,
-                                  value: _jenisHak,
-                                  onChanged: (v) =>
-                                      setState(() => _jenisHak = v),
+                          SizedBox(
+                            height: MediaQuery.of(context).size.height * 0.55,
+                            child: Center(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 36,
                                 ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                _label('Nomor Hak'),
-                                _textField(
-                                  controller: _noHakController,
-                                  placeholder: 'Contoh: 12345',
-                                  icon: Icons.tag,
-                                  keyboardType: TextInputType.number,
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      width: 92,
+                                      height: 92,
+                                      decoration: const BoxDecoration(
+                                        color: Color(0xFFD8F3DC),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Icon(
+                                        Icons.history,
+                                        size: 40,
+                                        color: _accentGreen,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 20),
+                                    Text(
+                                      _history.isEmpty
+                                          ? 'Belum Ada Riwayat Peminjaman'
+                                          : 'Tidak Ada Hasil',
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.black87,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      _history.isEmpty
+                                          ? 'Setiap peminjaman dan pengembalian '
+                                                'dokumen yang tercatat akan '
+                                                'muncul di sini.'
+                                          : 'Coba ubah kata kunci pencarian '
+                                                'atau filter yang sedang aktif.',
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        color: Colors.black45,
+                                        height: 1.4,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 22),
+                                    if (_history.isEmpty)
+                                      OutlinedButton.icon(
+                                        onPressed: () =>
+                                            _navigateAndRefresh(AppRoutes.form),
+                                        icon: const Icon(Icons.add, size: 18),
+                                        label: const Text('Catat Peminjaman'),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: _accentGreen,
+                                          side: const BorderSide(
+                                            color: _accentGreen,
+                                          ),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 22,
+                                            vertical: 12,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              30,
+                                            ),
+                                          ),
+                                        ),
+                                      )
+                                    else
+                                      TextButton(
+                                        onPressed: () {
+                                          _searchController.clear();
+                                          _resetFilters();
+                                        },
+                                        child: Text(
+                                          'Hapus Pencarian & Filter',
+                                          style: TextStyle(
+                                            color: _accentGreen,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 ),
-                              ],
+                              ),
                             ),
                           ),
                         ],
+                      )
+                    : ListView.separated(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                        itemCount: filtered.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 12),
+                        itemBuilder: (context, index) => _item(filtered[index]),
                       ),
-                    ],
-                  ),
-
-                  // ── Seksi 3: Keperluan & Waktu
-                  _sectionCard(
-                    icon: Icons.access_time_outlined,
-                    title: 'Keperluan & Waktu',
-                    children: [
-                      _label('Keperluan Peminjaman'),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF5F5F5),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: TextField(
-                          controller: _keperluanController,
-                          maxLines: 4,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Colors.black87,
-                          ),
-                          decoration: const InputDecoration(
-                            hintText: 'Jelaskan alasan peminjaman dokumen...',
-                            hintStyle: TextStyle(
-                              color: Colors.black38,
-                              fontSize: 14,
-                            ),
-                            prefixIcon: Padding(
-                              padding: EdgeInsets.only(top: 14, left: 4),
-                              child: Icon(
-                                Icons.description_outlined,
-                                size: 18,
-                                color: Colors.black38,
-                              ),
-                            ),
-                            prefixIconConstraints: BoxConstraints(
-                              minWidth: 44,
-                              minHeight: 0,
-                            ),
-                            border: InputBorder.none,
-                            contentPadding: EdgeInsets.all(16),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      _label('Tanggal Mulai'),
-                      _dateField(date: _tanggalPinjam, isPinjam: true),
-                      const SizedBox(height: 4),
-                      const Padding(
-                        padding: EdgeInsets.only(left: 4),
-                        child: Text(
-                          'Ketuk untuk mengubah tanggal mulai peminjaman.',
-                          style: TextStyle(fontSize: 11, color: Colors.black38),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      _label('Tanggal Pengembalian'),
-                      _dateField(date: _tanggalKembali, isPinjam: false),
-                      const SizedBox(height: 4),
-                      const Padding(
-                        padding: EdgeInsets.only(left: 4),
-                        child: Text(
-                          'Tidak bisa lebih awal dari Tanggal Mulai.',
-                          style: TextStyle(fontSize: 11, color: Colors.black38),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  // ── Tombol Simpan
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: _saving ? null : _simpan,
-                      icon: _saving
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation(
-                                  Colors.white,
-                                ),
-                              ),
-                            )
-                          : const Icon(
-                              Icons.save_outlined,
-                              size: 18,
-                              color: Colors.white,
-                            ),
-                      label: Text(
-                        _saving ? 'Menyimpan...' : 'Simpan Perubahan',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _accentGreen,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                        elevation: 0,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Center(
-                    child: TextButton(
-                      onPressed: _saving ? null : () => Navigator.pop(context),
-                      child: const Text(
-                        'Batal',
-                        style: TextStyle(fontSize: 14, color: Colors.black45),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../core/theme/app_theme.dart';
 import '../routes/app_routes.dart';
+import '../services/auth_service.dart';
 
 /// Which drawer item should render as "active" (highlighted) for the
 /// current page. One enum value per screen that has a drawer entry.
@@ -108,9 +109,25 @@ class AppDrawer extends StatelessWidget {
                 'Logout',
                 style: TextStyle(color: Colors.redAccent),
               ),
-              onTap: () {
+              onTap: () async {
+                // Sebelumnya cuma pindah ke halaman Login tanpa benar-benar
+                // logout — sesi Supabase & AuthService.currentUser tetap
+                // aktif di belakang layar. Ini yang dipakai di 4 halaman
+                // (Home/Form/History/Return), jadi ini jalur logout utama.
                 Navigator.pop(context);
-                Navigator.pushReplacementNamed(context, AppRoutes.login);
+                try {
+                  await AuthService.logout();
+                } catch (_) {
+                  // Non-fatal: sesi lokal biasanya tetap terhapus walau
+                  // panggilan ke server gagal — tetap lanjut ke Login.
+                }
+                if (context.mounted) {
+                  Navigator.pushNamedAndRemoveUntil(
+                    context,
+                    AppRoutes.login,
+                    (route) => false,
+                  );
+                }
               },
             ),
           ),
