@@ -1,3 +1,4 @@
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/app_user.dart';
 
@@ -53,6 +54,11 @@ class AuthService {
   static Future<void> logout() async {
     await _client.auth.signOut();
     _currentUser = null;
+
+    // Reset onboarding flag so the onboarding slides show again on the
+    // next app open, instead of only ever showing once per install.
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('onboarding_seen', false);
   }
 
   static Future<bool> tryRestoreSession() async {

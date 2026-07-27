@@ -256,12 +256,13 @@ class _ProfilPageState extends State<ProfilPage> {
         ),
       );
       // Session was likely cleared locally by AuthService.logout() even if
-      // the network call failed — send them to Login regardless so they're
-      // not stuck on a page for a user that's no longer considered logged in.
+      // the network call failed — send them to onboarding regardless so
+      // they're not stuck on a page for a user that's no longer considered
+      // logged in.
       if (!mounted) return;
       Navigator.pushNamedAndRemoveUntil(
         context,
-        AppRoutes.login,
+        AppRoutes.onboarding,
         (route) => false,
       );
       return;
@@ -270,7 +271,7 @@ class _ProfilPageState extends State<ProfilPage> {
     if (!mounted) return;
     Navigator.pushNamedAndRemoveUntil(
       context,
-      AppRoutes.login,
+      AppRoutes.onboarding,
       (route) => false,
     );
   }

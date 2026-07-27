@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 // IMPORT SEMUA PAGE
+import '../screens/onboarding/onboarding_page.dart';
 import '../screens/auth/login_page.dart';
 import '../screens/auth/signup_page.dart';
 import '../screens/home/home_page.dart';
@@ -12,6 +13,7 @@ import '../screens/peminjaman/barcode_page.dart';
 import '../screens/peminjaman/profile_page.dart';
 
 class AppRoutes {
+  static const String onboarding = '/onboarding';
   static const String login = '/login';
   static const String signup = '/signup';
   static const String home = '/home';
@@ -23,6 +25,7 @@ class AppRoutes {
   static const String profile = '/profile';
 
   static Map<String, WidgetBuilder> routes = {
+    onboarding: (context) => const OnboardingPage(),
     login: (context) => const LoginPage(),
     signup: (context) => const SignUpPage(),
     home: (context) => const HomePage(),

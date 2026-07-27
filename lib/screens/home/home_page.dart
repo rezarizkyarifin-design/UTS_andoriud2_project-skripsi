@@ -244,7 +244,11 @@ class _HomePageState extends State<HomePage> {
     if (selected == 'logout') {
       AuthService.logout();
       if (!mounted) return;
-      Navigator.pushReplacementNamed(context, AppRoutes.login);
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        AppRoutes.onboarding,
+        (route) => false,
+      );
     } else if (selected == 'profile') {
       final user = AuthService.currentUser;
       ScaffoldMessenger.of(context).showSnackBar(
