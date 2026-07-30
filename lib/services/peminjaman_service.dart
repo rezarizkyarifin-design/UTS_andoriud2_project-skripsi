@@ -297,6 +297,19 @@ class PeminjamanService {
   static List<Peminjaman> getPengajuanPerpanjangan() =>
       _cache.where((p) => p.isExtensionPending).toList();
 
+  // ─── Item 8 (Notifikasi dropdown) ───────────────────────────────
+  // Overdue documents relevant to the notification bell. Admin sees
+  // every overdue document across all officers (mirrors admin's broad
+  // oversight elsewhere in the app); Pegawai sees only documents they
+  // personally processed — same scope as getAktifUntukPegawaiSaatIni(),
+  // just filtered down to the overdue ones.
+  static List<Peminjaman> getOverdueForNotifikasi() {
+    if (AuthService.isAdmin) {
+      return _cache.where((p) => p.isOverdue).toList();
+    }
+    return getAktifUntukPegawaiSaatIni().where((p) => p.isOverdue).toList();
+  }
+
   // ─── Item 2 (Dashboard counters), di-scope ke Pegawai yang login ───
   static List<Peminjaman> getAktifUntukPegawaiSaatIni() {
     final officerId = AuthService.currentUser?.id;

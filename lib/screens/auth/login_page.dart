@@ -147,7 +147,7 @@ class _LoginPageState extends State<LoginPage> {
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
                                   border: Border.all(
-                                    color: _gold.withOpacity(0.55),
+                                    color: _gold.withValues(alpha: 0.55),
                                     width: 1.3,
                                   ),
                                 ),
@@ -158,13 +158,13 @@ class _LoginPageState extends State<LoginPage> {
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
                                       border: Border.all(
-                                        color: _gold.withOpacity(0.4),
+                                        color: _gold.withValues(alpha: 0.4),
                                         width: 1,
                                       ),
                                     ),
                                     child: Icon(
                                       Icons.shield_outlined,
-                                      color: _gold.withOpacity(0.85),
+                                      color: _gold.withValues(alpha: 0.85),
                                       size: 20,
                                     ),
                                   ),
@@ -193,8 +193,8 @@ class _LoginPageState extends State<LoginPage> {
                                           shape: BoxShape.circle,
                                           boxShadow: [
                                             BoxShadow(
-                                              color: Colors.black.withOpacity(
-                                                0.2,
+                                              color: Colors.black.withValues(
+                                                alpha: 0.2,
                                               ),
                                               blurRadius: 10,
                                               offset: const Offset(0, 4),
@@ -274,7 +274,7 @@ class _LoginPageState extends State<LoginPage> {
                               'Masuk untuk mengelola peminjaman arsip dokumen Anda.',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 13.5,
-                                color: _ink.withOpacity(0.6),
+                                color: _ink.withValues(alpha: 0.6),
                                 height: 1.4,
                               ),
                             ),
@@ -391,7 +391,7 @@ class _LoginPageState extends State<LoginPage> {
                                               boxShadow: [
                                                 BoxShadow(
                                                   color: AppTheme.primaryGreen
-                                                      .withOpacity(0.35),
+                                                      .withValues(alpha: 0.35),
                                                   blurRadius: 14,
                                                   offset: const Offset(0, 8),
                                                 ),
@@ -458,7 +458,9 @@ class _LoginPageState extends State<LoginPage> {
                                 vertical: 6,
                               ),
                               decoration: BoxDecoration(
-                                color: AppTheme.primaryGreen.withOpacity(0.08),
+                                color: AppTheme.primaryGreen.withValues(
+                                  alpha: 0.08,
+                                ),
                                 borderRadius: BorderRadius.circular(99),
                               ),
                               child: Row(
@@ -498,7 +500,7 @@ class _LoginPageState extends State<LoginPage> {
                                 text: TextSpan(
                                   style: GoogleFonts.plusJakartaSans(
                                     fontSize: 13,
-                                    color: _ink.withOpacity(0.6),
+                                    color: _ink.withValues(alpha: 0.6),
                                   ),
                                   children: [
                                     const TextSpan(text: 'Belum punya akun? '),
@@ -562,7 +564,7 @@ class _GridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.white.withOpacity(0.05)
+      ..color = Colors.white.withValues(alpha: 0.05)
       ..strokeWidth = 0.6;
     const spacing = 28.0;
     for (double x = 0; x < size.width; x += spacing) {

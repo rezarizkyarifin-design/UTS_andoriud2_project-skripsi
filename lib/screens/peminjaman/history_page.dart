@@ -8,6 +8,7 @@ import '../../services/auth_service.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/app_scan_fab.dart';
+import '../../widgets/notification_bell.dart';
 
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
@@ -122,13 +123,10 @@ class _HistoryPageState extends State<HistoryPage> {
     _refresh();
   }
 
-  // ─── Item 1: sama seperti HomePage — badge bell mengikuti role.
-  int _notifCount() {
-    if (AuthService.isAdmin) {
-      return PeminjamanService.getPengajuanPerpanjangan().length;
-    }
-    return PeminjamanService.getBelumKembaliBrp();
-  }
+  // ─── Item 1: notif badge count/dropdown now lives entirely in
+  // NotificationBell (lib/widgets/notification_bell.dart) — it reads
+  // PeminjamanService/AuthService directly, so this page doesn't need
+  // its own copy of this logic anymore.
 
   bool get _isFiltering =>
       _filterKecamatan != null ||
@@ -220,107 +218,6 @@ class _HistoryPageState extends State<HistoryPage> {
   String _statusLabel(Peminjaman p) {
     if (p.status == 'Dipinjam' && p.isOverdue) return 'Terlambat';
     return p.status == 'Dipinjam' ? 'Dipinjam' : 'Kembali';
-  }
-
-  // ─── NOTIFICATIONS (bottom sheet, mirrors HomePage) ───
-  void _showNotifications() {
-    final aktif = PeminjamanService.getSedangDipinjam();
-    final kembali = PeminjamanService.getTelahKembali();
-    final terlambat = _history.where((p) => p.isOverdue).length;
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) {
-        return Container(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.black12,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-              ),
-              const Text(
-                'Notifikasi',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              if (AuthService.isAdmin &&
-                  PeminjamanService.getPengajuanPerpanjangan().isNotEmpty)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(
-                    Icons.pending_actions,
-                    color: Color(0xFFB07A00),
-                  ),
-                  title: Text(
-                    '${PeminjamanService.getPengajuanPerpanjangan().length} pengajuan perpanjangan menunggu persetujuan',
-                  ),
-                  subtitle: const Text(
-                    'Buka Dashboard untuk meninjau dan memutuskan.',
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.pushReplacementNamed(context, AppRoutes.home);
-                  },
-                ),
-              if (terlambat > 0)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(
-                    Icons.warning_amber_rounded,
-                    color: _overdueRed,
-                  ),
-                  title: Text('$terlambat dokumen sudah lewat batas waktu'),
-                  subtitle: const Text(
-                    'Segera proses pengembalian atau perpanjangan.',
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _navigateAndRefresh(AppRoutes.returnPage);
-                  },
-                ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(
-                  Icons.sync_alt_rounded,
-                  color: Colors.orange,
-                ),
-                title: Text('$aktif dokumen sedang dipinjam'),
-                subtitle: const Text(
-                  'Pantau tanggal pengembalian agar tepat waktu.',
-                ),
-                onTap: () => Navigator.pop(context),
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(
-                  Icons.inventory_2_outlined,
-                  color: _accentGreen,
-                ),
-                title: Text('$kembali dokumen telah dikembalikan'),
-                subtitle: const Text('Lihat riwayat peminjaman terbaru.'),
-                onTap: () => Navigator.pop(context),
-              ),
-            ],
-          ),
-        );
-      },
-    );
   }
 
   // ─── PROFILE MENU ───
@@ -457,46 +354,7 @@ class _HistoryPageState extends State<HistoryPage> {
                       ),
                     ),
                   ),
-                  IconButton(
-                    icon: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        const Icon(
-                          Icons.notifications_outlined,
-                          color: Colors.white,
-                        ),
-                        if (_notifCount() > 0)
-                          Positioned(
-                            right: -2,
-                            top: -2,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 4,
-                              ),
-                              constraints: const BoxConstraints(
-                                minWidth: 15,
-                                minHeight: 15,
-                              ),
-                              decoration: const BoxDecoration(
-                                color: Colors.redAccent,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Text(
-                                _notifCount() > 9 ? '9+' : '${_notifCount()}',
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    onPressed: _showNotifications,
-                    tooltip: 'Notifikasi',
-                  ),
+                  const NotificationBell(),
                   GestureDetector(
                     onTapDown: _showProfileMenu,
                     child: const CircleAvatar(
@@ -1021,6 +879,12 @@ class _HistoryPageState extends State<HistoryPage> {
                   'Tanggal Kembali',
                   p.tanggalKembaliFormatted,
                 ),
+                if (p.returnedByMessage != null)
+                  row(
+                    Icons.verified_user_outlined,
+                    'Diproses Oleh',
+                    p.kembaliOlehNama!,
+                  ),
                 if (p.status == 'Dipinjam') ...[
                   const SizedBox(height: 4),
                   // ── Item 2: akses ulang QR/barcode selama dokumen masih
@@ -2171,6 +2035,35 @@ class _HistoryPageState extends State<HistoryPage> {
                             ),
                           ],
                         ),
+                        // ── Atribusi "Proses Kembali" — hanya tampil untuk
+                        // dokumen yang sudah kembali dan punya pencatatan
+                        // siapa yang memprosesnya (baris lama sebelum kolom
+                        // ini ada tidak akan menampilkan apa-apa di sini).
+                        if (peminjaman.returnedByMessage != null) ...[
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.verified_user_outlined,
+                                size: 13,
+                                color: Colors.black38,
+                              ),
+                              const SizedBox(width: 5),
+                              Expanded(
+                                child: Text(
+                                  peminjaman.returnedByMessage!,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontStyle: FontStyle.italic,
+                                    color: Colors.black38,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ),

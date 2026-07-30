@@ -62,7 +62,7 @@ class MyApp extends StatelessWidget {
       title: 'Aplikasi Arsip',
       theme: AppTheme.lightTheme,
       initialRoute: initialRoute,
-      routes: AppRoutes.routes,
+      onGenerateRoute: AppRoutes.onGenerateRoute,
     );
   }
 }

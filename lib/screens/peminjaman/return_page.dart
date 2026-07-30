@@ -8,6 +8,7 @@ import '../../routes/app_routes.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/app_scan_fab.dart';
+import '../../widgets/notification_bell.dart';
 
 class ReturnPage extends StatefulWidget {
   const ReturnPage({super.key});
@@ -137,13 +138,16 @@ class _ReturnPageState extends State<ReturnPage> {
     });
 
     final gagal = targets.length - berhasil.length;
+    final petugas = AuthService.currentUser?.nama;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
           errorMsg != null
               ? 'Gagal menandai kembali: $errorMsg'
               : gagal == 0
-              ? '${berhasil.length} dokumen berhasil ditandai kembali.'
+              ? (petugas != null
+                    ? '$petugas menandai ${berhasil.length} dokumen telah kembali.'
+                    : '${berhasil.length} dokumen berhasil ditandai kembali.')
               : '${berhasil.length} dari ${targets.length} dokumen berhasil'
                     ' ditandai kembali ($gagal gagal).',
         ),
@@ -289,11 +293,14 @@ class _ReturnPageState extends State<ReturnPage> {
               if (!mounted) return;
               Navigator.pop(context);
               if (ok) _refresh();
+              final petugas = AuthService.currentUser?.nama;
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
                     ok
-                        ? 'Dokumen berhasil dikembalikan.'
+                        ? (petugas != null
+                              ? '$petugas menandai dokumen telah kembali.'
+                              : 'Dokumen berhasil dikembalikan.')
                         : 'Gagal mengembalikan dokumen'
                               '${errorMsg != null ? ': $errorMsg' : ' (data tidak ditemukan / akses ditolak).'}',
                   ),
@@ -886,24 +893,7 @@ class _ReturnPageState extends State<ReturnPage> {
                       ),
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(
-                      Icons.notifications_outlined,
-                      color: Colors.white,
-                    ),
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            overdueCount > 0
-                                ? '$overdueCount dokumen sudah lewat batas waktu!'
-                                : '${aktif.length} dokumen sedang dipinjam.',
-                          ),
-                        ),
-                      );
-                    },
-                    tooltip: 'Notifikasi',
-                  ),
+                  const NotificationBell(),
                   GestureDetector(
                     onTapDown: _showProfileMenu,
                     child: const CircleAvatar(

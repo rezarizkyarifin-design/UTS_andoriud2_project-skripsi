@@ -204,7 +204,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                       count: _slides.length,
                       page: _page,
                       activeColor: AppTheme.primaryGreen,
-                      inactiveColor: _ink.withOpacity(0.15),
+                      inactiveColor: _ink.withValues(alpha: 0.15),
                     ),
                     const SizedBox(height: 28),
                     Padding(
@@ -225,7 +225,9 @@ class _OnboardingPageState extends State<OnboardingPage> {
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: AppTheme.primaryGreen.withOpacity(0.35),
+                                color: AppTheme.primaryGreen.withValues(
+                                  alpha: 0.35,
+                                ),
                                 blurRadius: 14,
                                 offset: const Offset(0, 8),
                               ),
@@ -274,12 +276,12 @@ class _OnboardingPageState extends State<OnboardingPage> {
       Positioned(
         top: -30 - (_page * 6),
         left: -20 + (_page * 10),
-        child: _blob(120, _gold.withOpacity(0.10)),
+        child: _blob(120, _gold.withValues(alpha: 0.10)),
       ),
       Positioned(
         bottom: -40 + (_page * 8),
         right: -30 - (_page * 6),
-        child: _blob(160, Colors.white.withOpacity(0.06)),
+        child: _blob(160, Colors.white.withValues(alpha: 0.06)),
       ),
     ];
   }
@@ -318,7 +320,7 @@ class _AnimatedBadge extends StatelessWidget {
         height: 132,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          border: Border.all(color: _gold.withOpacity(0.5), width: 1.4),
+          border: Border.all(color: _gold.withValues(alpha: 0.5), width: 1.4),
         ),
         child: Center(
           child: Container(
@@ -329,7 +331,7 @@ class _AnimatedBadge extends StatelessWidget {
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.15),
+                  color: Colors.black.withValues(alpha: 0.15),
                   blurRadius: 16,
                   offset: const Offset(0, 8),
                 ),
@@ -390,7 +392,7 @@ class _SlideText extends StatelessWidget {
             textAlign: TextAlign.center,
             style: GoogleFonts.plusJakartaSans(
               fontSize: 14,
-              color: _ink.withOpacity(0.6),
+              color: _ink.withValues(alpha: 0.6),
               height: 1.5,
             ),
           ),
@@ -440,7 +442,7 @@ class _GridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.white.withOpacity(0.05)
+      ..color = Colors.white.withValues(alpha: 0.05)
       ..strokeWidth = 0.6;
     const spacing = 28.0;
     for (double x = 0; x < size.width; x += spacing) {

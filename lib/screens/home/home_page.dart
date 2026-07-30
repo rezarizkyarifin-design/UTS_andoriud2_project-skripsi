@@ -7,6 +7,7 @@ import '../../core/theme/app_theme.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/app_scan_fab.dart';
+import '../../widgets/notification_bell.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -88,15 +89,10 @@ class _HomePageState extends State<HomePage> {
     return 'Selamat malam,';
   }
 
-  // ─── Item 1: jumlah notif yang relevan untuk role yang sedang login —
-  // dipakai buat badge di ikon bell. Admin: pengajuan perpanjangan yang
-  // menunggu keputusan. Pegawai: dokumen miliknya yang sudah lewat batas.
-  int _notifCount() {
-    if (AuthService.isAdmin) {
-      return PeminjamanService.getPengajuanPerpanjangan().length;
-    }
-    return PeminjamanService.getBelumKembaliBrp();
-  }
+  // ─── Item 1: notif badge count moved into NotificationBell itself —
+  // see lib/widgets/notification_bell.dart. It reads PeminjamanService/
+  // AuthService directly, so this page no longer needs to track or pass
+  // a count down.
 
   void _onNavTap(int index) {
     switch (index) {
@@ -120,110 +116,6 @@ class _HomePageState extends State<HomePage> {
   void _onDrawerNavigate(String route) {
     if (route == AppRoutes.home) return; // sudah di Dashboard
     _navigateAndRefresh(route);
-  }
-
-  void _showNotifications() {
-    final aktif = PeminjamanService.getSedangDipinjam();
-    final kembali = PeminjamanService.getTelahKembali();
-    final terlambat = PeminjamanService.getTerlambat();
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) {
-        return Container(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.black12,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-              ),
-              const Text(
-                'Notifikasi',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              if (AuthService.isAdmin &&
-                  PeminjamanService.getPengajuanPerpanjangan().isNotEmpty)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(
-                    Icons.pending_actions,
-                    color: Color(0xFFB07A00),
-                  ),
-                  title: Text(
-                    '${PeminjamanService.getPengajuanPerpanjangan().length} pengajuan perpanjangan menunggu persetujuan',
-                  ),
-                  subtitle: const Text('Ketuk untuk tinjau dan putuskan.'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _showExtensionApprovalSheet();
-                  },
-                ),
-              if (terlambat > 0)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(
-                    Icons.warning_amber_rounded,
-                    color: AppTheme.dangerRed,
-                  ),
-                  title: Text('$terlambat dokumen sudah lewat batas waktu'),
-                  subtitle: const Text(
-                    'Segera proses pengembalian atau perpanjangan.',
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _navigateAndRefresh(AppRoutes.returnPage);
-                  },
-                ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(
-                  Icons.sync_alt_rounded,
-                  color: Colors.orange,
-                ),
-                title: Text('$aktif dokumen sedang dipinjam'),
-                subtitle: const Text(
-                  'Pantau tanggal pengembalian agar tepat waktu.',
-                ),
-                onTap: () {
-                  Navigator.pop(context);
-                  _navigateAndRefresh(AppRoutes.returnPage);
-                },
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(
-                  Icons.inventory_2_outlined,
-                  color: AppTheme.accentGreen,
-                ),
-                title: Text('$kembali dokumen telah dikembalikan'),
-                subtitle: const Text('Lihat riwayat peminjaman terbaru.'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _navigateAndRefresh(AppRoutes.history);
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
   }
 
   void _showProfileMenu(TapDownDetails details) async {
@@ -318,46 +210,7 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ),
                   ),
-                  IconButton(
-                    icon: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        const Icon(
-                          Icons.notifications_outlined,
-                          color: Colors.white,
-                        ),
-                        if (_notifCount() > 0)
-                          Positioned(
-                            right: -2,
-                            top: -2,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 4,
-                              ),
-                              constraints: const BoxConstraints(
-                                minWidth: 15,
-                                minHeight: 15,
-                              ),
-                              decoration: const BoxDecoration(
-                                color: Colors.redAccent,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Text(
-                                _notifCount() > 9 ? '9+' : '${_notifCount()}',
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    onPressed: _showNotifications,
-                    tooltip: 'Notifikasi',
-                  ),
+                  const NotificationBell(),
                   GestureDetector(
                     onTapDown: _showProfileMenu,
                     child: const CircleAvatar(

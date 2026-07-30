@@ -17,6 +17,15 @@ class Peminjaman {
   // ─── Item 1 (Auth) link: siapa (Pegawai) yang memproses peminjaman ini.
   final String? diampuOleh; // AppUser.id (uuid)
 
+  // ─── Atribusi "Proses Kembali" — siapa admin yang menandai dokumen ini
+  // telah kembali. `kembaliOlehNama` is denormalized (stored as plain
+  // text alongside the id) so UI can show "Nama menandai dokumen telah
+  // kembali" directly from the cached row, without a separate lookup
+  // against `profiles`. Both stay null until kembalikan()/kembalikanBanyak()
+  // sets them.
+  final String? kembaliOleh; // AppUser.id (uuid)
+  final String? kembaliOlehNama;
+
   // ─── Perpanjangan waktu (state machine, lihat PeminjamanService) ───
   final String? extensionStatus;
   final DateTime? requestedTanggalKembali;
@@ -35,6 +44,8 @@ class Peminjaman {
     required this.tanggalKembali,
     this.status = 'Dipinjam',
     this.diampuOleh,
+    this.kembaliOleh,
+    this.kembaliOlehNama,
     this.extensionStatus,
     this.requestedTanggalKembali,
     this.extensionReason,
@@ -58,6 +69,8 @@ class Peminjaman {
       tanggalKembali: DateTime.parse(map['tanggal_kembali'] as String),
       status: map['status'] as String? ?? 'Dipinjam',
       diampuOleh: map['diampu_oleh'] as String?,
+      kembaliOleh: map['kembali_oleh'] as String?,
+      kembaliOlehNama: map['kembali_oleh_nama'] as String?,
       extensionStatus: map['extension_status'] as String?,
       requestedTanggalKembali: map['requested_tanggal_kembali'] == null
           ? null
@@ -81,6 +94,8 @@ class Peminjaman {
       'tanggal_kembali': tanggalKembali.toIso8601String(),
       'status': status,
       'diampu_oleh': diampuOleh,
+      'kembali_oleh': kembaliOleh,
+      'kembali_oleh_nama': kembaliOlehNama,
       'extension_status': extensionStatus,
       'requested_tanggal_kembali': requestedTanggalKembali?.toIso8601String(),
       'extension_reason': extensionReason,
@@ -95,6 +110,15 @@ class Peminjaman {
     if (!isOverdue) return 0;
     return DateTime.now().difference(tanggalKembali).inDays;
   }
+
+  // ─── ATRIBUSI PROSES KEMBALI ───
+  // Short attribution line for UI, e.g. "Budi menandai dokumen telah
+  // kembali." Null whenever there's no recorded name — either the
+  // document hasn't been returned yet, or it's a legacy row from before
+  // kembali_oleh_nama existed.
+  String? get returnedByMessage => kembaliOlehNama == null
+      ? null
+      : '$kembaliOlehNama menandai dokumen telah kembali';
 
   // ─── EXTENSION HELPERS ───
   bool get isExtensionPending => extensionStatus == 'Diajukan';
@@ -137,6 +161,8 @@ class Peminjaman {
     DateTime? tanggalKembali,
     String? status,
     String? diampuOleh,
+    String? kembaliOleh,
+    String? kembaliOlehNama,
     String? extensionStatus,
     DateTime? requestedTanggalKembali,
     String? extensionReason,
@@ -155,6 +181,8 @@ class Peminjaman {
       tanggalKembali: tanggalKembali ?? this.tanggalKembali,
       status: status ?? this.status,
       diampuOleh: diampuOleh ?? this.diampuOleh,
+      kembaliOleh: kembaliOleh ?? this.kembaliOleh,
+      kembaliOlehNama: kembaliOlehNama ?? this.kembaliOlehNama,
       extensionStatus: clearExtension
           ? null
           : (extensionStatus ?? this.extensionStatus),
