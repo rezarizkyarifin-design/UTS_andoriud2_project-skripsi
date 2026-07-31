@@ -124,7 +124,11 @@ class PeminjamanService {
     try {
       final rows = await _client
           .from('peminjaman')
-          .update({'status': 'Kembali'})
+          .update({
+            'status': 'Kembali',
+            'kembali_oleh': AuthService.currentUser?.id,
+            'kembali_oleh_nama': AuthService.currentUser?.nama,
+          })
           .eq('no_hak', noHak)
           .eq('status', 'Dipinjam')
           .select();
@@ -146,7 +150,11 @@ class PeminjamanService {
     try {
       final rows = await _client
           .from('peminjaman')
-          .update({'status': 'Kembali'})
+          .update({
+            'status': 'Kembali',
+            'kembali_oleh': AuthService.currentUser?.id,
+            'kembali_oleh_nama': AuthService.currentUser?.nama,
+          })
           .inFilter('no_hak', noHakList)
           .eq('status', 'Dipinjam')
           .select();

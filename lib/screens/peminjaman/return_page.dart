@@ -9,6 +9,7 @@ import '../../widgets/app_drawer.dart';
 import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/app_scan_fab.dart';
 import '../../widgets/notification_bell.dart';
+import '../../widgets/back_to_home.dart';
 
 class ReturnPage extends StatefulWidget {
   const ReturnPage({super.key});
@@ -106,6 +107,7 @@ class _ReturnPageState extends State<ReturnPage> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: _accentGreen,
+              foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -314,6 +316,7 @@ class _ReturnPageState extends State<ReturnPage> {
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: _accentGreen,
+              foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -477,6 +480,7 @@ class _ReturnPageState extends State<ReturnPage> {
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _accentGreen,
+                  foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -693,6 +697,7 @@ class _ReturnPageState extends State<ReturnPage> {
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: _accentGreen,
+                          foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 13),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(30),
@@ -1175,6 +1180,7 @@ class _ReturnPageState extends State<ReturnPage> {
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: _accentGreen,
+                        foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 15),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(30),
@@ -1433,6 +1439,7 @@ class _ReturnPageState extends State<ReturnPage> {
                                 ),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: _accentGreen,
+                                  foregroundColor: Colors.white,
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 12,
                                   ),
@@ -1559,380 +1566,389 @@ class _ReturnPageState extends State<ReturnPage> {
     final aktif = _pinjamanAktif;
     final overdueCount = aktif.where((p) => p.isOverdue).length;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F7F5),
-      drawer: AppDrawer(
-        active: DrawerSection.pengembalian,
-        onNavigate: _onDrawerNavigate,
-      ),
-      bottomNavigationBar: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (_selectionMode && _selectedNoHak.isNotEmpty)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-              color: Colors.white,
-              child: SafeArea(
-                top: false,
-                bottom: false,
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        '${_selectedNoHak.length} dokumen dipilih',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black87,
+    return BackToHome(
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF5F7F5),
+        drawer: AppDrawer(
+          active: DrawerSection.pengembalian,
+          onNavigate: _onDrawerNavigate,
+        ),
+        bottomNavigationBar: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_selectionMode && _selectedNoHak.isNotEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+                color: Colors.white,
+                child: SafeArea(
+                  top: false,
+                  bottom: false,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '${_selectedNoHak.length} dokumen dipilih',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black87,
+                          ),
                         ),
                       ),
-                    ),
-                    ElevatedButton.icon(
-                      onPressed: _isBulkSaving ? null : _bulkKembalikan,
-                      icon: _isBulkSaving
-                          ? const SizedBox(
-                              width: 14,
-                              height: 14,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
+                      ElevatedButton.icon(
+                        onPressed: _isBulkSaving ? null : _bulkKembalikan,
+                        icon: _isBulkSaving
+                            ? const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(
+                                Icons.assignment_turned_in_outlined,
+                                size: 16,
                                 color: Colors.white,
                               ),
-                            )
-                          : const Icon(
-                              Icons.assignment_turned_in_outlined,
-                              size: 16,
-                              color: Colors.white,
-                            ),
-                      label: const Text(
-                        'Tandai Kembali',
-                        style: TextStyle(color: Colors.white, fontSize: 13),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _accentGreen,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                        label: const Text(
+                          'Tandai Kembali',
+                          style: TextStyle(color: Colors.white, fontSize: 13),
                         ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          AppBottomNav(
-            activeIndex: _selectedNavIndex,
-            onItemSelected: _onNavTap,
-          ),
-        ],
-      ),
-      floatingActionButton: AppScanFab(
-        onTap: () => _navigateAndRefresh(AppRoutes.scan),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      body: Column(
-        children: [
-          // Item #6: collapses (slides up) on scroll-down, reappears on
-          // scroll-up — see the NotificationListener around the list
-          // below that drives _showHeader. ClipRect avoids the floating
-          // search bar's negative-bottom overshoot spilling out mid-
-          // animation.
-          ClipRect(
-            child: AnimatedAlign(
-              duration: const Duration(milliseconds: 260),
-              curve: Curves.easeInOut,
-              alignment: Alignment.topCenter,
-              heightFactor: _showHeader ? 1.0 : 0.0,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  _buildHeader(),
-                  Positioned(
-                    left: 20,
-                    right: 20,
-                    bottom: -24,
-                    child: _buildFloatingSearchBar(),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 36),
-          if (_isFiltering)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-              child: Row(
-                children: [
-                  const Icon(Icons.filter_alt, size: 14, color: Colors.black45),
-                  const SizedBox(width: 6),
-                  const Text(
-                    'Filter aktif',
-                    style: TextStyle(fontSize: 12, color: Colors.black54),
-                  ),
-                  const Spacer(),
-                  GestureDetector(
-                    onTap: _resetFilters,
-                    child: Text(
-                      'Hapus Filter',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: _accentGreen,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          const SizedBox(height: 14),
-
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Pinjaman Aktif',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFD8F3DC),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        '${aktif.length} Berkas',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: _primaryGreen,
-                        ),
-                      ),
-                    ),
-                    if (aktif.isNotEmpty) ...[
-                      const SizedBox(width: 8),
-                      GestureDetector(
-                        onTap: _toggleSelectionMode,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: _selectionMode
-                                ? _accentGreen
-                                : _accentGreen.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            _selectionMode ? 'Batal' : 'Pilih',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: _selectionMode
-                                  ? Colors.white
-                                  : _accentGreen,
-                            ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _accentGreen,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
                         ),
                       ),
                     ],
+                  ),
+                ),
+              ),
+            AppBottomNav(
+              activeIndex: _selectedNavIndex,
+              onItemSelected: _onNavTap,
+            ),
+          ],
+        ),
+        floatingActionButton: AppScanFab(
+          onTap: () => _navigateAndRefresh(AppRoutes.scan),
+        ),
+        floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+        body: Column(
+          children: [
+            // Item #6: collapses (slides up) on scroll-down, reappears on
+            // scroll-up — see the NotificationListener around the list
+            // below that drives _showHeader. ClipRect avoids the floating
+            // search bar's negative-bottom overshoot spilling out mid-
+            // animation.
+            ClipRect(
+              child: AnimatedAlign(
+                duration: const Duration(milliseconds: 260),
+                curve: Curves.easeInOut,
+                alignment: Alignment.topCenter,
+                heightFactor: _showHeader ? 1.0 : 0.0,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    _buildHeader(),
+                    Positioned(
+                      left: 20,
+                      right: 20,
+                      bottom: -24,
+                      child: _buildFloatingSearchBar(),
+                    ),
                   ],
                 ),
-              ],
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          if (_loadError != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFDE2E1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
+            const SizedBox(height: 36),
+            if (_isFiltering)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
                 child: Row(
                   children: [
                     const Icon(
-                      Icons.error_outline,
-                      size: 18,
-                      color: _overdueRed,
+                      Icons.filter_alt,
+                      size: 14,
+                      color: Colors.black45,
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _loadError!,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: _overdueRed,
-                        ),
-                      ),
+                    const SizedBox(width: 6),
+                    const Text(
+                      'Filter aktif',
+                      style: TextStyle(fontSize: 12, color: Colors.black54),
                     ),
+                    const Spacer(),
                     GestureDetector(
-                      onTap: _loadFromSupabase,
-                      child: const Text(
-                        'Coba lagi',
+                      onTap: _resetFilters,
+                      child: Text(
+                        'Hapus Filter',
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: _overdueRed,
+                          color: _accentGreen,
                         ),
                       ),
                     ),
                   ],
                 ),
               ),
-            ),
+            const SizedBox(height: 14),
 
-          Expanded(
-            child: NotificationListener<UserScrollNotification>(
-              onNotification: (notification) {
-                if (notification.direction == ScrollDirection.reverse &&
-                    _showHeader) {
-                  setState(() => _showHeader = false);
-                } else if (notification.direction == ScrollDirection.forward &&
-                    !_showHeader) {
-                  setState(() => _showHeader = true);
-                }
-                return false;
-              },
-              child: RefreshIndicator(
-                onRefresh: _onPullRefresh,
-                color: _accentGreen,
-                child: _isLoading && _all.isEmpty
-                    ? ListView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        children: [
-                          SizedBox(
-                            height: MediaQuery.of(context).size.height * 0.55,
-                            child: const Center(
-                              child: CircularProgressIndicator(),
-                            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Pinjaman Aktif',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFD8F3DC),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          '${aktif.length} Berkas',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: _primaryGreen,
                           ),
-                        ],
-                      )
-                    : aktif.isEmpty
-                    ? ListView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        children: [
-                          SizedBox(
-                            height: MediaQuery.of(context).size.height * 0.55,
-                            child: Center(
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 36,
-                                ),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Container(
-                                      width: 92,
-                                      height: 92,
-                                      decoration: const BoxDecoration(
-                                        color: Color(0xFFD8F3DC),
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: Icon(
-                                        Icons.inventory_2_outlined,
-                                        size: 40,
-                                        color: _accentGreen,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 20),
-                                    Text(
-                                      _pinjamanAktifRaw.isEmpty
-                                          ? 'Tidak Ada Pinjaman Aktif'
-                                          : 'Tidak Ada Hasil',
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.black87,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      _pinjamanAktifRaw.isEmpty
-                                          ? 'Semua dokumen sudah dikembalikan. '
-                                                'Dokumen yang sedang dipinjam '
-                                                'akan muncul di sini.'
-                                          : 'Coba ubah kata kunci pencarian '
-                                                'atau filter yang sedang aktif.',
-                                      textAlign: TextAlign.center,
-                                      style: const TextStyle(
-                                        fontSize: 13,
-                                        color: Colors.black45,
-                                        height: 1.4,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 22),
-                                    if (_pinjamanAktifRaw.isEmpty)
-                                      OutlinedButton.icon(
-                                        onPressed: () =>
-                                            _navigateAndRefresh(AppRoutes.form),
-                                        icon: const Icon(Icons.add, size: 18),
-                                        label: const Text('Catat Peminjaman'),
-                                        style: OutlinedButton.styleFrom(
-                                          foregroundColor: _accentGreen,
-                                          side: const BorderSide(
-                                            color: _accentGreen,
-                                          ),
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 22,
-                                            vertical: 12,
-                                          ),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              30,
-                                            ),
-                                          ),
-                                        ),
-                                      )
-                                    else
-                                      TextButton(
-                                        onPressed: () {
-                                          _searchController.clear();
-                                          _resetFilters();
-                                        },
-                                        child: Text(
-                                          'Hapus Pencarian & Filter',
-                                          style: TextStyle(
-                                            color: _accentGreen,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                ),
+                        ),
+                      ),
+                      if (aktif.isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: _toggleSelectionMode,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _selectionMode
+                                  ? _accentGreen
+                                  : _accentGreen.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              _selectionMode ? 'Batal' : 'Pilih',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: _selectionMode
+                                    ? Colors.white
+                                    : _accentGreen,
                               ),
                             ),
                           ),
-                        ],
-                      )
-                    : ListView.separated(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                        itemCount: aktif.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 12),
-                        itemBuilder: (context, index) => _item(aktif[index]),
-                      ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
               ),
             ),
-          ),
-        ],
+            const SizedBox(height: 12),
+            if (_loadError != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFDE2E1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.error_outline,
+                        size: 18,
+                        color: _overdueRed,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _loadError!,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: _overdueRed,
+                          ),
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: _loadFromSupabase,
+                        child: const Text(
+                          'Coba lagi',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: _overdueRed,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+            Expanded(
+              child: NotificationListener<UserScrollNotification>(
+                onNotification: (notification) {
+                  if (notification.direction == ScrollDirection.reverse &&
+                      _showHeader) {
+                    setState(() => _showHeader = false);
+                  } else if (notification.direction ==
+                          ScrollDirection.forward &&
+                      !_showHeader) {
+                    setState(() => _showHeader = true);
+                  }
+                  return false;
+                },
+                child: RefreshIndicator(
+                  onRefresh: _onPullRefresh,
+                  color: _accentGreen,
+                  child: _isLoading && _all.isEmpty
+                      ? ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: [
+                            SizedBox(
+                              height: MediaQuery.of(context).size.height * 0.55,
+                              child: const Center(
+                                child: CircularProgressIndicator(),
+                              ),
+                            ),
+                          ],
+                        )
+                      : aktif.isEmpty
+                      ? ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: [
+                            SizedBox(
+                              height: MediaQuery.of(context).size.height * 0.55,
+                              child: Center(
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 36,
+                                  ),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Container(
+                                        width: 92,
+                                        height: 92,
+                                        decoration: const BoxDecoration(
+                                          color: Color(0xFFD8F3DC),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: Icon(
+                                          Icons.inventory_2_outlined,
+                                          size: 40,
+                                          color: _accentGreen,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 20),
+                                      Text(
+                                        _pinjamanAktifRaw.isEmpty
+                                            ? 'Tidak Ada Pinjaman Aktif'
+                                            : 'Tidak Ada Hasil',
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.black87,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        _pinjamanAktifRaw.isEmpty
+                                            ? 'Semua dokumen sudah dikembalikan. '
+                                                  'Dokumen yang sedang dipinjam '
+                                                  'akan muncul di sini.'
+                                            : 'Coba ubah kata kunci pencarian '
+                                                  'atau filter yang sedang aktif.',
+                                        textAlign: TextAlign.center,
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          color: Colors.black45,
+                                          height: 1.4,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 22),
+                                      if (_pinjamanAktifRaw.isEmpty)
+                                        OutlinedButton.icon(
+                                          onPressed: () => _navigateAndRefresh(
+                                            AppRoutes.form,
+                                          ),
+                                          icon: const Icon(Icons.add, size: 18),
+                                          label: const Text('Catat Peminjaman'),
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: _accentGreen,
+                                            side: const BorderSide(
+                                              color: _accentGreen,
+                                            ),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 22,
+                                              vertical: 12,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(30),
+                                            ),
+                                          ),
+                                        )
+                                      else
+                                        TextButton(
+                                          onPressed: () {
+                                            _searchController.clear();
+                                            _resetFilters();
+                                          },
+                                          child: Text(
+                                            'Hapus Pencarian & Filter',
+                                            style: TextStyle(
+                                              color: _accentGreen,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        )
+                      : ListView.separated(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                          itemCount: aktif.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 12),
+                          itemBuilder: (context, index) => _item(aktif[index]),
+                        ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

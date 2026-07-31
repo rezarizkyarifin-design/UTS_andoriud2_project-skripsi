@@ -14,19 +14,8 @@ class AuthService {
   static bool get isAdmin => _currentUser?.isAdmin ?? false;
   static bool get isPegawai => _currentUser?.isPegawai ?? false;
 
-  // NOTE: `profiles.username` isn't a real Supabase Auth identifier —
-  // Auth signs in by email. This assumes accounts were created with
-  // email = '<username>@siap.local' (a common pattern when the app only
-  // ever shows users a "username"). If your `profiles` table already
-  // stores a real email column instead, swap the two lines below for:
-  //   final row = await _client.from('profiles').select()
-  //       .eq('username', username).maybeSingle();
-  //   final email = row?['email'] as String?;
   static String _emailFor(String username) => '$username@siap.local';
 
-  /// Returns true on success and sets [currentUser]. Returns false on
-  /// invalid credentials (doesn't throw) so LoginPage can just branch on
-  /// the bool instead of wrapping this in try/catch.
   static Future<bool> login(String username, String password) async {
     try {
       final response = await _client.auth.signInWithPassword(

@@ -9,6 +9,7 @@ import '../../widgets/app_drawer.dart';
 import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/app_scan_fab.dart';
 import '../../widgets/notification_bell.dart';
+import '../../widgets/back_to_home.dart';
 
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
@@ -2100,253 +2101,262 @@ class _HistoryPageState extends State<HistoryPage> {
   Widget build(BuildContext context) {
     final filtered = _filteredHistory;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F7F5),
-      drawer: AppDrawer(
-        active: DrawerSection.daftarPeminjaman,
-        onNavigate: _onDrawerNavigate,
-      ),
-      bottomNavigationBar: AppBottomNav(
-        activeIndex: _selectedNavIndex,
-        onItemSelected: _onNavTap,
-      ),
-      floatingActionButton: AppScanFab(
-        onTap: () => _navigateAndRefresh(AppRoutes.scan),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      body: Column(
-        children: [
-          // Item #6: collapses (slides up) on scroll-down, reappears on
-          // scroll-up — see the NotificationListener around the list
-          // below that drives _showHeader.
-          ClipRect(
-            child: AnimatedAlign(
-              duration: const Duration(milliseconds: 260),
-              curve: Curves.easeInOut,
-              alignment: Alignment.topCenter,
-              heightFactor: _showHeader ? 1.0 : 0.0,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  _buildHeader(),
-                  Positioned(
-                    left: 20,
-                    right: 20,
-                    bottom: -24,
-                    child: _buildFloatingSearchBar(),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 36),
-          if (_isFiltering)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-              child: Row(
-                children: [
-                  const Icon(Icons.filter_alt, size: 14, color: Colors.black45),
-                  const SizedBox(width: 6),
-                  const Text(
-                    'Filter aktif',
-                    style: TextStyle(fontSize: 12, color: Colors.black54),
-                  ),
-                  const Spacer(),
-                  GestureDetector(
-                    onTap: _resetFilters,
-                    child: Text(
-                      'Hapus Filter',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: _accentGreen,
-                      ),
+    return BackToHome(
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF5F7F5),
+        drawer: AppDrawer(
+          active: DrawerSection.daftarPeminjaman,
+          onNavigate: _onDrawerNavigate,
+        ),
+        bottomNavigationBar: AppBottomNav(
+          activeIndex: _selectedNavIndex,
+          onItemSelected: _onNavTap,
+        ),
+        floatingActionButton: AppScanFab(
+          onTap: () => _navigateAndRefresh(AppRoutes.scan),
+        ),
+        floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+        body: Column(
+          children: [
+            // Item #6: collapses (slides up) on scroll-down, reappears on
+            // scroll-up — see the NotificationListener around the list
+            // below that drives _showHeader.
+            ClipRect(
+              child: AnimatedAlign(
+                duration: const Duration(milliseconds: 260),
+                curve: Curves.easeInOut,
+                alignment: Alignment.topCenter,
+                heightFactor: _showHeader ? 1.0 : 0.0,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    _buildHeader(),
+                    Positioned(
+                      left: 20,
+                      right: 20,
+                      bottom: -24,
+                      child: _buildFloatingSearchBar(),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          const SizedBox(height: 14),
-          if (_loadError != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFDE2E1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
+            const SizedBox(height: 36),
+            if (_isFiltering)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
                 child: Row(
                   children: [
                     const Icon(
-                      Icons.error_outline,
-                      size: 18,
-                      color: _overdueRed,
+                      Icons.filter_alt,
+                      size: 14,
+                      color: Colors.black45,
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _loadError!,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: _overdueRed,
-                        ),
-                      ),
+                    const SizedBox(width: 6),
+                    const Text(
+                      'Filter aktif',
+                      style: TextStyle(fontSize: 12, color: Colors.black54),
                     ),
+                    const Spacer(),
                     GestureDetector(
-                      onTap: _loadFromSupabase,
-                      child: const Text(
-                        'Coba lagi',
+                      onTap: _resetFilters,
+                      child: Text(
+                        'Hapus Filter',
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: _overdueRed,
+                          color: _accentGreen,
                         ),
                       ),
                     ),
                   ],
                 ),
               ),
-            ),
-          Expanded(
-            child: NotificationListener<UserScrollNotification>(
-              onNotification: (notification) {
-                if (notification.direction == ScrollDirection.reverse &&
-                    _showHeader) {
-                  setState(() => _showHeader = false);
-                } else if (notification.direction == ScrollDirection.forward &&
-                    !_showHeader) {
-                  setState(() => _showHeader = true);
-                }
-                return false;
-              },
-              child: RefreshIndicator(
-                onRefresh: _onPullRefresh,
-                color: _accentGreen,
-                child: _isLoading && _history.isEmpty
-                    ? ListView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        children: [
-                          SizedBox(
-                            height: MediaQuery.of(context).size.height * 0.55,
-                            child: const Center(
-                              child: CircularProgressIndicator(),
-                            ),
+            const SizedBox(height: 14),
+            if (_loadError != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFDE2E1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.error_outline,
+                        size: 18,
+                        color: _overdueRed,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _loadError!,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: _overdueRed,
                           ),
-                        ],
-                      )
-                    : filtered.isEmpty
-                    ? ListView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        children: [
-                          SizedBox(
-                            height: MediaQuery.of(context).size.height * 0.55,
-                            child: Center(
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 36,
-                                ),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Container(
-                                      width: 92,
-                                      height: 92,
-                                      decoration: const BoxDecoration(
-                                        color: Color(0xFFD8F3DC),
-                                        shape: BoxShape.circle,
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: _loadFromSupabase,
+                        child: const Text(
+                          'Coba lagi',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: _overdueRed,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            Expanded(
+              child: NotificationListener<UserScrollNotification>(
+                onNotification: (notification) {
+                  if (notification.direction == ScrollDirection.reverse &&
+                      _showHeader) {
+                    setState(() => _showHeader = false);
+                  } else if (notification.direction ==
+                          ScrollDirection.forward &&
+                      !_showHeader) {
+                    setState(() => _showHeader = true);
+                  }
+                  return false;
+                },
+                child: RefreshIndicator(
+                  onRefresh: _onPullRefresh,
+                  color: _accentGreen,
+                  child: _isLoading && _history.isEmpty
+                      ? ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: [
+                            SizedBox(
+                              height: MediaQuery.of(context).size.height * 0.55,
+                              child: const Center(
+                                child: CircularProgressIndicator(),
+                              ),
+                            ),
+                          ],
+                        )
+                      : filtered.isEmpty
+                      ? ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: [
+                            SizedBox(
+                              height: MediaQuery.of(context).size.height * 0.55,
+                              child: Center(
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 36,
+                                  ),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Container(
+                                        width: 92,
+                                        height: 92,
+                                        decoration: const BoxDecoration(
+                                          color: Color(0xFFD8F3DC),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: Icon(
+                                          Icons.history,
+                                          size: 40,
+                                          color: _accentGreen,
+                                        ),
                                       ),
-                                      child: Icon(
-                                        Icons.history,
-                                        size: 40,
-                                        color: _accentGreen,
+                                      const SizedBox(height: 20),
+                                      Text(
+                                        _history.isEmpty
+                                            ? 'Belum Ada Riwayat Peminjaman'
+                                            : 'Tidak Ada Hasil',
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.black87,
+                                        ),
                                       ),
-                                    ),
-                                    const SizedBox(height: 20),
-                                    Text(
-                                      _history.isEmpty
-                                          ? 'Belum Ada Riwayat Peminjaman'
-                                          : 'Tidak Ada Hasil',
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.black87,
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        _history.isEmpty
+                                            ? 'Setiap peminjaman dan pengembalian '
+                                                  'dokumen yang tercatat akan '
+                                                  'muncul di sini.'
+                                            : 'Coba ubah kata kunci pencarian '
+                                                  'atau filter yang sedang aktif.',
+                                        textAlign: TextAlign.center,
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          color: Colors.black45,
+                                          height: 1.4,
+                                        ),
                                       ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      _history.isEmpty
-                                          ? 'Setiap peminjaman dan pengembalian '
-                                                'dokumen yang tercatat akan '
-                                                'muncul di sini.'
-                                          : 'Coba ubah kata kunci pencarian '
-                                                'atau filter yang sedang aktif.',
-                                      textAlign: TextAlign.center,
-                                      style: const TextStyle(
-                                        fontSize: 13,
-                                        color: Colors.black45,
-                                        height: 1.4,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 22),
-                                    if (_history.isEmpty)
-                                      OutlinedButton.icon(
-                                        onPressed: () =>
-                                            _navigateAndRefresh(AppRoutes.form),
-                                        icon: const Icon(Icons.add, size: 18),
-                                        label: const Text('Catat Peminjaman'),
-                                        style: OutlinedButton.styleFrom(
-                                          foregroundColor: _accentGreen,
-                                          side: const BorderSide(
-                                            color: _accentGreen,
+                                      const SizedBox(height: 22),
+                                      if (_history.isEmpty)
+                                        OutlinedButton.icon(
+                                          onPressed: () => _navigateAndRefresh(
+                                            AppRoutes.form,
                                           ),
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 22,
-                                            vertical: 12,
+                                          icon: const Icon(Icons.add, size: 18),
+                                          label: const Text('Catat Peminjaman'),
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: _accentGreen,
+                                            side: const BorderSide(
+                                              color: _accentGreen,
+                                            ),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 22,
+                                              vertical: 12,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(30),
+                                            ),
                                           ),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              30,
+                                        )
+                                      else
+                                        TextButton(
+                                          onPressed: () {
+                                            _searchController.clear();
+                                            _resetFilters();
+                                          },
+                                          child: Text(
+                                            'Hapus Pencarian & Filter',
+                                            style: TextStyle(
+                                              color: _accentGreen,
+                                              fontWeight: FontWeight.w600,
                                             ),
                                           ),
                                         ),
-                                      )
-                                    else
-                                      TextButton(
-                                        onPressed: () {
-                                          _searchController.clear();
-                                          _resetFilters();
-                                        },
-                                        child: Text(
-                                          'Hapus Pencarian & Filter',
-                                          style: TextStyle(
-                                            color: _accentGreen,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                        ],
-                      )
-                    : ListView.separated(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                        itemCount: filtered.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 12),
-                        itemBuilder: (context, index) => _item(filtered[index]),
-                      ),
+                          ],
+                        )
+                      : ListView.separated(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                          itemCount: filtered.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 12),
+                          itemBuilder: (context, index) =>
+                              _item(filtered[index]),
+                        ),
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

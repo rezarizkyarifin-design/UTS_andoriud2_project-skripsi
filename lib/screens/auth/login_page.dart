@@ -4,6 +4,7 @@ import '../../routes/app_routes.dart';
 import '../../services/auth_service.dart';
 import '../../services/peminjaman_service.dart';
 import '../../core/theme/app_theme.dart';
+import '../../widgets/double_back_to_exit.dart';
 import 'signup_page.dart';
 
 class LoginPage extends StatefulWidget {
@@ -90,442 +91,459 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color.fromARGB(255, 252, 250, 247),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          return SingleChildScrollView(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight),
-              child: IntrinsicHeight(
-                child: Column(
-                  children: [
-                    // ── Header: terrain-line silhouette, not a water wave —
-                    SizedBox(
-                      height: _waveHeight,
-                      width: double.infinity,
-                      child: Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          ClipPath(
-                            clipper: _TerrainClipper(),
-                            child: Stack(
-                              children: [
-                                Container(
-                                  height: _waveHeight,
-                                  width: double.infinity,
-                                  decoration: const BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [
-                                        _forestDark,
-                                        AppTheme.primaryGreen,
-                                        _sage,
-                                      ],
-                                      stops: [0.0, 0.55, 1.0],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                    ),
-                                  ),
-                                ),
-                                // Faint cadastral grid — a quiet nod to
-                                // land-survey plot lines, not decoration
-                                // for its own sake.
-                                Positioned.fill(
-                                  child: CustomPaint(painter: _GridPainter()),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Positioned(
-                            top: 18,
-                            right: 22,
-                            child: Transform.rotate(
-                              angle: 0.09,
-                              child: Container(
-                                width: 68,
-                                height: 68,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: _gold.withValues(alpha: 0.55),
-                                    width: 1.3,
-                                  ),
-                                ),
-                                child: Center(
-                                  child: Container(
-                                    width: 48,
-                                    height: 48,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: _gold.withValues(alpha: 0.4),
-                                        width: 1,
-                                      ),
-                                    ),
-                                    child: Icon(
-                                      Icons.shield_outlined,
-                                      color: _gold.withValues(alpha: 0.85),
-                                      size: 20,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          SafeArea(
-                            bottom: false,
-                            child: Column(
-                              children: [
-                                Padding(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    20,
-                                    8,
-                                    20,
-                                    0,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        width: 52,
-                                        height: 52,
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          shape: BoxShape.circle,
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.black.withValues(
-                                                alpha: 0.2,
-                                              ),
-                                              blurRadius: 10,
-                                              offset: const Offset(0, 4),
-                                            ),
-                                          ],
-                                        ),
-                                        child: ClipOval(
-                                          child: Image.network(
-                                            'https://pbs.twimg.com/profile_images/1525051472873783296/zBL0VecH_400x400.jpg',
-                                            fit: BoxFit.cover,
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Text(
-                                          'Arsip Kantah Kota Cilegon',
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: GoogleFonts.plusJakartaSans(
-                                            color: Colors.white,
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.w700,
-                                            letterSpacing: 0.2,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(height: 26),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 28,
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Selamat Datang,',
-                                        style: GoogleFonts.plusJakartaSans(
-                                          color: Colors.white70,
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'Silakan Masuk',
-                                        style: GoogleFonts.newsreader(
-                                          color: Colors.white,
-                                          fontSize: 34,
-                                          fontWeight: FontWeight.w600,
-                                          height: 1.05,
-                                          letterSpacing: -0.4,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    // ── Form: warm parchment, centered in remaining space.
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(28, 28, 28, 24),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
+    return DoubleBackToExit(
+      child: Scaffold(
+        backgroundColor: const Color.fromARGB(255, 252, 250, 247),
+        body: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: IntrinsicHeight(
+                  child: Column(
+                    children: [
+                      // ── Header: terrain-line silhouette, not a water wave —
+                      SizedBox(
+                        height: _waveHeight,
+                        width: double.infinity,
+                        child: Stack(
+                          clipBehavior: Clip.none,
                           children: [
-                            Text(
-                              'Masuk untuk mengelola peminjaman arsip dokumen Anda.',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 13.5,
-                                color: _ink.withValues(alpha: 0.6),
-                                height: 1.4,
+                            ClipPath(
+                              clipper: _TerrainClipper(),
+                              child: Stack(
+                                children: [
+                                  Container(
+                                    height: _waveHeight,
+                                    width: double.infinity,
+                                    decoration: const BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          _forestDark,
+                                          AppTheme.primaryGreen,
+                                          _sage,
+                                        ],
+                                        stops: [0.0, 0.55, 1.0],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
+                                    ),
+                                  ),
+                                  // Faint cadastral grid — a quiet nod to
+                                  // land-survey plot lines, not decoration
+                                  // for its own sake.
+                                  Positioned.fill(
+                                    child: CustomPaint(painter: _GridPainter()),
+                                  ),
+                                ],
                               ),
                             ),
-                            const SizedBox(height: 22),
-                            Form(
-                              key: _formKey,
+                            Positioned(
+                              top: 18,
+                              right: 22,
+                              child: Transform.rotate(
+                                angle: 0.09,
+                                child: Container(
+                                  width: 68,
+                                  height: 68,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: _gold.withValues(alpha: 0.55),
+                                      width: 1.3,
+                                    ),
+                                  ),
+                                  child: Center(
+                                    child: Container(
+                                      width: 48,
+                                      height: 48,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: _gold.withValues(alpha: 0.4),
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: Icon(
+                                        Icons.shield_outlined,
+                                        color: _gold.withValues(alpha: 0.85),
+                                        size: 20,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            SafeArea(
+                              bottom: false,
                               child: Column(
                                 children: [
-                                  TextFormField(
-                                    controller: _usernameController,
-                                    style: GoogleFonts.plusJakartaSans(
-                                      color: _ink,
+                                  Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      20,
+                                      8,
+                                      20,
+                                      0,
                                     ),
-                                    decoration: InputDecoration(
-                                      labelText: 'Username',
-                                      labelStyle: GoogleFonts.plusJakartaSans(),
-                                      prefixIcon: const Icon(
-                                        Icons.person_outline,
-                                        color: _ink,
-                                      ),
-                                      filled: true,
-                                      fillColor: _fieldFill,
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(16),
-                                        borderSide: BorderSide.none,
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(16),
-                                        borderSide: const BorderSide(
-                                          color: _gold,
-                                          width: 1.6,
-                                        ),
-                                      ),
-                                    ),
-                                    validator: (value) {
-                                      if (value == null ||
-                                          value.trim().isEmpty) {
-                                        return 'Username tidak boleh kosong';
-                                      }
-                                      return null;
-                                    },
-                                  ),
-                                  const SizedBox(height: 16),
-                                  TextFormField(
-                                    controller: _passwordController,
-                                    obscureText: isPasswordHidden,
-                                    style: GoogleFonts.plusJakartaSans(
-                                      color: _ink,
-                                    ),
-                                    decoration: InputDecoration(
-                                      labelText: 'Password',
-                                      labelStyle: GoogleFonts.plusJakartaSans(),
-                                      prefixIcon: const Icon(
-                                        Icons.lock_outline,
-                                        color: _ink,
-                                      ),
-                                      suffixIcon: IconButton(
-                                        icon: Icon(
-                                          isPasswordHidden
-                                              ? Icons.visibility_off
-                                              : Icons.visibility,
-                                          color: _ink,
-                                        ),
-                                        onPressed: () {
-                                          setState(() {
-                                            isPasswordHidden =
-                                                !isPasswordHidden;
-                                          });
-                                        },
-                                      ),
-                                      filled: true,
-                                      fillColor: _fieldFill,
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(16),
-                                        borderSide: BorderSide.none,
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(16),
-                                        borderSide: const BorderSide(
-                                          color: _gold,
-                                          width: 1.6,
-                                        ),
-                                      ),
-                                    ),
-                                    validator: (value) {
-                                      if (value == null ||
-                                          value.trim().isEmpty) {
-                                        return 'Password tidak boleh kosong';
-                                      }
-                                      return null;
-                                    },
-                                  ),
-                                  const SizedBox(height: 26),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    height: 52,
-                                    child: Column(
+                                    child: Row(
                                       children: [
-                                        Expanded(
-                                          child: DecoratedBox(
-                                            decoration: BoxDecoration(
-                                              borderRadius:
-                                                  BorderRadius.circular(16),
-                                              gradient: const LinearGradient(
-                                                colors: [
-                                                  _forestDark,
-                                                  AppTheme.primaryGreen,
-                                                  _sage,
-                                                ],
-                                                stops: [0.0, 0.5, 1.0],
-                                                begin: Alignment.centerLeft,
-                                                end: Alignment.centerRight,
-                                              ),
-                                              boxShadow: [
-                                                BoxShadow(
-                                                  color: AppTheme.primaryGreen
-                                                      .withValues(alpha: 0.35),
-                                                  blurRadius: 14,
-                                                  offset: const Offset(0, 8),
+                                        Container(
+                                          width: 52,
+                                          height: 52,
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            shape: BoxShape.circle,
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.black.withValues(
+                                                  alpha: 0.2,
                                                 ),
-                                              ],
+                                                blurRadius: 10,
+                                                offset: const Offset(0, 4),
+                                              ),
+                                            ],
+                                          ),
+                                          child: ClipOval(
+                                            child: Image.network(
+                                              'https://pbs.twimg.com/profile_images/1525051472873783296/zBL0VecH_400x400.jpg',
+                                              fit: BoxFit.cover,
                                             ),
-                                            child: Material(
-                                              color: Colors.transparent,
-                                              child: InkWell(
-                                                borderRadius:
-                                                    BorderRadius.circular(16),
-                                                onTap: _isSubmitting
-                                                    ? null
-                                                    : _handleLogin,
-                                                child: Center(
-                                                  child: _isSubmitting
-                                                      ? const SizedBox(
-                                                          width: 20,
-                                                          height: 20,
-                                                          child:
-                                                              CircularProgressIndicator(
-                                                                strokeWidth: 2,
-                                                                color: Colors
-                                                                    .white,
-                                                              ),
-                                                        )
-                                                      : Text(
-                                                          'Masuk',
-                                                          style:
-                                                              GoogleFonts.plusJakartaSans(
-                                                                fontSize: 16,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .w600,
-                                                                color: Colors
-                                                                    .white,
-                                                                letterSpacing:
-                                                                    0.2,
-                                                              ),
-                                                        ),
-                                                ),
-                                              ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Text(
+                                            'Arsip Kantah Kota Cilegon',
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: GoogleFonts.plusJakartaSans(
+                                              color: Colors.white,
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w700,
+                                              letterSpacing: 0.2,
                                             ),
                                           ),
                                         ),
                                       ],
                                     ),
                                   ),
-                                  const SizedBox(height: 8),
-                                  Container(
-                                    width: 36,
-                                    height: 3,
-                                    decoration: BoxDecoration(
-                                      color: _gold,
-                                      borderRadius: BorderRadius.circular(99),
+                                  const SizedBox(height: 26),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 28,
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Selamat Datang,',
+                                          style: GoogleFonts.plusJakartaSans(
+                                            color: Colors.white70,
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Silakan Masuk',
+                                          style: GoogleFonts.newsreader(
+                                            color: Colors.white,
+                                            fontSize: 34,
+                                            fontWeight: FontWeight.w600,
+                                            height: 1.05,
+                                            letterSpacing: -0.4,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ],
-                              ),
-                            ),
-                            const SizedBox(height: 22),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppTheme.primaryGreen.withValues(
-                                  alpha: 0.08,
-                                ),
-                                borderRadius: BorderRadius.circular(99),
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(
-                                    Icons.verified_outlined,
-                                    size: 14,
-                                    color: _gold,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    'Melayani Profesional dan Terpercaya',
-                                    style: GoogleFonts.plusJakartaSans(
-                                      color: AppTheme.primaryGreen,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 18),
-                            GestureDetector(
-                              onTap: _isSubmitting
-                                  ? null
-                                  : () {
-                                      FocusManager.instance.primaryFocus
-                                          ?.unfocus();
-                                      Navigator.pushNamed(
-                                        context,
-                                        AppRoutes.signup,
-                                      );
-                                    },
-                              child: RichText(
-                                text: TextSpan(
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 13,
-                                    color: _ink.withValues(alpha: 0.6),
-                                  ),
-                                  children: [
-                                    const TextSpan(text: 'Belum punya akun? '),
-                                    TextSpan(
-                                      text: 'Daftar di sini',
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w700,
-                                        color: AppTheme.primaryGreen,
-                                      ),
-                                    ),
-                                  ],
-                                ),
                               ),
                             ),
                           ],
                         ),
                       ),
-                    ),
-                  ],
+                      // ── Form: warm parchment, centered in remaining space.
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(28, 28, 28, 24),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text(
+                                'Masuk untuk mengelola peminjaman arsip dokumen Anda.',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 13.5,
+                                  color: _ink.withValues(alpha: 0.6),
+                                  height: 1.4,
+                                ),
+                              ),
+                              const SizedBox(height: 22),
+                              Form(
+                                key: _formKey,
+                                child: Column(
+                                  children: [
+                                    TextFormField(
+                                      controller: _usernameController,
+                                      style: GoogleFonts.plusJakartaSans(
+                                        color: _ink,
+                                      ),
+                                      decoration: InputDecoration(
+                                        labelText: 'Username',
+                                        labelStyle:
+                                            GoogleFonts.plusJakartaSans(),
+                                        prefixIcon: const Icon(
+                                          Icons.person_outline,
+                                          color: _ink,
+                                        ),
+                                        filled: true,
+                                        fillColor: _fieldFill,
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
+                                          borderSide: BorderSide.none,
+                                        ),
+                                        focusedBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
+                                          borderSide: const BorderSide(
+                                            color: _gold,
+                                            width: 1.6,
+                                          ),
+                                        ),
+                                      ),
+                                      validator: (value) {
+                                        if (value == null ||
+                                            value.trim().isEmpty) {
+                                          return 'Username tidak boleh kosong';
+                                        }
+                                        return null;
+                                      },
+                                    ),
+                                    const SizedBox(height: 16),
+                                    TextFormField(
+                                      controller: _passwordController,
+                                      obscureText: isPasswordHidden,
+                                      style: GoogleFonts.plusJakartaSans(
+                                        color: _ink,
+                                      ),
+                                      decoration: InputDecoration(
+                                        labelText: 'Password',
+                                        labelStyle:
+                                            GoogleFonts.plusJakartaSans(),
+                                        prefixIcon: const Icon(
+                                          Icons.lock_outline,
+                                          color: _ink,
+                                        ),
+                                        suffixIcon: IconButton(
+                                          icon: Icon(
+                                            isPasswordHidden
+                                                ? Icons.visibility_off
+                                                : Icons.visibility,
+                                            color: _ink,
+                                          ),
+                                          onPressed: () {
+                                            setState(() {
+                                              isPasswordHidden =
+                                                  !isPasswordHidden;
+                                            });
+                                          },
+                                        ),
+                                        filled: true,
+                                        fillColor: _fieldFill,
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
+                                          borderSide: BorderSide.none,
+                                        ),
+                                        focusedBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
+                                          borderSide: const BorderSide(
+                                            color: _gold,
+                                            width: 1.6,
+                                          ),
+                                        ),
+                                      ),
+                                      validator: (value) {
+                                        if (value == null ||
+                                            value.trim().isEmpty) {
+                                          return 'Password tidak boleh kosong';
+                                        }
+                                        return null;
+                                      },
+                                    ),
+                                    const SizedBox(height: 26),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      height: 52,
+                                      child: Column(
+                                        children: [
+                                          Expanded(
+                                            child: DecoratedBox(
+                                              decoration: BoxDecoration(
+                                                borderRadius:
+                                                    BorderRadius.circular(16),
+                                                gradient: const LinearGradient(
+                                                  colors: [
+                                                    _forestDark,
+                                                    AppTheme.primaryGreen,
+                                                    _sage,
+                                                  ],
+                                                  stops: [0.0, 0.5, 1.0],
+                                                  begin: Alignment.centerLeft,
+                                                  end: Alignment.centerRight,
+                                                ),
+                                                boxShadow: [
+                                                  BoxShadow(
+                                                    color: AppTheme.primaryGreen
+                                                        .withValues(
+                                                          alpha: 0.35,
+                                                        ),
+                                                    blurRadius: 14,
+                                                    offset: const Offset(0, 8),
+                                                  ),
+                                                ],
+                                              ),
+                                              child: Material(
+                                                color: Colors.transparent,
+                                                child: InkWell(
+                                                  borderRadius:
+                                                      BorderRadius.circular(16),
+                                                  onTap: _isSubmitting
+                                                      ? null
+                                                      : _handleLogin,
+                                                  child: Center(
+                                                    child: _isSubmitting
+                                                        ? const SizedBox(
+                                                            width: 20,
+                                                            height: 20,
+                                                            child:
+                                                                CircularProgressIndicator(
+                                                                  strokeWidth:
+                                                                      2,
+                                                                  color: Colors
+                                                                      .white,
+                                                                ),
+                                                          )
+                                                        : Text(
+                                                            'Masuk',
+                                                            style:
+                                                                GoogleFonts.plusJakartaSans(
+                                                                  fontSize: 16,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w600,
+                                                                  color: Colors
+                                                                      .white,
+                                                                  letterSpacing:
+                                                                      0.2,
+                                                                ),
+                                                          ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Container(
+                                      width: 36,
+                                      height: 3,
+                                      decoration: BoxDecoration(
+                                        color: _gold,
+                                        borderRadius: BorderRadius.circular(99),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 22),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.primaryGreen.withValues(
+                                    alpha: 0.08,
+                                  ),
+                                  borderRadius: BorderRadius.circular(99),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.verified_outlined,
+                                      size: 14,
+                                      color: _gold,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'Melayani Profesional dan Terpercaya',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        color: AppTheme.primaryGreen,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 18),
+                              GestureDetector(
+                                onTap: _isSubmitting
+                                    ? null
+                                    : () {
+                                        FocusManager.instance.primaryFocus
+                                            ?.unfocus();
+                                        Navigator.pushNamed(
+                                          context,
+                                          AppRoutes.signup,
+                                        );
+                                      },
+                                child: RichText(
+                                  text: TextSpan(
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 13,
+                                      color: _ink.withValues(alpha: 0.6),
+                                    ),
+                                    children: [
+                                      const TextSpan(
+                                        text: 'Belum punya akun? ',
+                                      ),
+                                      TextSpan(
+                                        text: 'Daftar di sini',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w700,
+                                          color: AppTheme.primaryGreen,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }

@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/onboarding_slide.dart';
 import '../../routes/app_routes.dart';
+import '../../widgets/double_back_to_exit.dart';
 
 class OnboardingPage extends StatefulWidget {
   const OnboardingPage({super.key});
@@ -99,156 +100,160 @@ class _OnboardingPageState extends State<OnboardingPage> {
     final lastIndex = _slides.length - 1;
     final isLast = _currentIndex == lastIndex;
 
-    return Scaffold(
-      backgroundColor: _parchment,
-      // Flex-based split (Expanded flex: 42 / 58) instead of manual pixel
-      // math off MediaQuery — a fixed-pixel offset could end up leaving
-      // the bottom section only a few px tall on some devices depending
-      // on how their insets report; flex guarantees a real proportional
-      // share of whatever height is actually available.
-      body: Column(
-        children: [
-          // ── Header: same terrain-toned gradient + faint cadastral grid
-          // as the login page, but with a big animated icon badge instead
-          // of the small corner badge — this is the "hero" moment.
-          Expanded(
-            flex: 42,
-            child: Container(
-              width: double.infinity,
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [_forestDark, AppTheme.primaryGreen, _sage],
-                  stops: [0.0, 0.55, 1.0],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+    return DoubleBackToExit(
+      child: Scaffold(
+        backgroundColor: _parchment,
+        // Flex-based split (Expanded flex: 42 / 58) instead of manual pixel
+        // math off MediaQuery — a fixed-pixel offset could end up leaving
+        // the bottom section only a few px tall on some devices depending
+        // on how their insets report; flex guarantees a real proportional
+        // share of whatever height is actually available.
+        body: Column(
+          children: [
+            // ── Header: same terrain-toned gradient + faint cadastral grid
+            // as the login page, but with a big animated icon badge instead
+            // of the small corner badge — this is the "hero" moment.
+            Expanded(
+              flex: 42,
+              child: Container(
+                width: double.infinity,
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [_forestDark, AppTheme.primaryGreen, _sage],
+                    stops: [0.0, 0.55, 1.0],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Positioned.fill(
+                      child: CustomPaint(painter: _GridPainter()),
+                    ),
+                    ..._buildBlobs(),
+                    SafeArea(
+                      bottom: false,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'SIAP',
+                              style: GoogleFonts.plusJakartaSans(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 16,
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                            if (!isLast)
+                              TextButton(
+                                onPressed: _finishOnboarding,
+                                child: Text(
+                                  'Lewati',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    color: Colors.white70,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              )
+                            else
+                              const SizedBox(width: 48),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 24),
+                        child: _AnimatedBadge(page: _page, slides: _slides),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Positioned.fill(child: CustomPaint(painter: _GridPainter())),
-                  ..._buildBlobs(),
-                  SafeArea(
-                    bottom: false,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'SIAP',
-                            style: GoogleFonts.plusJakartaSans(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 16,
-                              letterSpacing: 1.2,
-                            ),
-                          ),
-                          if (!isLast)
-                            TextButton(
-                              onPressed: _finishOnboarding,
-                              child: Text(
-                                'Lewati',
-                                style: GoogleFonts.plusJakartaSans(
-                                  color: Colors.white70,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            )
-                          else
-                            const SizedBox(width: 48),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Center(
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 24),
-                      child: _AnimatedBadge(page: _page, slides: _slides),
-                    ),
-                  ),
-                ],
-              ),
             ),
-          ),
 
-          // ── Content sheet: rounded top so it still reads as one
-          // continuous surface sliding up over the header gradient.
-          // Uses Expanded (flex) instead of a fixed pixel offset so it
-          // always gets a real share of the available height, whatever
-          // a given device reports for insets/status/nav bars.
-          Expanded(
-            flex: 58,
-            child: Container(
-              decoration: const BoxDecoration(
-                color: _parchment,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-              ),
-              child: SafeArea(
-                top: false,
-                child: Column(
-                  children: [
-                    const SizedBox(height: 28),
-                    Expanded(
-                      child: PageView.builder(
-                        controller: _pageController,
-                        itemCount: _slides.length,
-                        onPageChanged: (index) =>
-                            setState(() => _currentIndex = index),
-                        itemBuilder: (context, index) =>
-                            _SlideText(slide: _slides[index]),
+            // ── Content sheet: rounded top so it still reads as one
+            // continuous surface sliding up over the header gradient.
+            // Uses Expanded (flex) instead of a fixed pixel offset so it
+            // always gets a real share of the available height, whatever
+            // a given device reports for insets/status/nav bars.
+            Expanded(
+              flex: 58,
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: _parchment,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+                ),
+                child: SafeArea(
+                  top: false,
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 28),
+                      Expanded(
+                        child: PageView.builder(
+                          controller: _pageController,
+                          itemCount: _slides.length,
+                          onPageChanged: (index) =>
+                              setState(() => _currentIndex = index),
+                          itemBuilder: (context, index) =>
+                              _SlideText(slide: _slides[index]),
+                        ),
                       ),
-                    ),
-                    _DotIndicator(
-                      count: _slides.length,
-                      page: _page,
-                      activeColor: AppTheme.primaryGreen,
-                      inactiveColor: _ink.withValues(alpha: 0.15),
-                    ),
-                    const SizedBox(height: 28),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(28, 0, 28, 28),
-                      child: SizedBox(
-                        width: double.infinity,
-                        height: 54,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(16),
-                            gradient: const LinearGradient(
-                              colors: [
-                                _forestDark,
-                                AppTheme.primaryGreen,
-                                _sage,
-                              ],
-                              stops: [0.0, 0.5, 1.0],
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppTheme.primaryGreen.withValues(
-                                  alpha: 0.35,
-                                ),
-                                blurRadius: 14,
-                                offset: const Offset(0, 8),
-                              ),
-                            ],
-                          ),
-                          child: Material(
-                            color: Colors.transparent,
-                            child: InkWell(
+                      _DotIndicator(
+                        count: _slides.length,
+                        page: _page,
+                        activeColor: AppTheme.primaryGreen,
+                        inactiveColor: _ink.withValues(alpha: 0.15),
+                      ),
+                      const SizedBox(height: 28),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(28, 0, 28, 28),
+                        child: SizedBox(
+                          width: double.infinity,
+                          height: 54,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(16),
-                              onTap: _next,
-                              child: Center(
-                                child: AnimatedSwitcher(
-                                  duration: const Duration(milliseconds: 200),
-                                  child: Text(
-                                    isLast ? 'Mulai Sekarang' : 'Lanjut',
-                                    key: ValueKey(isLast),
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.white,
-                                      letterSpacing: 0.2,
+                              gradient: const LinearGradient(
+                                colors: [
+                                  _forestDark,
+                                  AppTheme.primaryGreen,
+                                  _sage,
+                                ],
+                                stops: [0.0, 0.5, 1.0],
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppTheme.primaryGreen.withValues(
+                                    alpha: 0.35,
+                                  ),
+                                  blurRadius: 14,
+                                  offset: const Offset(0, 8),
+                                ),
+                              ],
+                            ),
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(16),
+                                onTap: _next,
+                                child: Center(
+                                  child: AnimatedSwitcher(
+                                    duration: const Duration(milliseconds: 200),
+                                    child: Text(
+                                      isLast ? 'Mulai Sekarang' : 'Lanjut',
+                                      key: ValueKey(isLast),
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white,
+                                        letterSpacing: 0.2,
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -257,13 +262,13 @@ class _OnboardingPageState extends State<OnboardingPage> {
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -61,7 +61,18 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Aplikasi Arsip',
       theme: AppTheme.lightTheme,
-      initialRoute: initialRoute,
+      // NOT `initialRoute:` — when the initial route name isn't literally
+      // "/", Flutter's default behavior synthesizes a "/" route and
+      // pushes it *underneath* the real initial route (so back button
+      // has "somewhere to go"). Since our route table has no "/" entry,
+      // that phantom route falls through to onGenerateRoute's not-found
+      // fallback — invisible until the user presses back once from the
+      // first screen, then they land on "Halaman '/' tidak ditemukan.".
+      // onGenerateInitialRoutes bypasses that synthesis entirely: it
+      // builds exactly the one route we ask for, nothing hidden beneath.
+      onGenerateInitialRoutes: (_) => [
+        AppRoutes.onGenerateRoute(RouteSettings(name: initialRoute)),
+      ],
       onGenerateRoute: AppRoutes.onGenerateRoute,
     );
   }

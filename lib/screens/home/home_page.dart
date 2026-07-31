@@ -19,9 +19,6 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int _selectedNavIndex = 0;
 
-  final PageController _bannerController = PageController();
-  int _currentBanner = 0;
-
   // Ganti / tambah path sesuai foto yang kamu taruh di assets/images/
   final List<String> _bannerImages = const [
     'assets/bpn1.jpg',
@@ -29,9 +26,37 @@ class _HomePageState extends State<HomePage> {
     'assets/bpn3.jpg',
   ];
 
+  // ─── Infinite-loop carousel ───────────────────────────────────────
+  // PageView has no built-in "wrap around" mode, so this uses the usual
+  // trick: itemCount is a large multiple of the real image count, and
+  // itemBuilder maps each huge index back down with % _bannerImages.
+  // length. Starting in the middle of that huge range means there's
+  // effectively unlimited room to swipe left OR right without ever
+  // hitting a real start/end — from the user's perspective it just
+  // loops forever in both directions.
+  static const _loopMultiplier = 2000;
+  late final int _loopItemCount = _bannerImages.length * _loopMultiplier;
+  late final int _loopInitialPage =
+      (_loopItemCount ~/ 2) - ((_loopItemCount ~/ 2) % _bannerImages.length);
+
+  late final PageController _bannerController = PageController(
+    // Item: banner carousel — less than 1.0 leaves a sliver of the
+    // previous/next card visible on each side, so swiping reads as
+    // "sliding through a connected strip" instead of one full-bleed
+    // image cutting to the next (see Klik Indomaret reference).
+    viewportFraction: 0.92,
+    initialPage: _loopInitialPage,
+  );
+  // Raw (huge, un-modded) page index — kept in sync with the controller
+  // so the scale/fade math below stays correct. Use
+  // `_currentBanner % _bannerImages.length` wherever the *real* image
+  // index is needed (dot indicator, etc).
+  int _currentBanner = 0; // set to _loopInitialPage in initState below
+
   @override
   void initState() {
     super.initState();
+    _currentBanner = _loopInitialPage;
     // Guard: HomePage is reachable directly by route name, so if there's
     // no active session (hot restart mid-session, deep link, etc.) bounce
     // straight back to Login instead of rendering with a null user.
@@ -356,74 +381,102 @@ class _HomePageState extends State<HomePage> {
   }
 
   // ─── IMAGE CAROUSEL BANNER (foto kantor, swipeable + dots) ───
+  // Full-bleed, square-cornered, edge-to-edge cards — the next/previous
+  // card only peeks in as a thin sliver at the screen edge (viewportFraction
+  // close to 1 on the controller above), matching the Klik Indomaret
+  // reference rather than the earlier rounded-card-with-gaps look.
+  // Loops infinitely in both directions — see the loop fields above.
   Widget _buildImageCarousel() {
     return Column(
       children: [
         SizedBox(
           height: 160,
-          child: PageView.builder(
-            controller: _bannerController,
-            itemCount: _bannerImages.length,
-            onPageChanged: (i) => setState(() => _currentBanner = i),
-            itemBuilder: (context, index) {
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      Image.asset(
-                        _bannerImages[index],
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Container(
-                          decoration: const BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                AppTheme.primaryGreen,
-                                AppTheme.accentGreen,
-                              ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
+          child: AnimatedBuilder(
+            animation: _bannerController,
+            builder: (context, child) {
+              return PageView.builder(
+                controller: _bannerController,
+                itemCount: _loopItemCount,
+                onPageChanged: (i) => setState(() => _currentBanner = i),
+                itemBuilder: (context, index) {
+                  final imageIndex = index % _bannerImages.length;
+
+                  // Falls back to a plain 0 offset before the controller
+                  // is attached to its viewport on the very first frame.
+                  double page = _currentBanner.toDouble();
+                  if (_bannerController.hasClients &&
+                      _bannerController.position.haveDimensions) {
+                    page = _bannerController.page ?? page;
+                  }
+                  final distance = (page - index).abs().clamp(0.0, 1.0);
+                  final opacity = 1 - (distance * 0.25);
+
+                  return Opacity(
+                    opacity: opacity,
+                    child: Padding(
+                      // Small gap between peeking cards, same spacing as
+                      // the original rounded-card version.
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            Image.asset(
+                              _bannerImages[imageIndex],
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  Container(
+                                    decoration: const BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          AppTheme.primaryGreen,
+                                          AppTheme.accentGreen,
+                                        ],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
+                                    ),
+                                    child: const Center(
+                                      child: Icon(
+                                        Icons.apartment_rounded,
+                                        color: Colors.white38,
+                                        size: 48,
+                                      ),
+                                    ),
+                                  ),
                             ),
-                          ),
-                          child: const Center(
-                            child: Icon(
-                              Icons.apartment_rounded,
-                              color: Colors.white38,
-                              size: 48,
+                            Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Colors.black.withOpacity(0.55),
+                                    Colors.transparent,
+                                  ],
+                                  begin: Alignment.bottomCenter,
+                                  end: Alignment.topCenter,
+                                ),
+                              ),
                             ),
-                          ),
+                            const Positioned(
+                              left: 16,
+                              bottom: 14,
+                              right: 16,
+                              child: Text(
+                                'Kantor Pertanahan Kota Cilegon',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.black.withOpacity(0.55),
-                              Colors.transparent,
-                            ],
-                            begin: Alignment.bottomCenter,
-                            end: Alignment.topCenter,
-                          ),
-                        ),
-                      ),
-                      const Positioned(
-                        left: 16,
-                        bottom: 14,
-                        right: 16,
-                        child: Text(
-                          'Kantor Pertanahan Kota Cilegon',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                    ),
+                  );
+                },
               );
             },
           ),
@@ -432,7 +485,7 @@ class _HomePageState extends State<HomePage> {
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: List.generate(_bannerImages.length, (index) {
-            final isActive = index == _currentBanner;
+            final isActive = index == (_currentBanner % _bannerImages.length);
             return AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               margin: const EdgeInsets.symmetric(horizontal: 3),
