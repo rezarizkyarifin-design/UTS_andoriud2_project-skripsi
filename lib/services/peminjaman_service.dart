@@ -1,10 +1,30 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/peminjaman.dart';
 import 'auth_service.dart';
 
+/// Same detection approach as auth_service.dart's _isNetworkError — see
+/// that file's comment for why this checks by type + message text rather
+/// than importing package:http directly.
+bool _isNetworkError(Object e) {
+  if (e is SocketException) return true;
+  final text = e.toString();
+  return text.contains('SocketException') ||
+      text.contains('ClientException') ||
+      text.contains('Failed host lookup') ||
+      text.contains('Connection failed');
+}
+
 /// Turns a raw Supabase/Postgrest error into something a SnackBar can show
 /// a Pegawai without them needing to read Postgres error codes.
 String _friendlyError(Object e) {
+  if (_isNetworkError(e)) {
+    return 'Tidak ada koneksi internet. Data terakhir yang tersimpan '
+        'masih bisa dilihat, tapi aksi ini butuh koneksi.';
+  }
   if (e is PostgrestException) {
     if (e.code == '42501') {
       // Raised by our RLS/trigger checks (see supabase_rls_admin_controls.sql)
@@ -37,7 +57,40 @@ class PeminjamanService {
   static final SupabaseClient _client = Supabase.instance.client;
   static final List<Peminjaman> _cache = [];
 
+  /// True if the current [_cache] contents came from local disk (last
+  /// known state) rather than a confirmed-fresh fetch from Supabase.
+  /// Screens can check this to show a small "data terakhir tersimpan"
+  /// hint alongside the existing error banner if useful.
+  static bool isStaleCache = false;
+
+  static const _diskCacheKey = 'peminjaman_cache';
+
   static List<Peminjaman> getAll() => List.unmodifiable(_cache);
+
+  static Future<void> _persistCacheToDisk() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = jsonEncode(
+      _cache.map((p) => {...p.toMap(), 'id': p.id}).toList(),
+    );
+    await prefs.setString(_diskCacheKey, raw);
+  }
+
+  static Future<bool> _loadCacheFromDisk() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_diskCacheKey);
+    if (raw == null) return false;
+    try {
+      final list = jsonDecode(raw) as List;
+      _cache
+        ..clear()
+        ..addAll(
+          list.map((m) => Peminjaman.fromMap(m as Map<String, dynamic>)),
+        );
+      return _cache.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
 
   /// Call once after login (see main.dart / AuthService.tryRestoreSession)
   /// and whenever you want to force a full re-sync (e.g. pull-to-refresh)
@@ -51,7 +104,15 @@ class PeminjamanService {
       _cache
         ..clear()
         ..addAll(rows.map((row) => Peminjaman.fromMap(row)));
+      isStaleCache = false;
+      await _persistCacheToDisk();
     } catch (e) {
+      // Offline with nothing in memory yet (e.g. app just launched) —
+      // fall back to whatever was last saved to disk so the UI has
+      // something to show under the error banner instead of a blank list.
+      if (_cache.isEmpty) {
+        isStaleCache = await _loadCacheFromDisk();
+      }
       throw Exception(_friendlyError(e));
     }
   }

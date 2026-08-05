@@ -1,6 +1,4 @@
 class Peminjaman {
-  // Supabase row UUID. Null for an object that hasn't been saved yet
-  // (e.g. freshly built in FormPage before calling PeminjamanService.tambah).
   final String? id;
 
   final String nama;
@@ -18,11 +16,6 @@ class Peminjaman {
   final String? diampuOleh; // AppUser.id (uuid)
 
   // ─── Atribusi "Proses Kembali" — siapa admin yang menandai dokumen ini
-  // telah kembali. `kembaliOlehNama` is denormalized (stored as plain
-  // text alongside the id) so UI can show "Nama menandai dokumen telah
-  // kembali" directly from the cached row, without a separate lookup
-  // against `profiles`. Both stay null until kembalikan()/kembalikanBanyak()
-  // sets them.
   final String? kembaliOleh; // AppUser.id (uuid)
   final String? kembaliOlehNama;
 
@@ -52,9 +45,6 @@ class Peminjaman {
   });
 
   // ─── SUPABASE MAPPING ───────────────────────────────────────────
-  // Column names use snake_case (jenis_hak, no_hak, tanggal_pinjam, etc.)
-  // to match the `peminjaman` table from supabase_schema.sql.
-
   factory Peminjaman.fromMap(Map<String, dynamic> map) {
     return Peminjaman(
       id: map['id'] as String?,
@@ -79,8 +69,6 @@ class Peminjaman {
     );
   }
 
-  // Deliberately omits id/created_at/updated_at — the database generates
-  // those itself (default gen_random_uuid(), default now(), trigger).
   Map<String, dynamic> toMap() {
     return {
       'nama': nama,
@@ -112,10 +100,6 @@ class Peminjaman {
   }
 
   // ─── ATRIBUSI PROSES KEMBALI ───
-  // Short attribution line for UI, e.g. "Budi menandai dokumen telah
-  // kembali." Null whenever there's no recorded name — either the
-  // document hasn't been returned yet, or it's a legacy row from before
-  // kembali_oleh_nama existed.
   String? get returnedByMessage => kembaliOlehNama == null
       ? null
       : '$kembaliOlehNama menandai dokumen telah kembali';

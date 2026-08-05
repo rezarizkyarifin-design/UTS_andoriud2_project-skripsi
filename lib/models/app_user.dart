@@ -18,6 +18,20 @@ class AppUser {
   bool get isAdmin => role == UserRole.admin;
   bool get isPegawai => role == UserRole.pegawai;
 
+  // Mirrors fromMap — used to persist the logged-in profile locally
+  // (see AuthService._cacheUserLocally) so the app can still open to a
+  // usable state when there's a valid Supabase session but no network
+  // to re-fetch the profile row.
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'nama': nama,
+      'username': username,
+      'role': role.name,
+      'jabatan': jabatan,
+    };
+  }
+
   // Maps a row from the Supabase `profiles` table. Role is stored as
   // Postgres enum ('admin' | 'pegawai') but comes back over PostgREST as
   // a plain string — matches UserRole's enum names exactly, so

@@ -1,6 +1,39 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/app_user.dart';
+
+/// Thrown by [AuthService.login] specifically when the request never
+/// reached Supabase at all (no internet / DNS lookup failed), so callers
+/// can tell "you're offline" apart from "wrong username/password" instead
+/// of both collapsing into the same generic failure.
+class NetworkException implements Exception {
+  const NetworkException([
+    this.message = 'Tidak ada koneksi internet. Coba lagi nanti.',
+  ]);
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+/// True for connectivity-flavored failures (DNS lookup failed, socket
+/// couldn't connect, etc.) as opposed to a real server response — e.g. an
+/// actual "wrong password" (AuthException) or "row not found"
+/// (PostgrestException). Supabase's client wraps these in a
+/// ClientException, which isn't safe to import directly here (it'd add a
+/// direct package:http dependency this file doesn't otherwise need), so
+/// this checks by type where possible and falls back to the message text.
+bool _isNetworkError(Object e) {
+  if (e is SocketException) return true;
+  final text = e.toString();
+  return text.contains('SocketException') ||
+      text.contains('ClientException') ||
+      text.contains('Failed host lookup') ||
+      text.contains('Connection failed');
+}
 
 class AuthService {
   AuthService._();
@@ -14,8 +47,57 @@ class AuthService {
   static bool get isAdmin => _currentUser?.isAdmin ?? false;
   static bool get isPegawai => _currentUser?.isPegawai ?? false;
 
-  static String _emailFor(String username) => '$username@siap.local';
+  /// True when the current session was restored from local cache while
+  /// offline, rather than confirmed fresh against Supabase. Screens can
+  /// use this to show a small "mode offline" indicator if useful.
+  static bool isOfflineSession = false;
 
+  static const _cachedUserKey = 'cached_user_profile';
+
+  /// Persists the logged-in profile so [tryRestoreSession] can still open
+  /// the app to a usable state on a later launch with no network, as
+  /// long as the Supabase SDK's own local session (which it persists
+  /// itself) hasn't expired.
+  static Future<void> _cacheUserLocally(AppUser user) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_cachedUserKey, jsonEncode(user.toMap()));
+  }
+
+  static Future<AppUser?> _loadCachedUser(String expectedId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_cachedUserKey);
+    if (raw == null) return null;
+    try {
+      final map = jsonDecode(raw) as Map<String, dynamic>;
+      if (map['id'] != expectedId) return null;
+      return AppUser.fromMap(map);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // NOTE: previously used '@siap.local' — Supabase Auth's server-side
+  // email validator rejects that domain, since ".local" is an IANA
+  // "special-use" TLD (reserved for mDNS, per RFC 6762) and isn't
+  // considered a valid email domain by most format validators,
+  // Supabase's included. ".app" doesn't have that reservation, so this
+  // synthetic address passes format validation — Supabase only checks
+  // the format here, it doesn't verify the domain is real or that mail
+  // can actually be delivered to it.
+  //
+  // This is used two ways: (1) to build the real address Supabase Auth
+  // signs in/up with, from whatever bare identifier (e.g. "admin") the
+  // user types into the Login/Sign Up form, and (2) as the value
+  // actually stored in profiles.username — so profiles.username always
+  // holds the full synthetic email (e.g. "admin@siap.app"), matching
+  // how existing rows in the table are formatted, rather than the bare
+  // identifier alone.
+  static String _emailFor(String username) => '$username@siap.app';
+
+  /// Returns false for a genuine auth failure (wrong username/password).
+  /// Throws [NetworkException] if the request never reached Supabase at
+  /// all — callers should catch that separately and show "tidak ada
+  /// koneksi" instead of "username/password salah".
   static Future<bool> login(String username, String password) async {
     try {
       final response = await _client.auth.signInWithPassword(
@@ -32,10 +114,13 @@ class AuthService {
           .single();
 
       _currentUser = AppUser.fromMap(profile);
+      isOfflineSession = false;
+      await _cacheUserLocally(_currentUser!);
       return true;
     } on AuthException {
       return false;
-    } catch (_) {
+    } catch (e) {
+      if (_isNetworkError(e)) throw const NetworkException();
       return false;
     }
   }
@@ -43,13 +128,21 @@ class AuthService {
   static Future<void> logout() async {
     await _client.auth.signOut();
     _currentUser = null;
+    isOfflineSession = false;
 
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_cachedUserKey);
     // Reset onboarding flag so the onboarding slides show again on the
     // next app open, instead of only ever showing once per install.
-    final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('onboarding_seen', false);
   }
 
+  /// Called on app start (see main.dart). Supabase's SDK persists its own
+  /// session locally, so `currentSession` here doesn't need network — but
+  /// fetching the profile row normally does. If that fetch fails because
+  /// there's no connectivity, this falls back to the profile cached by
+  /// the last successful login/restore instead of forcing the user back
+  /// to the login screen just because they opened the app offline.
   static Future<bool> tryRestoreSession() async {
     final authUser = _client.auth.currentSession?.user;
     if (authUser == null) return false;
@@ -61,8 +154,18 @@ class AuthService {
           .eq('id', authUser.id)
           .single();
       _currentUser = AppUser.fromMap(profile);
+      isOfflineSession = false;
+      await _cacheUserLocally(_currentUser!);
       return true;
-    } catch (_) {
+    } catch (e) {
+      if (_isNetworkError(e)) {
+        final cached = await _loadCachedUser(authUser.id);
+        if (cached != null) {
+          _currentUser = cached;
+          isOfflineSession = true;
+          return true;
+        }
+      }
       return false;
     }
   }
@@ -86,16 +189,23 @@ class AuthService {
     if (cleanUsername.isEmpty) return 'Username tidak boleh kosong.';
     if (password.length < 6) return 'Password minimal 6 karakter.';
 
+    // The full synthetic email — this is what actually gets stored in
+    // profiles.username (see _emailFor's doc comment above), so the
+    // duplicate check below has to compare against this same format,
+    // not the bare cleanUsername, or it'd miss real collisions against
+    // rows already stored this way.
+    final email = _emailFor(cleanUsername);
+
     try {
       final existing = await _client
           .from('profiles')
           .select('id')
-          .eq('username', cleanUsername)
+          .eq('username', email)
           .maybeSingle();
       if (existing != null) return 'Username "$cleanUsername" sudah dipakai.';
 
       final response = await _client.auth.signUp(
-        email: _emailFor(cleanUsername),
+        email: email,
         password: password,
       );
       final authUser = response.user;
@@ -103,16 +213,19 @@ class AuthService {
         return 'Gagal membuat akun. Coba lagi.';
       }
 
-      // If the Supabase project has "Confirm email" turned ON, signUp()
-      // won't return an active session, and this insert (which needs
-      // auth.uid() = authUser.id per the profiles RLS policy) will fail
-      // with a permission error. For the synthetic @siap.local email
-      // scheme to work at all, that setting needs to be OFF — see the
-      // note in supabase_rls_admin_controls.sql.
-      await _client.from('profiles').insert({
+      // Uses upsert (not insert): if a Supabase DB trigger on auth.users
+      // (e.g. a "handle_new_user" function) already auto-created a
+      // profiles row for this id — typically with placeholder values
+      // like 'Pengguna Baru' / '-', since the trigger has no way to see
+      // what was typed into this form — insert() would fail here on a
+      // primary-key conflict, silently leaving that placeholder row in
+      // place. upsert() overwrites it with the real submitted data
+      // instead. If no such trigger exists, this behaves like a normal
+      // insert.
+      await _client.from('profiles').upsert({
         'id': authUser.id,
         'nama': nama.trim(),
-        'username': cleanUsername,
+        'username': email,
         'jabatan': jabatan.trim(),
         'role': 'pegawai',
       });
@@ -124,6 +237,8 @@ class AuthService {
             .eq('id', authUser.id)
             .single();
         _currentUser = AppUser.fromMap(profile);
+        isOfflineSession = false;
+        await _cacheUserLocally(_currentUser!);
       }
 
       return null;
@@ -139,7 +254,7 @@ class AuthService {
   // ══════════════════════════════════════════════════════════════════
   // PASSWORD CHANGE (note item #8) — a real "forgot password" email
   // flow isn't viable here: accounts sign in with a synthetic
-  // '<username>@siap.local' address (see _emailFor above), which isn't
+  // '<username>@siap.app' address (see _emailFor above), which isn't
   // a real inbox, so Supabase's resetPasswordForEmail() would send a
   // reset link nobody can receive. This is the self-service equivalent:
   // change your password while already logged in, re-verified with your
@@ -158,8 +273,12 @@ class AuthService {
 
     try {
       // Re-verify identity with the current password before changing it.
+      // user.username is ALREADY the full synthetic email (see
+      // _emailFor's doc comment) — do not wrap it in _emailFor() again
+      // here, that would double up the domain (e.g.
+      // "admin@siap.app@siap.app") and always fail.
       await _client.auth.signInWithPassword(
-        email: _emailFor(user.username),
+        email: user.username,
         password: currentPassword,
       );
       await _client.auth.updateUser(UserAttributes(password: newPassword));
