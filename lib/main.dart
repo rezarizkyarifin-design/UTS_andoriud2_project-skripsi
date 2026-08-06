@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/theme/app_theme.dart';
 import 'routes/app_routes.dart';
 import 'services/peminjaman_service.dart';
+import 'screens/splash/splash_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,23 +38,26 @@ Future<void> main() async {
   final prefs = await SharedPreferences.getInstance();
   final seenOnboarding = prefs.getBool('onboarding_seen') ?? false;
 
-  final String initialRoute;
+  // Same decision as before — just renamed, since it's no longer the
+  // literal first route. It's now where SplashPage sends the user once
+  // its animation finishes (see MyApp below / SplashPage.nextRoute).
+  final String nextRoute;
   if (kDebugMode && forceOnboardingInDebug) {
-    initialRoute = AppRoutes.onboarding;
+    nextRoute = AppRoutes.onboarding;
   } else if (restored) {
-    initialRoute = AppRoutes.home;
+    nextRoute = AppRoutes.home;
   } else if (!seenOnboarding) {
-    initialRoute = AppRoutes.onboarding;
+    nextRoute = AppRoutes.onboarding;
   } else {
-    initialRoute = AppRoutes.login;
+    nextRoute = AppRoutes.login;
   }
 
-  runApp(MyApp(initialRoute: initialRoute));
+  runApp(MyApp(nextRoute: nextRoute));
 }
 
 class MyApp extends StatelessWidget {
-  final String initialRoute;
-  const MyApp({super.key, required this.initialRoute});
+  final String nextRoute;
+  const MyApp({super.key, required this.nextRoute});
 
   @override
   Widget build(BuildContext context) {
@@ -61,18 +65,20 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Aplikasi Arsip',
       theme: AppTheme.lightTheme,
-      // NOT `initialRoute:` — when the initial route name isn't literally
-      // "/", Flutter's default behavior synthesizes a "/" route and
-      // pushes it *underneath* the real initial route (so back button
-      // has "somewhere to go"). Since our route table has no "/" entry,
-      // that phantom route falls through to onGenerateRoute's not-found
-      // fallback — invisible until the user presses back once from the
-      // first screen, then they land on "Halaman '/' tidak ditemukan.".
-      // onGenerateInitialRoutes bypasses that synthesis entirely: it
-      // builds exactly the one route we ask for, nothing hidden beneath.
-      onGenerateInitialRoutes: (_) => [
-        AppRoutes.onGenerateRoute(RouteSettings(name: initialRoute)),
-      ],
+      // Every cold start now opens on SplashPage first, regardless of
+      // nextRoute — it plays its intro animation, then does
+      // pushReplacementNamed(nextRoute) itself once that finishes. This
+      // is a plain widget built directly with `home:`, not a named
+      // route, precisely so it's NOT part of the route table and can't
+      // be navigated back to with the back button once it's been
+      // replaced.
+      //
+      // The NOT-`initialRoute:` reasoning from before still applies to
+      // nextRoute itself, just one level down — see SplashPage's
+      // Navigator.pushReplacementNamed call, which goes through
+      // AppRoutes.onGenerateRoute like any other named navigation, so
+      // there's still no phantom "/" route hiding underneath it.
+      home: SplashPage(nextRoute: nextRoute),
       onGenerateRoute: AppRoutes.onGenerateRoute,
     );
   }

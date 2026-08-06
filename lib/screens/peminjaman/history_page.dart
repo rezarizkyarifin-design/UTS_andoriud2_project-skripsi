@@ -8,8 +8,8 @@ import '../../services/auth_service.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/app_scan_fab.dart';
-import '../../widgets/notification_bell.dart';
 import '../../widgets/back_to_home.dart';
+import '../../widgets/app_top_bar.dart';
 
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
@@ -221,33 +221,6 @@ class _HistoryPageState extends State<HistoryPage> {
     return p.status == 'Dipinjam' ? 'Dipinjam' : 'Kembali';
   }
 
-  // ─── PROFILE MENU ───
-  void _showProfileMenu(TapDownDetails details) async {
-    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
-    final selected = await showMenu<String>(
-      context: context,
-      position: RelativeRect.fromRect(
-        details.globalPosition & const Size(1, 1),
-        Offset.zero & overlay.size,
-      ),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      items: const [
-        PopupMenuItem(value: 'profile', child: Text('Profil Saya')),
-        PopupMenuItem(value: 'logout', child: Text('Logout')),
-      ],
-    );
-    if (!mounted) return;
-    if (selected == 'logout') {
-      Navigator.pushReplacementNamed(context, AppRoutes.login);
-    } else if (selected == 'profile') {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Petugas Arsip - Kantor Pertanahan Cilegon'),
-        ),
-      );
-    }
-  }
-
   // ─── Dipakai oleh AppDrawer: Dashboard pakai pushReplacement, sisanya
   // push + refresh saat kembali (sama seperti HomePage).
   void _onDrawerNavigate(String route) {
@@ -319,53 +292,7 @@ class _HistoryPageState extends State<HistoryPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Builder(
-                    builder: (context) => IconButton(
-                      icon: const Icon(Icons.menu, color: Colors.white),
-                      onPressed: () => Scaffold.of(context).openDrawer(),
-                    ),
-                  ),
-                  Container(
-                    width: 26,
-                    height: 26,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(6),
-                      child: Image.network(
-                        'https://pbs.twimg.com/profile_images/1525051472873783296/zBL0VecH_400x400.jpg',
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  const Expanded(
-                    child: Text(
-                      'Daftar Peminjaman',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                      ),
-                    ),
-                  ),
-                  const NotificationBell(),
-                  GestureDetector(
-                    onTapDown: _showProfileMenu,
-                    child: const CircleAvatar(
-                      radius: 15,
-                      backgroundColor: Colors.white24,
-                      child: Icon(Icons.person, color: Colors.white, size: 16),
-                    ),
-                  ),
-                ],
-              ),
+              const AppTopBar(title: 'Daftar Peminjaman'),
               const SizedBox(height: 14),
               Row(
                 children: [

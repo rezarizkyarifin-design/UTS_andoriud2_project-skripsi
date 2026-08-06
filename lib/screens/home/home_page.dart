@@ -7,7 +7,7 @@ import '../../core/theme/app_theme.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/app_scan_fab.dart';
-import '../../widgets/notification_bell.dart';
+import '../../widgets/app_top_bar.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -143,43 +143,6 @@ class _HomePageState extends State<HomePage> {
     _navigateAndRefresh(route);
   }
 
-  void _showProfileMenu(TapDownDetails details) async {
-    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
-    final selected = await showMenu<String>(
-      context: context,
-      position: RelativeRect.fromRect(
-        details.globalPosition & const Size(1, 1),
-        Offset.zero & overlay.size,
-      ),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      items: const [
-        PopupMenuItem(value: 'profile', child: Text('Profil Saya')),
-        PopupMenuItem(value: 'logout', child: Text('Logout')),
-      ],
-    );
-    if (!mounted) return;
-    if (selected == 'logout') {
-      AuthService.logout();
-      if (!mounted) return;
-      Navigator.pushNamedAndRemoveUntil(
-        context,
-        AppRoutes.onboarding,
-        (route) => false,
-      );
-    } else if (selected == 'profile') {
-      final user = AuthService.currentUser;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            user == null
-                ? 'Petugas Arsip - Kantor Pertanahan Cilegon'
-                : '${user.nama} - ${user.jabatan}',
-          ),
-        ),
-      );
-    }
-  }
-
   // ─── HEADER (gradient AppBar area + greeting) ───
   Widget _buildHeader() {
     return Container(
@@ -198,54 +161,8 @@ class _HomePageState extends State<HomePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Top bar: menu, title, notif, avatar
-              Row(
-                children: [
-                  Builder(
-                    builder: (context) => IconButton(
-                      icon: const Icon(Icons.menu, color: Colors.white),
-                      onPressed: () => Scaffold.of(context).openDrawer(),
-                    ),
-                  ),
-                  Container(
-                    width: 26,
-                    height: 26,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(6),
-                      child: Image.network(
-                        'https://pbs.twimg.com/profile_images/1525051472873783296/zBL0VecH_400x400.jpg',
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  const Expanded(
-                    child: Text(
-                      'Arsip Pertanahan Cilegon',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                      ),
-                    ),
-                  ),
-                  const NotificationBell(),
-                  GestureDetector(
-                    onTapDown: _showProfileMenu,
-                    child: const CircleAvatar(
-                      radius: 15,
-                      backgroundColor: Colors.white24,
-                      child: Icon(Icons.person, color: Colors.white, size: 16),
-                    ),
-                  ),
-                ],
-              ),
+              // Top bar: menu, title, notif, avatar — see widgets/app_top_bar.dart
+              const AppTopBar(title: 'Arsip Pertanahan Cilegon'),
               const SizedBox(height: 12),
               // Greeting card (mengambang, ala "Halo, Budi Disini!")
               Container(
