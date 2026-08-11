@@ -24,6 +24,26 @@ class Peminjaman {
   final DateTime? requestedTanggalKembali;
   final String? extensionReason;
 
+  // ─── Jenis Dokumen (07.08.2026) — 'Buku Tanah' | 'Surat Ukur' | 'Warkah'.
+  // Existing rows created before this feature have no value for this
+  // column at all (it didn't exist yet) — fromMap defaults those to
+  // 'Buku Tanah', since every record before this point genuinely was
+  // that type. Kept non-nullable here so every OTHER file (History,
+  // Return, Barcode, Home...) that already assumes every Peminjaman has
+  // a jenisDokumen keeps compiling unchanged.
+  final String jenisDokumen;
+
+  // ─── Surat Ukur–specific (null for Buku Tanah / Warkah) ───
+  final String? jenisSuratUkur;
+  final String? noTahunSuratUkur;
+  final String? su;
+  final String? gs; // Gambar Situasi
+
+  // ─── Warkah–specific (null for Buku Tanah / Surat Ukur) ───
+  final String? jenisWarkah;
+  final String? no208;
+  final String? tahunWarkah;
+
   Peminjaman({
     this.id,
     required this.nama,
@@ -42,6 +62,14 @@ class Peminjaman {
     this.extensionStatus,
     this.requestedTanggalKembali,
     this.extensionReason,
+    this.jenisDokumen = 'Buku Tanah',
+    this.jenisSuratUkur,
+    this.noTahunSuratUkur,
+    this.su,
+    this.gs,
+    this.jenisWarkah,
+    this.no208,
+    this.tahunWarkah,
   });
 
   // ─── SUPABASE MAPPING ───────────────────────────────────────────
@@ -66,6 +94,14 @@ class Peminjaman {
           ? null
           : DateTime.parse(map['requested_tanggal_kembali'] as String),
       extensionReason: map['extension_reason'] as String?,
+      jenisDokumen: map['jenis_dokumen'] as String? ?? 'Buku Tanah',
+      jenisSuratUkur: map['jenis_surat_ukur'] as String?,
+      noTahunSuratUkur: map['no_tahun_surat_ukur'] as String?,
+      su: map['su'] as String?,
+      gs: map['gs'] as String?,
+      jenisWarkah: map['jenis_warkah'] as String?,
+      no208: map['no_208'] as String?,
+      tahunWarkah: map['tahun_warkah'] as String?,
     );
   }
 
@@ -87,6 +123,14 @@ class Peminjaman {
       'extension_status': extensionStatus,
       'requested_tanggal_kembali': requestedTanggalKembali?.toIso8601String(),
       'extension_reason': extensionReason,
+      'jenis_dokumen': jenisDokumen,
+      'jenis_surat_ukur': jenisSuratUkur,
+      'no_tahun_surat_ukur': noTahunSuratUkur,
+      'su': su,
+      'gs': gs,
+      'jenis_warkah': jenisWarkah,
+      'no_208': no208,
+      'tahun_warkah': tahunWarkah,
     };
   }
 
@@ -151,6 +195,14 @@ class Peminjaman {
     DateTime? requestedTanggalKembali,
     String? extensionReason,
     bool clearExtension = false,
+    String? jenisDokumen,
+    String? jenisSuratUkur,
+    String? noTahunSuratUkur,
+    String? su,
+    String? gs,
+    String? jenisWarkah,
+    String? no208,
+    String? tahunWarkah,
   }) {
     return Peminjaman(
       id: id ?? this.id,
@@ -176,6 +228,14 @@ class Peminjaman {
       extensionReason: clearExtension
           ? null
           : (extensionReason ?? this.extensionReason),
+      jenisDokumen: jenisDokumen ?? this.jenisDokumen,
+      jenisSuratUkur: jenisSuratUkur ?? this.jenisSuratUkur,
+      noTahunSuratUkur: noTahunSuratUkur ?? this.noTahunSuratUkur,
+      su: su ?? this.su,
+      gs: gs ?? this.gs,
+      jenisWarkah: jenisWarkah ?? this.jenisWarkah,
+      no208: no208 ?? this.no208,
+      tahunWarkah: tahunWarkah ?? this.tahunWarkah,
     );
   }
 }

@@ -10,6 +10,7 @@ import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/app_scan_fab.dart';
 import '../../widgets/back_to_home.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/jenis_dokumen_breakdown.dart';
 
 class ReturnPage extends StatefulWidget {
   const ReturnPage({super.key});
@@ -230,13 +231,93 @@ class _ReturnPageState extends State<ReturnPage> {
     return const [];
   }
 
+  // ─── JENIS DOKUMEN–AWARE DISPLAY HELPERS (07.08.2026) ───
+  // Buku Tanah / Surat Ukur / Warkah each carry a different set of
+  // "which object is this" fields (see Peminjaman model + FormPage's
+  // per-type sections). These helpers keep the card list, search, and
+  // detail sheet all showing the right fields for whichever type a
+  // given record actually is, instead of assuming Buku Tanah's
+  // kecamatan/kelurahan/jenisHak/noHak fields always apply.
+  String _objekTopLabel(Peminjaman p) {
+    switch (p.jenisDokumen) {
+      case 'Surat Ukur':
+        return p.jenisHak;
+      case 'Warkah':
+        return (p.jenisWarkah?.isNotEmpty ?? false) ? p.jenisWarkah! : 'Warkah';
+      default:
+        return p.jenisHak;
+    }
+  }
+
+  String _objekBottomLabel(Peminjaman p) {
+    switch (p.jenisDokumen) {
+      case 'Surat Ukur':
+        return '${p.noTahunSuratUkur ?? '-'} • SU ${p.su ?? '-'}/GS ${p.gs ?? '-'}';
+      case 'Warkah':
+        return 'No. 208: ${p.no208 ?? '-'} (${p.tahunWarkah ?? '-'})';
+      default:
+        return '${p.noHak}/${p.kelurahan}';
+    }
+  }
+
+  // Rows shown in the detail bottom sheet, conditional on jenisDokumen.
+  // `row` is the same row-builder each caller already has in scope.
+  List<Widget> _detailRowsFor(
+    Peminjaman p,
+    Widget Function(IconData icon, String label, String value) row,
+  ) {
+    switch (p.jenisDokumen) {
+      case 'Surat Ukur':
+        return [
+          row(
+            Icons.straighten_outlined,
+            'Jenis Surat Ukur',
+            p.jenisSuratUkur ?? '-',
+          ),
+          row(
+            Icons.numbers_outlined,
+            'No. & Tahun Surat Ukur',
+            p.noTahunSuratUkur ?? '-',
+          ),
+          row(Icons.description_outlined, 'SU', p.su ?? '-'),
+          row(Icons.map_outlined, 'GS (Gambar Situasi)', p.gs ?? '-'),
+          row(
+            Icons.shield_outlined,
+            'Jenis Hak / Nomor Hak',
+            '${p.jenisHak} - ${p.noHak}',
+          ),
+        ];
+      case 'Warkah':
+        return [
+          row(Icons.folder_copy_outlined, 'Jenis Warkah', p.jenisWarkah ?? '-'),
+          row(Icons.numbers_outlined, 'No. 208', p.no208 ?? '-'),
+          row(Icons.event_outlined, 'Tahun Warkah', p.tahunWarkah ?? '-'),
+        ];
+      default: // Buku Tanah
+        return [
+          row(Icons.location_city_outlined, 'Kecamatan', p.kecamatan),
+          row(Icons.map_outlined, 'Kelurahan', p.kelurahan),
+          row(
+            Icons.shield_outlined,
+            'Jenis Hak / Nomor Hak',
+            '${p.jenisHak} - ${p.noHak}',
+          ),
+        ];
+    }
+  }
+
   List<Peminjaman> get _pinjamanAktifRaw =>
       _all.where((p) => p.status == 'Dipinjam').toList();
 
   List<Peminjaman> get _pinjamanAktif {
     return _pinjamanAktifRaw.where((p) {
       if (_searchQuery.isNotEmpty) {
-        final haystack = '${p.nama} ${p.noHak} ${p.kelurahan}'.toLowerCase();
+        final haystack =
+            '${p.nama} ${p.noHak} ${p.kelurahan} ${p.jenisDokumen} '
+                    '${p.jenisSuratUkur ?? ''} ${p.noTahunSuratUkur ?? ''} '
+                    '${p.su ?? ''} ${p.gs ?? ''} ${p.jenisWarkah ?? ''} '
+                    '${p.no208 ?? ''} ${p.tahunWarkah ?? ''}'
+                .toLowerCase();
         if (!haystack.contains(_searchQuery)) return false;
       }
       if (_filterKecamatan != null && p.kecamatan != _filterKecamatan) {
@@ -276,7 +357,8 @@ class _ReturnPageState extends State<ReturnPage> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: const Text('Konfirmasi Pengembalian'),
         content: Text(
-          'Tandai dokumen ${p.noHak} atas nama ${p.nama} sebagai telah dikembalikan?',
+          'Tandai dokumen ${p.jenisDokumen} (${_objekBottomLabel(p)}) atas nama '
+          '${p.nama} sebagai telah dikembalikan?',
         ),
         actions: [
           TextButton(
@@ -407,7 +489,8 @@ class _ReturnPageState extends State<ReturnPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Ajukan perpanjangan batas waktu peminjaman ${p.noHak} '
+                  'Ajukan perpanjangan batas waktu peminjaman '
+                  '${p.jenisDokumen} (${_objekBottomLabel(p)}) '
                   'atas nama ${p.nama} menjadi '
                   '${picked.day.toString().padLeft(2, '0')}/'
                   '${picked.month.toString().padLeft(2, '0')}/${picked.year}?',
@@ -655,13 +738,8 @@ class _ReturnPageState extends State<ReturnPage> {
                 const SizedBox(height: 20),
                 const Divider(height: 1),
                 const SizedBox(height: 18),
-                row(Icons.location_city_outlined, 'Kecamatan', p.kecamatan),
-                row(Icons.map_outlined, 'Kelurahan', p.kelurahan),
-                row(
-                  Icons.shield_outlined,
-                  'Jenis Hak / Nomor Hak',
-                  '${p.jenisHak} - ${p.noHak}',
-                ),
+                row(Icons.category_outlined, 'Jenis Dokumen', p.jenisDokumen),
+                ..._detailRowsFor(p, row),
                 row(Icons.description_outlined, 'Keperluan', p.keperluan),
                 row(
                   Icons.calendar_month_outlined,
@@ -1159,6 +1237,10 @@ class _ReturnPageState extends State<ReturnPage> {
         },
         child: Container(
           decoration: BoxDecoration(
+            // Was missing entirely before — a BoxDecoration with no
+            // `color` is transparent, so this card was just showing the
+            // page's own background color through it.
+            color: Colors.white,
             borderRadius: BorderRadius.circular(18),
             border: selected
                 ? Border.all(color: _accentGreen, width: 1.5)
@@ -1276,7 +1358,13 @@ class _ReturnPageState extends State<ReturnPage> {
                             vertical: 12,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF5F5F5),
+                            // Brightened from flat #F5F5F5 to a soft
+                            // green-tinted highlight — same reasoning as
+                            // history_page.dart's identical box.
+                            color: _accentGreen.withOpacity(0.06),
+                            border: Border.all(
+                              color: _accentGreen.withOpacity(0.15),
+                            ),
                             borderRadius: BorderRadius.circular(14),
                           ),
                           child: Row(
@@ -1287,7 +1375,7 @@ class _ReturnPageState extends State<ReturnPage> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      p.jenisHak,
+                                      '${p.jenisDokumen} · ${_objekTopLabel(p)}',
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
@@ -1299,7 +1387,7 @@ class _ReturnPageState extends State<ReturnPage> {
                                     ),
                                     const SizedBox(height: 3),
                                     Text(
-                                      '${p.noHak}/${p.kelurahan}',
+                                      _objekBottomLabel(p),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
@@ -1591,6 +1679,43 @@ class _ReturnPageState extends State<ReturnPage> {
               ),
             ),
             const SizedBox(height: 36),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+              child: JenisDokumenBreakdown(
+                // Scoped to _pinjamanAktifRaw (status == 'Dipinjam'), not
+                // the whole archive — this page only ever lists active
+                // loans, so a breakdown of everything ever borrowed
+                // (including already-returned docs) would be misleading
+                // here. Home/History use the unscoped app-wide counts
+                // instead, which fits what those pages actually show.
+                stats: [
+                  JenisDokumenStat(
+                    jenis: 'Buku Tanah',
+                    icon: Icons.menu_book_outlined,
+                    count: _pinjamanAktifRaw
+                        .where((p) => p.jenisDokumen == 'Buku Tanah')
+                        .length,
+                    color: _accentGreen,
+                  ),
+                  JenisDokumenStat(
+                    jenis: 'Surat Ukur',
+                    icon: Icons.straighten_outlined,
+                    count: _pinjamanAktifRaw
+                        .where((p) => p.jenisDokumen == 'Surat Ukur')
+                        .length,
+                    color: const Color(0xFFC08A3E),
+                  ),
+                  JenisDokumenStat(
+                    jenis: 'Warkah',
+                    icon: Icons.folder_copy_outlined,
+                    count: _pinjamanAktifRaw
+                        .where((p) => p.jenisDokumen == 'Warkah')
+                        .length,
+                    color: const Color(0xFF5C5FCD),
+                  ),
+                ],
+              ),
+            ),
             if (_isFiltering)
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),

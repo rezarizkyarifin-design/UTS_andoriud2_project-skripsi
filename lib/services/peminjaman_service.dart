@@ -6,9 +6,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/peminjaman.dart';
 import 'auth_service.dart';
 
-/// Same detection approach as auth_service.dart's _isNetworkError — see
-/// that file's comment for why this checks by type + message text rather
-/// than importing package:http directly.
 bool _isNetworkError(Object e) {
   if (e is SocketException) return true;
   final text = e.toString();
@@ -18,8 +15,6 @@ bool _isNetworkError(Object e) {
       text.contains('Connection failed');
 }
 
-/// Turns a raw Supabase/Postgrest error into something a SnackBar can show
-/// a Pegawai without them needing to read Postgres error codes.
 String _friendlyError(Object e) {
   if (_isNetworkError(e)) {
     return 'Tidak ada koneksi internet. Data terakhir yang tersimpan '
@@ -137,12 +132,22 @@ class PeminjamanService {
   /// Checked directly against Supabase rather than the local cache, so
   /// it still catches a duplicate even if the cache is stale or another
   /// device/session created the active loan.
-  static Future<bool> existsActiveNoHak(String noHak) async {
+  /// [jenisDokumen] picks which column actually identifies the
+  /// document: no_hak for Buku Tanah/Surat Ukur, but no_208 for Warkah
+  /// — Warkah loans always store '-' in no_hak (see form_page.dart),
+  /// since a Warkah genuinely doesn't have that field. Checking no_hak
+  /// for a Warkah's dedupe key would always compare against '-' and
+  /// never actually catch a real duplicate.
+  static Future<bool> existsActiveNoHak(
+    String identifier, {
+    String jenisDokumen = 'Buku Tanah',
+  }) async {
+    final column = jenisDokumen == 'Warkah' ? 'no_208' : 'no_hak';
     try {
       final rows = await _client
           .from('peminjaman')
           .select('id')
-          .eq('no_hak', noHak)
+          .eq(column, identifier)
           .eq('status', 'Dipinjam')
           .limit(1);
       return rows.isNotEmpty;
@@ -259,6 +264,20 @@ class PeminjamanService {
       _cache.where((p) => p.status == 'Kembali').length;
 
   static int getTerlambat() => _cache.where((p) => p.isOverdue).length;
+
+  // ─── JENIS DOKUMEN BREAKDOWN (08.08.2026) ───
+  // Backs the "Jenis Dokumen" breakdown container on Home/History/Return
+  // (see widgets/jenis_dokumen_breakdown.dart). Counts every record
+  // regardless of status — this is a composition-of-the-archive figure,
+  // not an "active loans" figure like getSedangDipinjam() above.
+  static int getCountBukuTanah() =>
+      _cache.where((p) => p.jenisDokumen == 'Buku Tanah').length;
+
+  static int getCountSuratUkur() =>
+      _cache.where((p) => p.jenisDokumen == 'Surat Ukur').length;
+
+  static int getCountWarkah() =>
+      _cache.where((p) => p.jenisDokumen == 'Warkah').length;
 
   // ══════════════════════════════════════════════════════════════════
   // EXTENSION STATE MACHINE — same states/transitions as before, now

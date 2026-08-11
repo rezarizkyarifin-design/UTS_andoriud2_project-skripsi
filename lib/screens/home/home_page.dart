@@ -8,6 +8,7 @@ import '../../widgets/app_drawer.dart';
 import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/app_scan_fab.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/jenis_dokumen_breakdown.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -419,6 +420,41 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // ─── JENIS DOKUMEN BREAKDOWN (08.08.2026) ───
+  // Colors intentionally reuse what's already in the app's palette
+  // instead of inventing a new one: green is AppTheme's own accent,
+  // gold matches the Login/Signup header accent, purple matches the
+  // "Simpan Data" button on FormPage — so this card reads as part of
+  // the same design language, not a bolted-on new widget.
+  Widget _buildJenisDokumenBreakdown() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: JenisDokumenBreakdown(
+        stats: [
+          JenisDokumenStat(
+            jenis: 'Buku Tanah',
+            icon: Icons.menu_book_outlined,
+            count: PeminjamanService.getCountBukuTanah(),
+            color: AppTheme.accentGreen,
+          ),
+          JenisDokumenStat(
+            jenis: 'Surat Ukur',
+            icon: Icons.straighten_outlined,
+            count: PeminjamanService.getCountSuratUkur(),
+            color: const Color(0xFFC08A3E),
+          ),
+          JenisDokumenStat(
+            jenis: 'Warkah',
+            icon: Icons.folder_copy_outlined,
+            count: PeminjamanService.getCountWarkah(),
+            color: const Color(0xFF5C5FCD),
+          ),
+        ],
+        onTapJenis: (jenis) => _navigateAndRefresh(AppRoutes.history),
+      ),
+    );
+  }
+
   // ─── COMPACT STAT CHIPS (Aktif / Kembali / Terlambat) ───
   Widget _buildStatChips() {
     final aktif = PeminjamanService.getSedangDipinjam();
@@ -505,6 +541,43 @@ class _HomePageState extends State<HomePage> {
   }
 
   // ─── INFO TERBARU (aktivitas peminjaman terbaru, horizontal cards) ───
+  // ─── JENIS DOKUMEN DISPLAY HELPERS (07.08.2026) ───
+  // Buku Tanah/Surat Ukur/Warkah each leave different Peminjaman fields
+  // as '-' placeholders (see form_page.dart / peminjaman.dart) since
+  // e.g. kelurahan/jenisHak genuinely don't apply to a Warkah loan. These
+  // pick whichever fields are actually meaningful for a given p's type,
+  // instead of the old hardcoded p.jenisHak / '${p.noHak}/${p.kelurahan}'
+  // which would just show "-" for anything that isn't Buku Tanah.
+
+  /// Combines the document type with its type-specific sub-label, e.g.
+  /// "Buku Tanah • Hak Milik", "Surat Ukur • Ukur Bidang", "Warkah •
+  /// Persyaratan Umum".
+  String _dokumenTypeLabel(Peminjaman p) {
+    switch (p.jenisDokumen) {
+      case 'Surat Ukur':
+        return '${p.jenisDokumen} • ${p.jenisSuratUkur ?? '-'}';
+      case 'Warkah':
+        return '${p.jenisDokumen} • ${p.jenisWarkah ?? '-'}';
+      case 'Buku Tanah':
+      default:
+        return '${p.jenisDokumen} • ${p.jenisHak}';
+    }
+  }
+
+  /// The identifying reference number line — which fields make sense
+  /// here differs by type (a Warkah has no no_hak/kelurahan at all).
+  String _dokumenIdentifier(Peminjaman p) {
+    switch (p.jenisDokumen) {
+      case 'Surat Ukur':
+        return 'SU ${p.su ?? '-'} • No. Hak ${p.noHak}';
+      case 'Warkah':
+        return 'No. 208: ${p.no208 ?? '-'}';
+      case 'Buku Tanah':
+      default:
+        return '${p.noHak}/${p.kelurahan}';
+    }
+  }
+
   Widget _buildRecentActivity() {
     final all = List<Peminjaman>.from(PeminjamanService.getAll())
       ..sort((a, b) => b.tanggalPinjam.compareTo(a.tanggalPinjam));
@@ -579,6 +652,7 @@ class _HomePageState extends State<HomePage> {
                       'nama': p.nama,
                       'kelurahan': p.kelurahan,
                       'jenisHak': p.jenisHak,
+                      'jenisDokumen': p.jenisDokumen,
                       'tanggalPinjam': p.tanggalPinjamFormatted,
                       'tanggalKembali': p.tanggalKembaliFormatted,
                     },
@@ -605,7 +679,7 @@ class _HomePageState extends State<HomePage> {
                           children: [
                             Expanded(
                               child: Text(
-                                p.jenisHak,
+                                _dokumenTypeLabel(p),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
@@ -661,7 +735,7 @@ class _HomePageState extends State<HomePage> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '${p.noHak}/${p.kelurahan}',
+                          _dokumenIdentifier(p),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
@@ -991,7 +1065,7 @@ class _HomePageState extends State<HomePage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                '${p.nama} — ${p.noHak}/${p.kelurahan}',
+                                '${p.nama} — ${_dokumenIdentifier(p)}',
                                 style: const TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.bold,
@@ -1114,6 +1188,8 @@ class _HomePageState extends State<HomePage> {
               _buildImageCarousel(),
               const SizedBox(height: 20),
               _buildStatChips(),
+              const SizedBox(height: 14),
+              _buildJenisDokumenBreakdown(),
               const SizedBox(height: 24),
               _buildRecentActivity(),
               const SizedBox(height: 24),

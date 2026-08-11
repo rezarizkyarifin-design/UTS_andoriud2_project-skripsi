@@ -4,6 +4,7 @@ import '../../core/theme/app_theme.dart';
 import '../../routes/app_routes.dart';
 import '../../services/auth_service.dart';
 import '../../services/peminjaman_service.dart';
+import '../../widgets/animated_terrain_bg.dart';
 
 /// Self-registration screen. Always creates a 'pegawai' account — see the
 /// note on AuthService.signUp for why admin accounts are never created
@@ -139,150 +140,174 @@ class _SignUpPageState extends State<SignUpPage> {
             ),
           ),
         ),
-        body: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Daftar sebagai pegawai baru untuk mengakses SIAP.'
-                    ' Akun admin hanya dapat dibuat oleh admin yang sudah ada.',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 13,
-                      color: Colors.black54,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  TextFormField(
-                    controller: _namaController,
-                    decoration: _decoration(
-                      'Nama Lengkap',
-                      Icons.person_outline,
-                    ),
-                    validator: (v) =>
-                        (v == null || v.trim().isEmpty) ? 'Wajib diisi' : null,
-                  ),
-                  const SizedBox(height: 14),
-                  TextFormField(
-                    controller: _usernameController,
-                    decoration: _decoration('Username', Icons.alternate_email),
-                    autocorrect: false,
-                    validator: (v) {
-                      if (v == null || v.trim().isEmpty) return 'Wajib diisi';
-                      if (v.contains(' ')) return 'Tidak boleh ada spasi';
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 14),
-                  TextFormField(
-                    controller: _jabatanController,
-                    decoration: _decoration('Jabatan', Icons.badge_outlined),
-                    validator: (v) =>
-                        (v == null || v.trim().isEmpty) ? 'Wajib diisi' : null,
-                  ),
-                  const SizedBox(height: 14),
-                  TextFormField(
-                    controller: _passwordController,
-                    obscureText: _hidePassword,
-                    decoration: _decoration('Password', Icons.lock_outline)
-                        .copyWith(
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _hidePassword
-                                  ? Icons.visibility_outlined
-                                  : Icons.visibility_off_outlined,
-                              size: 20,
-                            ),
-                            onPressed: () =>
-                                setState(() => _hidePassword = !_hidePassword),
-                          ),
-                        ),
-                    validator: (v) {
-                      if (v == null || v.isEmpty) return 'Wajib diisi';
-                      if (v.length < 6) return 'Minimal 6 karakter';
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 14),
-                  TextFormField(
-                    controller: _confirmController,
-                    obscureText: _hideConfirm,
-                    decoration:
-                        _decoration(
-                          'Konfirmasi Password',
-                          Icons.lock_outline,
-                        ).copyWith(
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _hideConfirm
-                                  ? Icons.visibility_outlined
-                                  : Icons.visibility_off_outlined,
-                              size: 20,
-                            ),
-                            onPressed: () =>
-                                setState(() => _hideConfirm = !_hideConfirm),
-                          ),
-                        ),
-                    validator: (v) =>
-                        (v == null || v.isEmpty) ? 'Wajib diisi' : null,
-                  ),
-                  const SizedBox(height: 26),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _isSubmitting ? null : _submit,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.primaryGreen,
-                        padding: const EdgeInsets.symmetric(vertical: 15),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                      child: _isSubmitting
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : Text(
-                              'Daftar',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
-                              ),
-                            ),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Center(
-                    child: GestureDetector(
-                      onTap: _isSubmitting
-                          ? null
-                          : () => Navigator.pushReplacementNamed(
-                              context,
-                              AppRoutes.login,
-                            ),
-                      child: Text(
-                        'Sudah punya akun? Masuk',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.primaryGreen,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+        body: Stack(
+          children: [
+            // Ambient backdrop — same drifting-blob/grid motif as the
+            // Login header, just turned way down since it sits behind an
+            // entire light page instead of a compact gradient panel.
+            const Positioned.fill(
+              child: AnimatedTerrainBackground(
+                mode: BackgroundMode.ambient,
+                blobColors: [AppTheme.primaryGreen, AppTheme.accentGreen],
               ),
             ),
-          ),
+            SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Daftar sebagai pegawai baru untuk mengakses SIAP.'
+                        ' Akun admin hanya dapat dibuat oleh admin yang sudah ada.',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          color: Colors.black54,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      TextFormField(
+                        controller: _namaController,
+                        decoration: _decoration(
+                          'Nama Lengkap',
+                          Icons.person_outline,
+                        ),
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? 'Wajib diisi'
+                            : null,
+                      ),
+                      const SizedBox(height: 14),
+                      TextFormField(
+                        controller: _usernameController,
+                        decoration: _decoration(
+                          'Username',
+                          Icons.alternate_email,
+                        ),
+                        autocorrect: false,
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty)
+                            return 'Wajib diisi';
+                          if (v.contains(' ')) return 'Tidak boleh ada spasi';
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 14),
+                      TextFormField(
+                        controller: _jabatanController,
+                        decoration: _decoration(
+                          'Jabatan',
+                          Icons.badge_outlined,
+                        ),
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? 'Wajib diisi'
+                            : null,
+                      ),
+                      const SizedBox(height: 14),
+                      TextFormField(
+                        controller: _passwordController,
+                        obscureText: _hidePassword,
+                        decoration: _decoration('Password', Icons.lock_outline)
+                            .copyWith(
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  _hidePassword
+                                      ? Icons.visibility_outlined
+                                      : Icons.visibility_off_outlined,
+                                  size: 20,
+                                ),
+                                onPressed: () => setState(
+                                  () => _hidePassword = !_hidePassword,
+                                ),
+                              ),
+                            ),
+                        validator: (v) {
+                          if (v == null || v.isEmpty) return 'Wajib diisi';
+                          if (v.length < 6) return 'Minimal 6 karakter';
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 14),
+                      TextFormField(
+                        controller: _confirmController,
+                        obscureText: _hideConfirm,
+                        decoration:
+                            _decoration(
+                              'Konfirmasi Password',
+                              Icons.lock_outline,
+                            ).copyWith(
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  _hideConfirm
+                                      ? Icons.visibility_outlined
+                                      : Icons.visibility_off_outlined,
+                                  size: 20,
+                                ),
+                                onPressed: () => setState(
+                                  () => _hideConfirm = !_hideConfirm,
+                                ),
+                              ),
+                            ),
+                        validator: (v) =>
+                            (v == null || v.isEmpty) ? 'Wajib diisi' : null,
+                      ),
+                      const SizedBox(height: 26),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _isSubmitting ? null : _submit,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.primaryGreen,
+                            padding: const EdgeInsets.symmetric(vertical: 15),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          child: _isSubmitting
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : Text(
+                                  'Daftar',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Center(
+                        child: GestureDetector(
+                          onTap: _isSubmitting
+                              ? null
+                              : () => Navigator.pushReplacementNamed(
+                                  context,
+                                  AppRoutes.login,
+                                ),
+                          child: Text(
+                            'Sudah punya akun? Masuk',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.primaryGreen,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

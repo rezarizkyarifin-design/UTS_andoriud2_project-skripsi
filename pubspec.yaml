@@ -43,6 +43,7 @@ dependencies:
   google_fonts: ^8.1.0
   shared_preferences: ^2.3.2
   flutter_launcher_icons: ^0.13.1
+  flutter_native_splash: ^2.4.1
 
   supabase_flutter: ^2.8.0
 
@@ -109,3 +110,15 @@ flutter_launcher_icons:
   ios: true
   image_path: "assets/kantahcilegonlogo.jpg"
   min_sdk_version: 21
+
+flutter_native_splash:
+  color: "#081C13"          # sama persis dengan _forestDeep di SplashPage
+  color_dark: "#081C13"
+  # Kalau punya logo statis (PNG), bisa ditambah biar makin nyambung
+  # dengan badge di SplashPage animated-mu:
+  # image: assets/images/splash_logo.png
+  # image_dark: assets/images/splash_logo.png
+  android_12:
+    color: "#081C13"
+    color_dark: "#081C13"
+    # image: assets/images/splash_logo.png

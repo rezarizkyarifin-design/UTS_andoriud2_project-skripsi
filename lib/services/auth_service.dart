@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -20,19 +21,45 @@ class NetworkException implements Exception {
 }
 
 /// True for connectivity-flavored failures (DNS lookup failed, socket
-/// couldn't connect, etc.) as opposed to a real server response — e.g. an
-/// actual "wrong password" (AuthException) or "row not found"
-/// (PostgrestException). Supabase's client wraps these in a
+/// couldn't connect, request timed out, etc.) as opposed to a real server
+/// response — e.g. an actual "wrong password" (AuthException) or "row not
+/// found" (PostgrestException). Supabase's client wraps these in a
 /// ClientException, which isn't safe to import directly here (it'd add a
 /// direct package:http dependency this file doesn't otherwise need), so
-/// this checks by type where possible and falls back to the message text.
+/// this checks by type where possible and falls back to message text.
+///
+/// Important: Supabase's signInWithPassword() frequently wraps a genuine
+/// connectivity failure in an AuthException too, not just a raw
+/// SocketException — so this must be checked before deciding an
+/// AuthException means "wrong credentials", not only in a fallback
+/// catch(e) that an `on AuthException catch` clause would never reach.
 bool _isNetworkError(Object e) {
   if (e is SocketException) return true;
-  final text = e.toString();
-  return text.contains('SocketException') ||
-      text.contains('ClientException') ||
-      text.contains('Failed host lookup') ||
-      text.contains('Connection failed');
+  if (e is TimeoutException) return true;
+  // AuthException/PostgrestException carry the real underlying text in
+  // .message, not necessarily in toString() — check both so this isn't
+  // sensitive to which one actually contains the useful text.
+  final text = [
+    e.toString(),
+    if (e is AuthException) e.message,
+    if (e is PostgrestException) e.message,
+  ].join(' ').toLowerCase();
+
+  const networkPhrases = [
+    'socketexception',
+    'clientexception',
+    'failed host lookup',
+    'connection failed',
+    'connection reset',
+    'connection refused',
+    'connection timed out',
+    'network is unreachable',
+    'handshakeexception',
+    'timeoutexception',
+    'no address associated with hostname',
+    'software caused connection abort',
+  ];
+  return networkPhrases.any(text.contains);
 }
 
 class AuthService {
@@ -117,10 +144,17 @@ class AuthService {
       isOfflineSession = false;
       await _cacheUserLocally(_currentUser!);
       return true;
-    } on AuthException {
-      return false;
     } catch (e) {
+      // Network check goes first, regardless of exception type — Supabase
+      // frequently wraps a genuine connectivity failure in an
+      // AuthException too, not just a raw SocketException. A separate
+      // `on AuthException catch` clause ahead of this would catch those
+      // first and misreport them as "wrong password" before this check
+      // ever ran (that was the previous bug here).
       if (_isNetworkError(e)) throw const NetworkException();
+      // Anything else (AuthException = wrong credentials, or any other
+      // unexpected failure) is treated the same way this always was:
+      // a plain "login failed" the caller shows as wrong username/password.
       return false;
     }
   }

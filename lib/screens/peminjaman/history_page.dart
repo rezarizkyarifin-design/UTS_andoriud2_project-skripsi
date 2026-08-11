@@ -10,6 +10,7 @@ import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/app_scan_fab.dart';
 import '../../widgets/back_to_home.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/jenis_dokumen_breakdown.dart';
 
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
@@ -149,12 +150,91 @@ class _HistoryPageState extends State<HistoryPage> {
     return const [];
   }
 
+  // ─── JENIS DOKUMEN–AWARE DISPLAY HELPERS (07.08.2026) ───
+  // Buku Tanah / Surat Ukur / Warkah each carry a different set of
+  // "which object is this" fields (see Peminjaman model + FormPage's
+  // per-type sections). These helpers keep the card list, search, and
+  // detail sheet all showing the right fields for whichever type a
+  // given record actually is, instead of assuming Buku Tanah's
+  // kecamatan/kelurahan/jenisHak/noHak fields always apply.
+  String _objekTopLabel(Peminjaman p) {
+    switch (p.jenisDokumen) {
+      case 'Surat Ukur':
+        return p.jenisHak;
+      case 'Warkah':
+        return (p.jenisWarkah?.isNotEmpty ?? false) ? p.jenisWarkah! : 'Warkah';
+      default:
+        return p.jenisHak;
+    }
+  }
+
+  String _objekBottomLabel(Peminjaman p) {
+    switch (p.jenisDokumen) {
+      case 'Surat Ukur':
+        return '${p.noTahunSuratUkur ?? '-'} • SU ${p.su ?? '-'}/GS ${p.gs ?? '-'}';
+      case 'Warkah':
+        return 'No. 208: ${p.no208 ?? '-'} (${p.tahunWarkah ?? '-'})';
+      default:
+        return '${p.noHak}/${p.kelurahan}';
+    }
+  }
+
+  // Rows shown in the detail bottom sheet, conditional on jenisDokumen.
+  // `row` is the same row-builder each caller already has in scope.
+  List<Widget> _detailRowsFor(
+    Peminjaman p,
+    Widget Function(IconData icon, String label, String value) row,
+  ) {
+    switch (p.jenisDokumen) {
+      case 'Surat Ukur':
+        return [
+          row(
+            Icons.straighten_outlined,
+            'Jenis Surat Ukur',
+            p.jenisSuratUkur ?? '-',
+          ),
+          row(
+            Icons.numbers_outlined,
+            'No. & Tahun Surat Ukur',
+            p.noTahunSuratUkur ?? '-',
+          ),
+          row(Icons.description_outlined, 'SU', p.su ?? '-'),
+          row(Icons.map_outlined, 'GS (Gambar Situasi)', p.gs ?? '-'),
+          row(
+            Icons.shield_outlined,
+            'Jenis Hak / Nomor Hak',
+            '${p.jenisHak} - ${p.noHak}',
+          ),
+        ];
+      case 'Warkah':
+        return [
+          row(Icons.folder_copy_outlined, 'Jenis Warkah', p.jenisWarkah ?? '-'),
+          row(Icons.numbers_outlined, 'No. 208', p.no208 ?? '-'),
+          row(Icons.event_outlined, 'Tahun Warkah', p.tahunWarkah ?? '-'),
+        ];
+      default: // Buku Tanah
+        return [
+          row(Icons.location_city_outlined, 'Kecamatan', p.kecamatan),
+          row(Icons.map_outlined, 'Kelurahan', p.kelurahan),
+          row(
+            Icons.shield_outlined,
+            'Jenis Hak / Nomor Hak',
+            '${p.jenisHak} - ${p.noHak}',
+          ),
+        ];
+    }
+  }
+
   // ─── FILTERED LIST ───
   List<Peminjaman> get _filteredHistory {
     return _history.where((p) {
       if (_searchQuery.isNotEmpty) {
-        final haystack = '${p.nama} ${p.kecamatan} ${p.kelurahan} ${p.noHak}'
-            .toLowerCase();
+        final haystack =
+            '${p.nama} ${p.kecamatan} ${p.kelurahan} ${p.noHak} '
+                    '${p.jenisDokumen} ${p.jenisSuratUkur ?? ''} '
+                    '${p.noTahunSuratUkur ?? ''} ${p.su ?? ''} ${p.gs ?? ''} '
+                    '${p.jenisWarkah ?? ''} ${p.no208 ?? ''} ${p.tahunWarkah ?? ''}'
+                .toLowerCase();
         if (!haystack.contains(_searchQuery)) return false;
       }
       if (_filterKecamatan != null && p.kecamatan != _filterKecamatan) {
@@ -401,7 +481,10 @@ class _HistoryPageState extends State<HistoryPage> {
     String? tempKecamatan = _filterKecamatan;
     String? tempKelurahan = _filterKelurahan;
     String? tempJenisHak = _filterJenisHak;
-    String tempStatus = _filterStatus;
+    // tempKecamatan/tempKelurahan/tempJenisHak defined above — status is
+    // no longer part of this sheet at all, see _buildStatusChips() in the
+    // main build() instead: it binds straight to _filterStatus so it can
+    // apply immediately without needing this sheet open.
 
     showModalBottomSheet(
       context: context,
@@ -411,30 +494,6 @@ class _HistoryPageState extends State<HistoryPage> {
         return StatefulBuilder(
           builder: (context, setSheetState) {
             final kelurahanOptions = _kelurahanFor(tempKecamatan);
-
-            Widget chip(String label, bool selected, VoidCallback onTap) {
-              return GestureDetector(
-                onTap: onTap,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 9,
-                  ),
-                  decoration: BoxDecoration(
-                    color: selected ? _accentGreen : const Color(0xFFF5F5F5),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: selected ? Colors.white : Colors.black54,
-                    ),
-                  ),
-                ),
-              );
-            }
 
             Widget dropdown({
               required String placeholder,
@@ -542,7 +601,6 @@ class _HistoryPageState extends State<HistoryPage> {
                             tempKecamatan = null;
                             tempKelurahan = null;
                             tempJenisHak = null;
-                            tempStatus = 'Semua';
                           });
                         },
                         child: const Text(
@@ -553,34 +611,6 @@ class _HistoryPageState extends State<HistoryPage> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  const Text(
-                    'Status',
-                    style: TextStyle(fontSize: 13, color: Colors.black54),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      chip(
-                        'Semua',
-                        tempStatus == 'Semua',
-                        () => setSheetState(() => tempStatus = 'Semua'),
-                      ),
-                      chip(
-                        'Sedang Dipinjam',
-                        tempStatus == 'Sedang Dipinjam',
-                        () =>
-                            setSheetState(() => tempStatus = 'Sedang Dipinjam'),
-                      ),
-                      chip(
-                        'Telah Kembali',
-                        tempStatus == 'Telah Kembali',
-                        () => setSheetState(() => tempStatus = 'Telah Kembali'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
                   const Text(
                     'Kecamatan',
                     style: TextStyle(fontSize: 13, color: Colors.black54),
@@ -631,7 +661,6 @@ class _HistoryPageState extends State<HistoryPage> {
                           _filterKecamatan = tempKecamatan;
                           _filterKelurahan = tempKelurahan;
                           _filterJenisHak = tempJenisHak;
-                          _filterStatus = tempStatus;
                         });
                         Navigator.pop(context);
                       },
@@ -789,13 +818,8 @@ class _HistoryPageState extends State<HistoryPage> {
                 const SizedBox(height: 20),
                 const Divider(height: 1),
                 const SizedBox(height: 18),
-                row(Icons.location_city_outlined, 'Kecamatan', p.kecamatan),
-                row(Icons.map_outlined, 'Kelurahan', p.kelurahan),
-                row(
-                  Icons.shield_outlined,
-                  'Jenis Hak / Nomor Hak',
-                  '${p.jenisHak} - ${p.noHak}',
-                ),
+                row(Icons.category_outlined, 'Jenis Dokumen', p.jenisDokumen),
+                ..._detailRowsFor(p, row),
                 row(Icons.description_outlined, 'Keperluan', p.keperluan),
                 row(
                   Icons.calendar_month_outlined,
@@ -830,6 +854,7 @@ class _HistoryPageState extends State<HistoryPage> {
                             'nama': p.nama,
                             'kelurahan': p.kelurahan,
                             'jenisHak': p.jenisHak,
+                            'jenisDokumen': p.jenisDokumen,
                             'tanggalPinjam': p.tanggalPinjamFormatted,
                             'tanggalKembali': p.tanggalKembaliFormatted,
                           },
@@ -985,6 +1010,31 @@ class _HistoryPageState extends State<HistoryPage> {
     final namaController = TextEditingController(text: p.nama);
     final noHakController = TextEditingController(text: p.noHak);
     final keperluanController = TextEditingController(text: p.keperluan);
+
+    // ─── Jenis Dokumen (07.08.2026) — the type itself isn't editable
+    // here (switching type mid-record would leave stale fields from the
+    // old type behind), but its type-specific fields are, so the same
+    // sections FormPage shows on create are editable here too instead of
+    // only ever exposing the Buku Tanah fields.
+    final jenisSuratUkurController = TextEditingController(
+      text: p.jenisSuratUkur ?? '',
+    );
+    final noTahunSuratUkurController = TextEditingController(
+      text: p.noTahunSuratUkur ?? '',
+    );
+    final suController = TextEditingController(text: p.su ?? '');
+    final gsController = TextEditingController(text: p.gs ?? '');
+    final jenisWarkahController = TextEditingController(
+      text: p.jenisWarkah ?? '',
+    );
+    final no208Controller = TextEditingController(text: p.no208 ?? '');
+    final tahunWarkahController = TextEditingController(
+      text: p.tahunWarkah ?? '',
+    );
+
+    final isBukuTanah = p.jenisDokumen == 'Buku Tanah';
+    final isSuratUkur = p.jenisDokumen == 'Surat Ukur';
+    final isWarkah = p.jenisDokumen == 'Warkah';
 
     String? seksi = p.seksi;
     String? kecamatan = p.kecamatan;
@@ -1296,30 +1346,71 @@ class _HistoryPageState extends State<HistoryPage> {
           }
 
           Future<void> save() async {
-            if (namaController.text.trim().isEmpty ||
-                noHakController.text.trim().isEmpty ||
-                seksi == null ||
-                kecamatan == null ||
-                kelurahan == null ||
-                jenisHak == null) {
-              ScaffoldMessenger.of(sheetContext).showSnackBar(
-                const SnackBar(
-                  content: Text('Lengkapi semua kolom sebelum menyimpan.'),
-                ),
-              );
+            const lengkapiPesan = 'Lengkapi semua kolom sebelum menyimpan.';
+
+            if (namaController.text.trim().isEmpty || seksi == null) {
+              ScaffoldMessenger.of(
+                sheetContext,
+              ).showSnackBar(const SnackBar(content: Text(lengkapiPesan)));
               return;
+            }
+
+            // ─── Per-type validation, mirrors FormPage._simpanPeminjaman ───
+            if (isBukuTanah) {
+              if (kecamatan == null ||
+                  kelurahan == null ||
+                  jenisHak == null ||
+                  noHakController.text.trim().isEmpty) {
+                ScaffoldMessenger.of(
+                  sheetContext,
+                ).showSnackBar(const SnackBar(content: Text(lengkapiPesan)));
+                return;
+              }
+            } else if (isSuratUkur) {
+              if (jenisSuratUkurController.text.trim().isEmpty ||
+                  noTahunSuratUkurController.text.trim().isEmpty ||
+                  suController.text.trim().isEmpty ||
+                  gsController.text.trim().isEmpty ||
+                  jenisHak == null ||
+                  noHakController.text.trim().isEmpty) {
+                ScaffoldMessenger.of(
+                  sheetContext,
+                ).showSnackBar(const SnackBar(content: Text(lengkapiPesan)));
+                return;
+              }
+            } else if (isWarkah) {
+              if (jenisWarkahController.text.trim().isEmpty ||
+                  no208Controller.text.trim().isEmpty ||
+                  tahunWarkahController.text.trim().isEmpty) {
+                ScaffoldMessenger.of(
+                  sheetContext,
+                ).showSnackBar(const SnackBar(content: Text(lengkapiPesan)));
+                return;
+              }
             }
 
             final updated = p.copyWith(
               nama: namaController.text.trim(),
-              noHak: noHakController.text.trim(),
               seksi: seksi,
-              kecamatan: kecamatan,
-              kelurahan: kelurahan,
-              jenisHak: jenisHak,
               keperluan: keperluanController.text.trim(),
               tanggalPinjam: tanggalPinjam,
               tanggalKembali: tanggalKembali,
+              // jenisDokumen itself stays as-is (not editable here).
+              kecamatan: isBukuTanah ? kecamatan : '-',
+              kelurahan: isBukuTanah ? kelurahan : '-',
+              jenisHak: (isBukuTanah || isSuratUkur) ? jenisHak : '-',
+              noHak: isWarkah ? '-' : noHakController.text.trim(),
+              jenisSuratUkur: isSuratUkur
+                  ? jenisSuratUkurController.text.trim()
+                  : null,
+              noTahunSuratUkur: isSuratUkur
+                  ? noTahunSuratUkurController.text.trim()
+                  : null,
+              su: isSuratUkur ? suController.text.trim() : null,
+              gs: isSuratUkur ? gsController.text.trim() : null,
+              jenisWarkah: isWarkah ? jenisWarkahController.text.trim() : null,
+              no208: isWarkah ? no208Controller.text.trim() : null,
+              tahunWarkah: isWarkah ? tahunWarkahController.text.trim() : null,
             );
             bool ok = false;
             String? errorMsg;
@@ -1407,7 +1498,7 @@ class _HistoryPageState extends State<HistoryPage> {
                                     ),
                                     const SizedBox(height: 2),
                                     Text(
-                                      'No. Hak: ${p.noHak}',
+                                      '${p.jenisDokumen} · ${_objekBottomLabel(p)}',
                                       style: const TextStyle(
                                         color: Colors.white70,
                                         fontSize: 12.5,
@@ -1468,79 +1559,272 @@ class _HistoryPageState extends State<HistoryPage> {
                               ],
                             ),
                             sectionCard(
+                              icon: Icons.category_outlined,
+                              title: 'Jenis Dokumen',
+                              children: [
+                                // Jenis dokumen tidak diedit di sini — ubah
+                                // via hapus + buat ulang kalau memang tipe
+                                // dokumennya salah, supaya field-field yang
+                                // tidak lagi relevan tidak tertinggal.
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 12,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF5F5F5),
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        isSuratUkur
+                                            ? Icons.straighten_outlined
+                                            : isWarkah
+                                            ? Icons.folder_copy_outlined
+                                            : Icons.menu_book_outlined,
+                                        size: 18,
+                                        color: _accentGreen,
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Text(
+                                        p.jenisDokumen,
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.black87,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            sectionCard(
                               icon: Icons.inventory_2_outlined,
                               title: 'Detail Objek Arsip',
-                              children: [
-                                label('Kecamatan'),
-                                dropdownField(
-                                  placeholder: 'Pilih Kecamatan',
-                                  icon: Icons.location_city_outlined,
-                                  items: Data.kecamatan,
-                                  value: kecamatan,
-                                  onChanged: (v) => setSheetState(() {
-                                    kecamatan = v;
-                                    kelurahan = null;
-                                  }),
-                                ),
-                                const SizedBox(height: 16),
-                                label(
-                                  kelurahanOptions.isEmpty
-                                      ? 'Kelurahan (Non-aktif)'
-                                      : 'Kelurahan',
-                                  isDisabled: kelurahanOptions.isEmpty,
-                                ),
-                                dropdownField(
-                                  placeholder: kecamatan == null
-                                      ? 'Pilih Kecamatan dahulu'
-                                      : 'Pilih Kelurahan',
-                                  icon: Icons.map_outlined,
-                                  items: kelurahanOptions,
-                                  value: kelurahanValue,
-                                  isDisabled: kelurahanOptions.isEmpty,
-                                  onChanged: (v) =>
-                                      setSheetState(() => kelurahan = v),
-                                ),
-                                const SizedBox(height: 16),
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Expanded(
-                                      child: Column(
+                              children: isBukuTanah
+                                  ? [
+                                      label('Kecamatan'),
+                                      dropdownField(
+                                        placeholder: 'Pilih Kecamatan',
+                                        icon: Icons.location_city_outlined,
+                                        items: Data.kecamatan,
+                                        value: kecamatan,
+                                        onChanged: (v) => setSheetState(() {
+                                          kecamatan = v;
+                                          kelurahan = null;
+                                        }),
+                                      ),
+                                      const SizedBox(height: 16),
+                                      label(
+                                        kelurahanOptions.isEmpty
+                                            ? 'Kelurahan (Non-aktif)'
+                                            : 'Kelurahan',
+                                        isDisabled: kelurahanOptions.isEmpty,
+                                      ),
+                                      dropdownField(
+                                        placeholder: kecamatan == null
+                                            ? 'Pilih Kecamatan dahulu'
+                                            : 'Pilih Kelurahan',
+                                        icon: Icons.map_outlined,
+                                        items: kelurahanOptions,
+                                        value: kelurahanValue,
+                                        isDisabled: kelurahanOptions.isEmpty,
+                                        onChanged: (v) =>
+                                            setSheetState(() => kelurahan = v),
+                                      ),
+                                      const SizedBox(height: 16),
+                                      Row(
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
                                         children: [
-                                          label('Jenis Hak'),
-                                          dropdownField(
-                                            placeholder: 'Pilih Hak',
-                                            icon: Icons.shield_outlined,
-                                            items: Data.jenisHak,
-                                            value: jenisHak,
-                                            onChanged: (v) => setSheetState(
-                                              () => jenisHak = v,
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                label('Jenis Hak'),
+                                                dropdownField(
+                                                  placeholder: 'Pilih Hak',
+                                                  icon: Icons.shield_outlined,
+                                                  items: Data.jenisHak,
+                                                  value: jenisHak,
+                                                  onChanged: (v) =>
+                                                      setSheetState(
+                                                        () => jenisHak = v,
+                                                      ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                label('Nomor Hak'),
+                                                textField(
+                                                  controller: noHakController,
+                                                  placeholder: 'Contoh: 12345',
+                                                  icon: Icons.tag,
+                                                  keyboardType:
+                                                      TextInputType.number,
+                                                ),
+                                              ],
                                             ),
                                           ),
                                         ],
                                       ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
+                                    ]
+                                  : isSuratUkur
+                                  ? [
+                                      label('Jenis Surat Ukur'),
+                                      textField(
+                                        controller: jenisSuratUkurController,
+                                        placeholder:
+                                            'Masukkan jenis surat ukur',
+                                        icon: Icons.straighten_outlined,
+                                      ),
+                                      const SizedBox(height: 16),
+                                      label('No. & Tahun Surat Ukur'),
+                                      textField(
+                                        controller: noTahunSuratUkurController,
+                                        placeholder: 'Contoh: 123/2020',
+                                        icon: Icons.numbers_outlined,
+                                      ),
+                                      const SizedBox(height: 16),
+                                      Row(
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
                                         children: [
-                                          label('Nomor Hak'),
-                                          textField(
-                                            controller: noHakController,
-                                            placeholder: 'Contoh: 12345',
-                                            icon: Icons.tag,
-                                            keyboardType: TextInputType.number,
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                label('SU'),
+                                                textField(
+                                                  controller: suController,
+                                                  placeholder:
+                                                      'Contoh: 45/2020',
+                                                  icon: Icons
+                                                      .description_outlined,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                label('GS (Gambar Situasi)'),
+                                                textField(
+                                                  controller: gsController,
+                                                  placeholder:
+                                                      'Contoh: 67/2020',
+                                                  icon: Icons.map_outlined,
+                                                ),
+                                              ],
+                                            ),
                                           ),
                                         ],
                                       ),
-                                    ),
-                                  ],
-                                ),
-                              ],
+                                      const SizedBox(height: 16),
+                                      Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                label('Jenis Hak'),
+                                                dropdownField(
+                                                  placeholder: 'Pilih Hak',
+                                                  icon: Icons.shield_outlined,
+                                                  items: Data.jenisHak,
+                                                  value: jenisHak,
+                                                  onChanged: (v) =>
+                                                      setSheetState(
+                                                        () => jenisHak = v,
+                                                      ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                label('Nomor Hak'),
+                                                textField(
+                                                  controller: noHakController,
+                                                  placeholder: 'Contoh: 12345',
+                                                  icon: Icons.tag,
+                                                  keyboardType:
+                                                      TextInputType.number,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ]
+                                  : [
+                                      // Warkah
+                                      label('Jenis Warkah'),
+                                      textField(
+                                        controller: jenisWarkahController,
+                                        placeholder: 'Masukkan jenis warkah',
+                                        icon: Icons.folder_copy_outlined,
+                                      ),
+                                      const SizedBox(height: 16),
+                                      Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                label('No. 208'),
+                                                textField(
+                                                  controller: no208Controller,
+                                                  placeholder: 'Contoh: 208/12',
+                                                  icon: Icons.numbers_outlined,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                label('Tahun Warkah'),
+                                                textField(
+                                                  controller:
+                                                      tahunWarkahController,
+                                                  placeholder: 'Contoh: 2020',
+                                                  icon: Icons.event_outlined,
+                                                  keyboardType:
+                                                      TextInputType.number,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
                             ),
                             sectionCard(
                               icon: Icons.access_time_outlined,
@@ -1687,6 +1971,13 @@ class _HistoryPageState extends State<HistoryPage> {
       namaController.dispose();
       noHakController.dispose();
       keperluanController.dispose();
+      jenisSuratUkurController.dispose();
+      noTahunSuratUkurController.dispose();
+      suController.dispose();
+      gsController.dispose();
+      jenisWarkahController.dispose();
+      no208Controller.dispose();
+      tahunWarkahController.dispose();
     });
   }
 
@@ -1698,7 +1989,8 @@ class _HistoryPageState extends State<HistoryPage> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: const Text('Hapus Data Peminjaman'),
         content: Text(
-          'Hapus permanen data peminjaman No. Hak ${p.noHak} atas nama '
+          'Hapus permanen data peminjaman ${p.jenisDokumen} '
+          '(${_objekBottomLabel(p)}) atas nama '
           '${p.nama}? Tindakan ini tidak dapat dibatalkan.',
         ),
         actions: [
@@ -1760,6 +2052,7 @@ class _HistoryPageState extends State<HistoryPage> {
         onTap: () => _showDetail(peminjaman),
         child: Container(
           decoration: BoxDecoration(
+            color: Colors.white,
             borderRadius: BorderRadius.circular(18),
             boxShadow: const [
               BoxShadow(
@@ -1874,7 +2167,10 @@ class _HistoryPageState extends State<HistoryPage> {
                             vertical: 12,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF5F5F5),
+                            color: _accentGreen.withOpacity(0.06),
+                            border: Border.all(
+                              color: _accentGreen.withOpacity(0.15),
+                            ),
                             borderRadius: BorderRadius.circular(14),
                           ),
                           child: Row(
@@ -1890,7 +2186,7 @@ class _HistoryPageState extends State<HistoryPage> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      peminjaman.jenisHak,
+                                      '${peminjaman.jenisDokumen} · ${_objekTopLabel(peminjaman)}',
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
@@ -1902,7 +2198,7 @@ class _HistoryPageState extends State<HistoryPage> {
                                     ),
                                     const SizedBox(height: 2),
                                     Text(
-                                      '${peminjaman.noHak}/${peminjaman.kelurahan}',
+                                      _objekBottomLabel(peminjaman),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
@@ -2024,6 +2320,47 @@ class _HistoryPageState extends State<HistoryPage> {
     }
   }
 
+  // ─── STATUS CHIPS (dipindah keluar dari Filter Peminjaman modal) ───
+  // Sebelumnya "Status" ada di dalam bottom sheet Filter Peminjaman,
+  // berarti user harus buka modal itu dulu cuma buat ganti tab
+  // Semua/Sedang Dipinjam/Telah Kembali. Sekarang berdiri sendiri di
+  // bawah search bar dan langsung ubah _filterStatus — nggak lewat
+  // tempStatus/setSheetState apa pun, langsung applied.
+  Widget _buildStatusChips() {
+    Widget chip(String label) {
+      final selected = _filterStatus == label;
+      return Expanded(
+        child: GestureDetector(
+          onTap: () => setState(() => _filterStatus = label),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            margin: const EdgeInsets.symmetric(horizontal: 4),
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(
+              color: selected ? _accentGreen : const Color(0xFFF5F5F5),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: selected ? Colors.white : Colors.black54,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      children: [chip('Semua'), chip('Sedang Dipinjam'), chip('Telah Kembali')],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final filtered = _filteredHistory;
@@ -2069,6 +2406,35 @@ class _HistoryPageState extends State<HistoryPage> {
               ),
             ),
             const SizedBox(height: 36),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+              child: _buildStatusChips(),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+              child: JenisDokumenBreakdown(
+                stats: [
+                  JenisDokumenStat(
+                    jenis: 'Buku Tanah',
+                    icon: Icons.menu_book_outlined,
+                    count: PeminjamanService.getCountBukuTanah(),
+                    color: _accentGreen,
+                  ),
+                  JenisDokumenStat(
+                    jenis: 'Surat Ukur',
+                    icon: Icons.straighten_outlined,
+                    count: PeminjamanService.getCountSuratUkur(),
+                    color: const Color(0xFFC08A3E),
+                  ),
+                  JenisDokumenStat(
+                    jenis: 'Warkah',
+                    icon: Icons.folder_copy_outlined,
+                    count: PeminjamanService.getCountWarkah(),
+                    color: const Color(0xFF5C5FCD),
+                  ),
+                ],
+              ),
+            ),
             if (_isFiltering)
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),

@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../routes/app_routes.dart';
-import '../../services/auth_service.dart';
+import '../../services/auth_service.dart'; // exposes AuthService + NetworkException
 import '../../services/peminjaman_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../widgets/double_back_to_exit.dart';
+import '../../widgets/animated_terrain_bg.dart';
 import 'signup_page.dart';
 
 class LoginPage extends StatefulWidget {
@@ -43,7 +44,19 @@ class _LoginPageState extends State<LoginPage> {
 
       setState(() => _isSubmitting = true);
 
-      final success = await AuthService.login(username, password);
+      bool success = false;
+      String? networkErrorMessage;
+      try {
+        success = await AuthService.login(username, password);
+      } on NetworkException catch (e) {
+        // Previously uncaught: this exception used to escape straight out
+        // of _handleLogin, which meant the setState below that turns off
+        // the loading spinner never ran — the button just stayed stuck
+        // "loading" forever with no error shown, indistinguishable from
+        // the app having frozen.
+        networkErrorMessage = e.message;
+      }
+
       String? refreshError;
       if (success) {
         // main.dart only calls this on a restored session — a fresh
@@ -59,6 +72,17 @@ class _LoginPageState extends State<LoginPage> {
 
       if (!mounted) return;
       setState(() => _isSubmitting = false);
+
+      if (networkErrorMessage != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(networkErrorMessage),
+            backgroundColor: Colors.orange.shade700,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+        return;
+      }
 
       if (success) {
         // Unfocus first: replacing this route while the username/password
@@ -129,11 +153,14 @@ class _LoginPageState extends State<LoginPage> {
                                       ),
                                     ),
                                   ),
-                                  // Faint cadastral grid — a quiet nod to
-                                  // land-survey plot lines, not decoration
-                                  // for its own sake.
+                                  // Slow-drifting blobs + faint cadastral
+                                  // grid — a quiet nod to land-survey plot
+                                  // lines, not decoration for its own sake.
                                   Positioned.fill(
-                                    child: CustomPaint(painter: _GridPainter()),
+                                    child: AnimatedTerrainBackground(
+                                      mode: BackgroundMode.header,
+                                      blobColors: const [_gold, _sage],
+                                    ),
                                   ),
                                 ],
                               ),
@@ -576,23 +603,4 @@ class _TerrainClipper extends CustomClipper<Path> {
 
   @override
   bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
-}
-
-class _GridPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.05)
-      ..strokeWidth = 0.6;
-    const spacing = 28.0;
-    for (double x = 0; x < size.width; x += spacing) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    }
-    for (double y = 0; y < size.height; y += spacing) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

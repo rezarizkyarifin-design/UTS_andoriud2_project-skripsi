@@ -1,6 +1,7 @@
 // Currently under development
 
 import 'package:flutter/material.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 /// First screen shown on every cold start (see main.dart /
@@ -64,6 +65,18 @@ class _SplashPageState extends State<SplashPage>
   @override
   void initState() {
     super.initState();
+
+    // Remove the native splash only once THIS widget's first frame has
+    // actually been painted — addPostFrameCallback fires right after
+    // that happens. Doing this here (rather than in main.dart right
+    // before runApp()) guarantees there's no gap/overlap between the
+    // native splash disappearing and SplashPage being fully ready to
+    // show: the native splash stays up the whole time until this frame
+    // is genuinely on screen.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      FlutterNativeSplash.remove();
+    });
+
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1600),
