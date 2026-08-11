@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../routes/app_routes.dart';
 import '../../services/peminjaman_service.dart';
@@ -54,10 +56,40 @@ class _HomePageState extends State<HomePage> {
   // index is needed (dot indicator, etc).
   int _currentBanner = 0; // set to _loopInitialPage in initState below
 
+  // ─── AUTO-SLIDE ─────────────────────────────────────────────────
+  // Tweak these three to change the pacing/feel — nothing else below
+  // needs to change.
+  //   - interval: how long each slide stays on screen before advancing.
+  //   - animationDuration: how long the slide-to-slide transition takes.
+  //   - curve: easing for that transition.
+  static const _autoSlideInterval = Duration(seconds: 4);
+  static const _autoSlideAnimationDuration = Duration(milliseconds: 500);
+  static const _autoSlideCurve = Curves.easeInOut;
+
+  Timer? _autoSlideTimer;
+
+  // (Re)starts the countdown to the next auto-advance. Called once on
+  // init, and again every time the page changes (manual swipe or
+  // auto-advance) so a manual swipe always gets a full fresh interval
+  // instead of being cut short by whatever was left on the previous
+  // countdown.
+  void _startAutoSlide() {
+    _autoSlideTimer?.cancel();
+    if (_bannerImages.length <= 1) return; // nothing to slide between
+    _autoSlideTimer = Timer.periodic(_autoSlideInterval, (_) {
+      if (!_bannerController.hasClients) return;
+      _bannerController.nextPage(
+        duration: _autoSlideAnimationDuration,
+        curve: _autoSlideCurve,
+      );
+    });
+  }
+
   @override
   void initState() {
     super.initState();
     _currentBanner = _loopInitialPage;
+    _startAutoSlide();
     // Guard: HomePage is reachable directly by route name, so if there's
     // no active session (hot restart mid-session, deep link, etc.) bounce
     // straight back to Login instead of rendering with a null user.
@@ -72,6 +104,7 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void dispose() {
+    _autoSlideTimer?.cancel();
     _bannerController.dispose();
     super.dispose();
   }
@@ -315,7 +348,10 @@ class _HomePageState extends State<HomePage> {
               return PageView.builder(
                 controller: _bannerController,
                 itemCount: _loopItemCount,
-                onPageChanged: (i) => setState(() => _currentBanner = i),
+                onPageChanged: (i) {
+                  setState(() => _currentBanner = i);
+                  _startAutoSlide();
+                },
                 itemBuilder: (context, index) {
                   final imageIndex = index % _bannerImages.length;
 

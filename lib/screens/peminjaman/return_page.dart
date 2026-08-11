@@ -1655,9 +1655,20 @@ class _ReturnPageState extends State<ReturnPage> {
           children: [
             // Item #6: collapses (slides up) on scroll-down, reappears on
             // scroll-up — see the NotificationListener around the list
-            // below that drives _showHeader. ClipRect avoids the floating
-            // search bar's negative-bottom overshoot spilling out mid-
-            // animation.
+            // below that drives _showHeader.
+            //
+            // BUG FIX: the old comment here claimed ClipRect "avoids the
+            // floating search bar's overshoot spilling out" — but a bare
+            // Stack sizes itself only from its non-positioned children
+            // (just _buildHeader()), so ClipRect actually clipped to the
+            // header's bounds alone. The search bar is Positioned(bottom:
+            // -24) so it intentionally hangs 24px below the header to
+            // overlap the header/body seam, and that overhang fell
+            // outside those bounds and got sliced off — the search bar
+            // showed up visibly cropped. Fix: reserve that 24px (plus a
+            // little slack for the card's drop shadow) inside the Stack
+            // itself via a trailing spacer, so ClipRect's box is tall
+            // enough to contain the whole floating bar.
             ClipRect(
               child: AnimatedAlign(
                 duration: const Duration(milliseconds: 260),
@@ -1667,18 +1678,20 @@ class _ReturnPageState extends State<ReturnPage> {
                 child: Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    _buildHeader(),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [_buildHeader(), const SizedBox(height: 40)],
+                    ),
                     Positioned(
                       left: 20,
                       right: 20,
-                      bottom: -24,
+                      bottom: 16,
                       child: _buildFloatingSearchBar(),
                     ),
                   ],
                 ),
               ),
             ),
-            const SizedBox(height: 36),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
               child: JenisDokumenBreakdown(

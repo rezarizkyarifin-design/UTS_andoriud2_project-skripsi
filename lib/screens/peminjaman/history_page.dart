@@ -2385,6 +2385,18 @@ class _HistoryPageState extends State<HistoryPage> {
             // Item #6: collapses (slides up) on scroll-down, reappears on
             // scroll-up — see the NotificationListener around the list
             // below that drives _showHeader.
+            //
+            // BUG FIX: ClipRect clips to the Stack's own bounds, and a
+            // bare Stack sizes itself only from its non-positioned
+            // children — i.e. just _buildHeader(). The floating search
+            // bar is Positioned(bottom: -24), which intentionally hangs
+            // 24px below the header so it overlaps the header/body seam,
+            // but that overhang fell outside the Stack's (and thus
+            // ClipRect's) bounds and got sliced off, leaving the search
+            // bar visibly cropped. Fix: reserve that 24px (plus a little
+            // slack for the card's drop shadow) inside the Stack itself
+            // via a trailing spacer, so ClipRect's box is tall enough to
+            // contain the whole floating bar.
             ClipRect(
               child: AnimatedAlign(
                 duration: const Duration(milliseconds: 260),
@@ -2394,18 +2406,20 @@ class _HistoryPageState extends State<HistoryPage> {
                 child: Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    _buildHeader(),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [_buildHeader(), const SizedBox(height: 40)],
+                    ),
                     Positioned(
                       left: 20,
                       right: 20,
-                      bottom: -24,
+                      bottom: 16,
                       child: _buildFloatingSearchBar(),
                     ),
                   ],
                 ),
               ),
             ),
-            const SizedBox(height: 36),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
               child: _buildStatusChips(),
