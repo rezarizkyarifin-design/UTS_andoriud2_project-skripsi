@@ -10,7 +10,7 @@ class Peminjaman {
   final String keperluan;
   final DateTime tanggalPinjam;
   final DateTime tanggalKembali;
-  final String status; // 'Dipinjam' | 'Kembali'
+  final String status; // 'Diajukan' | 'Dipinjam' | 'Kembali' | 'Ditolak'
 
   // ─── Item 1 (Auth) link: siapa (Pegawai) yang memproses peminjaman ini.
   final String? diampuOleh; // AppUser.id (uuid)
@@ -18,6 +18,13 @@ class Peminjaman {
   // ─── Atribusi "Proses Kembali" — siapa admin yang menandai dokumen ini
   final String? kembaliOleh; // AppUser.id (uuid)
   final String? kembaliOlehNama;
+
+  // ─── Approval pengajuan peminjaman baru (11.08.2026) — siapa admin
+  // yang menyetujui/menolak permintaan pinjam ini. Cuma keisi kalau
+  // peminjaman ini pernah lewat status 'Diajukan' (submit oleh Pegawai);
+  // submit langsung oleh Admin auto-approved, jadi field ini tetap null.
+  final String? disetujuiOleh; // AppUser.id (uuid)
+  final String? disetujuiOlehNama;
 
   // ─── Perpanjangan waktu (state machine, lihat PeminjamanService) ───
   final String? extensionStatus;
@@ -59,6 +66,8 @@ class Peminjaman {
     this.diampuOleh,
     this.kembaliOleh,
     this.kembaliOlehNama,
+    this.disetujuiOleh,
+    this.disetujuiOlehNama,
     this.extensionStatus,
     this.requestedTanggalKembali,
     this.extensionReason,
@@ -89,6 +98,8 @@ class Peminjaman {
       diampuOleh: map['diampu_oleh'] as String?,
       kembaliOleh: map['kembali_oleh'] as String?,
       kembaliOlehNama: map['kembali_oleh_nama'] as String?,
+      disetujuiOleh: map['disetujui_oleh'] as String?,
+      disetujuiOlehNama: map['disetujui_oleh_nama'] as String?,
       extensionStatus: map['extension_status'] as String?,
       requestedTanggalKembali: map['requested_tanggal_kembali'] == null
           ? null
@@ -120,6 +131,8 @@ class Peminjaman {
       'diampu_oleh': diampuOleh,
       'kembali_oleh': kembaliOleh,
       'kembali_oleh_nama': kembaliOlehNama,
+      'disetujui_oleh': disetujuiOleh,
+      'disetujui_oleh_nama': disetujuiOlehNama,
       'extension_status': extensionStatus,
       'requested_tanggal_kembali': requestedTanggalKembali?.toIso8601String(),
       'extension_reason': extensionReason,
@@ -150,6 +163,10 @@ class Peminjaman {
 
   // ─── EXTENSION HELPERS ───
   bool get isExtensionPending => extensionStatus == 'Diajukan';
+
+  // ─── APPROVAL PENGAJUAN PEMINJAMAN (11.08.2026) ───
+  bool get isPendingApproval => status == 'Diajukan';
+  bool get isRejected => status == 'Ditolak';
 
   static String _formatDate(DateTime date) {
     const bulan = [
@@ -191,6 +208,8 @@ class Peminjaman {
     String? diampuOleh,
     String? kembaliOleh,
     String? kembaliOlehNama,
+    String? disetujuiOleh,
+    String? disetujuiOlehNama,
     String? extensionStatus,
     DateTime? requestedTanggalKembali,
     String? extensionReason,
@@ -219,6 +238,8 @@ class Peminjaman {
       diampuOleh: diampuOleh ?? this.diampuOleh,
       kembaliOleh: kembaliOleh ?? this.kembaliOleh,
       kembaliOlehNama: kembaliOlehNama ?? this.kembaliOlehNama,
+      disetujuiOleh: disetujuiOleh ?? this.disetujuiOleh,
+      disetujuiOlehNama: disetujuiOlehNama ?? this.disetujuiOlehNama,
       extensionStatus: clearExtension
           ? null
           : (extensionStatus ?? this.extensionStatus),

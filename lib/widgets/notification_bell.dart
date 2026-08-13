@@ -5,7 +5,7 @@ import '../models/peminjaman.dart';
 import '../routes/app_routes.dart';
 import '../core/theme/app_theme.dart';
 
-enum _NotifType { extensionRequest, overdue }
+enum _NotifType { newLoanRequest, extensionRequest, overdue }
 
 class _AppNotification {
   final _NotifType type;
@@ -22,16 +22,21 @@ class _AppNotification {
 /// no data needs to be passed in and there's only one place left to fix
 /// if the notification rules ever change.
 ///
-/// Notifications are exactly two kinds, combined into one list:
+/// Notifications are exactly three kinds, combined into one list:
+///  - pending pengajuan peminjaman (new loan requests) — Admin only,
+///    since only Admin can approve/reject them
+///    (PeminjamanService.setujuiPeminjaman/tolakPeminjaman)
 ///  - pending perpanjangan (extension) requests — Admin only, since only
 ///    Admin can approve/reject them (PeminjamanService.setujuiPerpanjangan)
 ///  - overdue (terlambat) active loans — see
 ///    PeminjamanService.getOverdueForNotifikasi() for the Admin/Pegawai
 ///    scoping rule.
 ///
-/// Tapping any notification closes the panel and pushes ReturnPage,
-/// where both approving extensions and marking documents returned
-/// already live — no separate detail screen needed.
+/// Tapping a notification closes the panel and navigates somewhere the
+/// admin can act on it: a new loan request goes to HomePage (where the
+/// approval banner + bottom sheet live), extension requests and overdue
+/// loans go to ReturnPage (where approving extensions and marking
+/// documents returned already live) — see _handleTap.
 class NotificationBell extends StatefulWidget {
   final Color iconColor;
   const NotificationBell({super.key, this.iconColor = Colors.white});
@@ -47,6 +52,13 @@ class _NotificationBellState extends State<NotificationBell> {
 
   List<_AppNotification> _buildNotifications() {
     final list = <_AppNotification>[];
+    if (AuthService.isAdmin) {
+      for (final p in PeminjamanService.getPengajuanPeminjaman()) {
+        list.add(
+          _AppNotification(type: _NotifType.newLoanRequest, peminjaman: p),
+        );
+      }
+    }
     // Dokumen yang sudah punya notifikasi "pengajuan perpanjangan" tidak
     // perlu juga muncul sebagai notifikasi "terlambat" — dua-duanya
     // merujuk ke dokumen yang sama, jadi tanpa filter ini Admin melihat
@@ -93,10 +105,13 @@ class _NotificationBellState extends State<NotificationBell> {
     setState(() => _open = true);
   }
 
-  void _closeAndGoToReturnPage() {
+  void _handleTap(_AppNotification n) {
     _removeOverlay();
     if (mounted) setState(() {});
-    Navigator.pushNamed(context, AppRoutes.returnPage);
+    final destination = n.type == _NotifType.newLoanRequest
+        ? AppRoutes.home
+        : AppRoutes.returnPage;
+    Navigator.pushNamed(context, destination);
   }
 
   OverlayEntry _buildOverlayEntry(List<_AppNotification> notifications) {
@@ -125,7 +140,7 @@ class _NotificationBellState extends State<NotificationBell> {
               offset: const Offset(0, 10),
               child: _NotificationDropdown(
                 notifications: notifications,
-                onTapItem: (_) => _closeAndGoToReturnPage(),
+                onTapItem: _handleTap,
               ),
             ),
           ],
@@ -347,17 +362,24 @@ class _NotificationTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = notification.peminjaman;
+    final isNewLoan = notification.type == _NotifType.newLoanRequest;
     final isExtension = notification.type == _NotifType.extensionRequest;
     final trimmedNama = p.nama.trim();
     final initial = trimmedNama.isNotEmpty ? trimmedNama[0].toUpperCase() : '?';
 
-    final accentColor = isExtension
+    final accentColor = isNewLoan
+        ? AppTheme.primaryGreen
+        : isExtension
         ? const Color(0xFFB07A00)
         : AppTheme.dangerRed;
-    final title = isExtension
+    final title = isNewLoan
+        ? '${p.nama} mengajukan peminjaman'
+        : isExtension
         ? '${p.nama} mengajukan perpanjangan'
         : '${p.nama} — dokumen terlambat';
-    final statusLine = isExtension
+    final statusLine = isNewLoan
+        ? 'Menunggu persetujuan • ${p.jenisDokumen}'
+        : isExtension
         ? 'Menunggu persetujuan • hingga ${p.requestedTanggalKembaliFormatted ?? '-'}'
         : 'Terlambat ${p.hariTerlambat} hari • batas ${p.tanggalKembaliFormatted}';
 
@@ -398,7 +420,9 @@ class _NotificationTile extends StatelessWidget {
                       ],
                     ),
                     child: Icon(
-                      isExtension
+                      isNewLoan
+                          ? Icons.note_add
+                          : isExtension
                           ? Icons.pending_actions
                           : Icons.warning_amber_rounded,
                       size: 12,

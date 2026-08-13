@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import '../../models/peminjaman.dart';
 import '../../services/peminjaman_service.dart';
 import '../../services/auth_service.dart';
@@ -9,7 +10,7 @@ import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/app_scan_fab.dart';
 import '../../widgets/back_to_home.dart';
 import '../../widgets/app_top_bar.dart';
-// import '../../widgets/jenis_dokumen_breakdown.dart'; // removed for now, see build()
+import '../../widgets/jenis_dokumen_breakdown.dart';
 
 class ReturnPage extends StatefulWidget {
   const ReturnPage({super.key});
@@ -18,18 +19,6 @@ class ReturnPage extends StatefulWidget {
   State<ReturnPage> createState() => _ReturnPageState();
 }
 
-// ─── Item #6 (koreksi): dua state, bukan tiga — lihat penjelasan
-// lengkap di history_page.dart, logikanya sama persis di sini. Ringkasnya:
-// full    → header gradient + stat + search bar, semua tampil (posisi
-//           beneran di paling atas, atau daftarnya kependekan buat
-//           discroll sama sekali).
-// compact → header gradient disembunyikan, tapi search bar tetap
-//           tampil — state default begitu user geser dari paling atas,
-//           entah scroll ke atas ATAU ke bawah. (Return Page nggak
-//           punya status chips kayak History, jadi compact-nya cuma
-//           search bar.) Nggak pernah balik ke "semuanya ilang" lagi.
-enum _HeaderVisibility { full, compact }
-
 class _ReturnPageState extends State<ReturnPage> {
   final _searchController = TextEditingController();
   String _searchQuery = '';
@@ -37,7 +26,6 @@ class _ReturnPageState extends State<ReturnPage> {
   String? _filterKecamatan;
   String? _filterKelurahan;
   String? _filterJenisHak;
-  String? _filterJenisDokumen; // 'Buku Tanah' | 'Surat Ukur' | 'Warkah'
 
   late List<Peminjaman> _all;
   int _selectedNavIndex = 2;
@@ -51,8 +39,7 @@ class _ReturnPageState extends State<ReturnPage> {
   bool _isBulkSaving = false;
 
   // Item #6: drives the collapsing header/search-bar behavior on scroll.
-  // See _HeaderVisibility above for what each state shows.
-  _HeaderVisibility _headerVisibility = _HeaderVisibility.full;
+  bool _showHeader = true;
 
   static const Color _primaryGreen = Color(0xFF1B4332);
   static const Color _accentGreen = Color(0xFF2D6A4F);
@@ -229,8 +216,7 @@ class _ReturnPageState extends State<ReturnPage> {
   bool get _isFiltering =>
       _filterKecamatan != null ||
       _filterKelurahan != null ||
-      _filterJenisHak != null ||
-      _filterJenisDokumen != null;
+      _filterJenisHak != null;
 
   List<String> _kelurahanFor(String? kecamatan) {
     if (kecamatan == null) return const [];
@@ -343,10 +329,6 @@ class _ReturnPageState extends State<ReturnPage> {
       if (_filterJenisHak != null && p.jenisHak != _filterJenisHak) {
         return false;
       }
-      if (_filterJenisDokumen != null &&
-          p.jenisDokumen != _filterJenisDokumen) {
-        return false;
-      }
       return true;
     }).toList();
   }
@@ -356,7 +338,6 @@ class _ReturnPageState extends State<ReturnPage> {
       _filterKecamatan = null;
       _filterKelurahan = null;
       _filterJenisHak = null;
-      _filterJenisDokumen = null;
     });
   }
 
@@ -623,6 +604,416 @@ class _ReturnPageState extends State<ReturnPage> {
     );
   }
 
+  // ─── ADMIN: TINJAU PENGAJUAN PEMINJAMAN (11.08.2026) ───
+  // Shows a dialog with the pending request details and a blocking checklist.
+  // Admin must check all items before the Approve button is enabled.
+  static const _checklistItems = [
+    'Dokumen ditemukan di rak arsip',
+    'Kondisi dokumen baik / tidak rusak',
+  ];
+
+  Future<void> _tinjauPengajuan(Peminjaman p) async {
+    if (!AuthService.isAdmin) return;
+    final checked = List<bool>.filled(_checklistItems.length, false);
+    final alasanController = TextEditingController();
+    String? alasanError;
+
+    final result = await showDialog<String?>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) {
+          final allChecked = checked.every((v) => v);
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1565C0).withOpacity(0.10),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.inbox_outlined,
+                    size: 18,
+                    color: Color(0xFF1565C0),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    'Tinjau Pengajuan',
+                    style: TextStyle(fontSize: 16),
+                  ),
+                ),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ── Document summary ──
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF5F7F5),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          p.nama,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          p.seksi,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.black54,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '${p.jenisDokumen} • ${_objekBottomLabel(p)}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        Text(
+                          'Keperluan: ${p.keperluan}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.black54,
+                          ),
+                        ),
+                        Text(
+                          'Batas Kembali: ${p.tanggalKembaliFormatted}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.black54,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  // ── Blocking checklist ──
+                  const Text(
+                    'Verifikasi Fisik Dokumen',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Centang semua item sebelum menyetujui.',
+                    style: TextStyle(fontSize: 11.5, color: Colors.black45),
+                  ),
+                  const SizedBox(height: 8),
+                  ...List.generate(_checklistItems.length, (i) {
+                    return CheckboxListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      activeColor: _accentGreen,
+                      value: checked[i],
+                      title: Text(
+                        _checklistItems[i],
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                      onChanged: (v) =>
+                          setD(() => checked[i] = v ?? false),
+                    );
+                  }),
+                  const SizedBox(height: 10),
+                  // ── Rejection reason (shown when checklist not done) ──
+                  const Text(
+                    'Alasan Penolakan (opsional)',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: alasanController,
+                    maxLines: 2,
+                    contextMenuBuilder: (context, editableTextState) =>
+                        const SizedBox.shrink(),
+                    onChanged: (_) {
+                      if (alasanError != null) {
+                        setD(() => alasanError = null);
+                      }
+                    },
+                    decoration: InputDecoration(
+                      hintText: 'Masukkan alasan jika menolak (opsional)',
+                      errorText: alasanError,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      contentPadding: const EdgeInsets.all(12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, 'batal'),
+                child: const Text(
+                  'Batal',
+                  style: TextStyle(color: Colors.black54),
+                ),
+              ),
+              OutlinedButton(
+                onPressed: () => Navigator.pop(ctx, 'tolak'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.red.shade600,
+                  side: BorderSide(color: Colors.red.shade300),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: const Text('Tolak'),
+              ),
+              ElevatedButton(
+                onPressed: allChecked
+                    ? () => Navigator.pop(ctx, 'setujui')
+                    : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _accentGreen,
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor: Colors.grey.shade300,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: const Text('Setujui'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    final alasan = alasanController.text.trim();
+    alasanController.dispose();
+    if (result == null || result == 'batal' || p.id == null) return;
+    if (!mounted) return;
+
+    bool ok = false;
+    String? errorMsg;
+    try {
+      if (result == 'setujui') {
+        ok = await PeminjamanService.setujuiPengajuan(p.id!);
+      } else {
+        ok = await PeminjamanService.tolakPengajuan(
+          p.id!,
+          alasan: alasan.isEmpty ? null : alasan,
+        );
+      }
+    } catch (e) {
+      errorMsg = e.toString();
+    }
+    if (!mounted) return;
+    if (ok) _refresh();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          errorMsg != null
+              ? 'Gagal: $errorMsg'
+              : result == 'setujui'
+              ? 'Pengajuan disetujui. Dokumen kini berstatus Dipinjam.'
+              : 'Pengajuan ditolak.${alasan.isNotEmpty ? ' Alasan: $alasan' : ''}',
+        ),
+        backgroundColor: errorMsg != null
+            ? Colors.red.shade400
+            : result == 'setujui'
+            ? _accentGreen
+            : Colors.orange.shade700,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  // ─── ADMIN: PENDING BORROW REQUESTS SECTION (11.08.2026) ───
+  Widget _buildPendingSection(List<Peminjaman> pending) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1565C0).withOpacity(0.10),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.inbox_outlined,
+                  size: 16,
+                  color: Color(0xFF1565C0),
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'Pengajuan Masuk',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1565C0).withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(99),
+                ),
+                child: Text(
+                  '${pending.length} menunggu',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF1565C0),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(
+          height: 160,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+            itemCount: pending.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (context, index) {
+              final p = pending[index];
+              return Container(
+                width: 220,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: const Color(0xFF1565C0).withOpacity(0.20),
+                  ),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color.fromRGBO(0, 0, 0, 0.05),
+                      blurRadius: 10,
+                      offset: Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 14,
+                          backgroundColor: const Color(0xFF1565C0)
+                              .withOpacity(0.12),
+                          child: Text(
+                            _initials(p.nama),
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1565C0),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            p.nama,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      p.jenisDokumen,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black38,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _objekBottomLabel(p),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1565C0),
+                      ),
+                    ),
+                    const Spacer(),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () => _tinjauPengajuan(p),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF1565C0),
+                          foregroundColor: Colors.white,
+                          padding:
+                              const EdgeInsets.symmetric(vertical: 10),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: const Text(
+                          'Tinjau',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 10),
+      ],
+    );
+  }
+
   void _showDetail(Peminjaman p) {
     final isOwner =
         p.diampuOleh == null || p.diampuOleh == AuthService.currentUser?.id;
@@ -875,6 +1266,7 @@ class _ReturnPageState extends State<ReturnPage> {
     final aktif = _pinjamanAktifRaw;
     final overdueCount = aktif.where((p) => p.isOverdue).length;
     final tepatWaktu = aktif.length - overdueCount;
+    final menungguCount = PeminjamanService.getMenunggu();
 
     Widget stat(
       IconData icon,
@@ -954,6 +1346,15 @@ class _ReturnPageState extends State<ReturnPage> {
                         ? const Color(0xFFFFB4AC)
                         : null,
                   ),
+                  if (AuthService.isAdmin && menungguCount > 0) ...[
+                    const SizedBox(width: 10),
+                    stat(
+                      Icons.inbox_outlined,
+                      '$menungguCount',
+                      'Menunggu\nPersetujuan',
+                      valueColor: const Color(0xFF90CAF9),
+                    ),
+                  ],
                 ],
               ),
             ],
@@ -1038,7 +1439,6 @@ class _ReturnPageState extends State<ReturnPage> {
     String? tempKecamatan = _filterKecamatan;
     String? tempKelurahan = _filterKelurahan;
     String? tempJenisHak = _filterJenisHak;
-    String? tempJenisDokumen = _filterJenisDokumen;
 
     showModalBottomSheet(
       context: context,
@@ -1095,37 +1495,6 @@ class _ReturnPageState extends State<ReturnPage> {
               );
             }
 
-            Widget jenisDokumenChip(String label) {
-              final selected = tempJenisDokumen == label;
-              return Expanded(
-                child: GestureDetector(
-                  onTap: () => setSheetState(() {
-                    tempJenisDokumen = selected ? null : label;
-                  }),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    decoration: BoxDecoration(
-                      color: selected ? _accentGreen : const Color(0xFFF5F5F5),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      label,
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                        color: selected ? Colors.white : Colors.black54,
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }
-
             return Container(
               padding: EdgeInsets.only(
                 left: 20,
@@ -1169,7 +1538,6 @@ class _ReturnPageState extends State<ReturnPage> {
                             tempKecamatan = null;
                             tempKelurahan = null;
                             tempJenisHak = null;
-                            tempJenisDokumen = null;
                           });
                         },
                         child: const Text(
@@ -1180,19 +1548,6 @@ class _ReturnPageState extends State<ReturnPage> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  const Text(
-                    'Jenis Dokumen',
-                    style: TextStyle(fontSize: 13, color: Colors.black54),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      jenisDokumenChip('Buku Tanah'),
-                      jenisDokumenChip('Surat Ukur'),
-                      jenisDokumenChip('Warkah'),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
                   const Text(
                     'Kecamatan',
                     style: TextStyle(fontSize: 13, color: Colors.black54),
@@ -1243,7 +1598,6 @@ class _ReturnPageState extends State<ReturnPage> {
                           _filterKecamatan = tempKecamatan;
                           _filterKelurahan = tempKelurahan;
                           _filterJenisHak = tempJenisHak;
-                          _filterJenisDokumen = tempJenisDokumen;
                         });
                         Navigator.pop(context);
                       },
@@ -1719,31 +2073,28 @@ class _ReturnPageState extends State<ReturnPage> {
         floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
         body: Column(
           children: [
-            // Item #6 (revisi): dua blok yang animasinya independen, jadi
-            // "full" dan "compact" nggak harus nge-lerp dari/ke ukuran
-            // yang sama — masing-masing AnimatedAlign cuma pernah punya
-            // dua kemungkinan tinggi (0 atau tinggi asli kontennya
-            // sendiri), jadi slide-nya tetap mulus walau daftar di bawah
-            // pendek/kosong. Lihat NotificationListener di sekitar list
-            // untuk logika _headerVisibility-nya.
+            // Item #6: collapses (slides up) on scroll-down, reappears on
+            // scroll-up — see the NotificationListener around the list
+            // below that drives _showHeader.
             //
-            // BUG FIX (tetap berlaku): ClipRect clips to the Stack's own
-            // bounds, dan bare Stack cuma ngukur dari non-positioned
-            // children-nya (_buildHeader() doang). Search bar-nya
-            // Positioned(bottom: -24) supaya sengaja nongol 24px di bawah
-            // header buat nutup jahitan header/body, tapi bagian yang
-            // nongol itu jatuh di luar bounds Stack (dan ClipRect-nya)
-            // jadi kepotong. Fix-nya: sisain 24px itu (plus sedikit extra
-            // buat shadow card-nya) di dalam Stack lewat spacer, biar box
-            // ClipRect-nya cukup tinggi buat nampung seluruh floating bar.
+            // BUG FIX: the old comment here claimed ClipRect "avoids the
+            // floating search bar's overshoot spilling out" — but a bare
+            // Stack sizes itself only from its non-positioned children
+            // (just _buildHeader()), so ClipRect actually clipped to the
+            // header's bounds alone. The search bar is Positioned(bottom:
+            // -24) so it intentionally hangs 24px below the header to
+            // overlap the header/body seam, and that overhang fell
+            // outside those bounds and got sliced off — the search bar
+            // showed up visibly cropped. Fix: reserve that 24px (plus a
+            // little slack for the card's drop shadow) inside the Stack
+            // itself via a trailing spacer, so ClipRect's box is tall
+            // enough to contain the whole floating bar.
             ClipRect(
               child: AnimatedAlign(
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeOutCubic,
+                duration: const Duration(milliseconds: 260),
+                curve: Curves.easeInOut,
                 alignment: Alignment.topCenter,
-                heightFactor: _headerVisibility == _HeaderVisibility.full
-                    ? 1.0
-                    : 0.0,
+                heightFactor: _showHeader ? 1.0 : 0.0,
                 child: Stack(
                   clipBehavior: Clip.none,
                   children: [
@@ -1761,62 +2112,52 @@ class _ReturnPageState extends State<ReturnPage> {
                 ),
               ),
             ),
-            // Compact bar: search bar doang, tanpa header gradient — ini
-            // yang tampil begitu user geser dari posisi paling atas,
-            // entah scroll ke atas ATAU ke bawah (lihat NotificationListener:
-            // cuma `atTop` yang dicek, bukan arah scroll). Header
-            // gradient/stat lengkap cuma balik pas beneran nyampe atas.
-            ClipRect(
-              child: AnimatedAlign(
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeOutCubic,
-                alignment: Alignment.topCenter,
-                heightFactor: _headerVisibility == _HeaderVisibility.compact
-                    ? 1.0
-                    : 0.0,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
-                  child: _buildFloatingSearchBar(),
-                ),
+            // ── Pending borrow requests section (Admin only, 11.08.2026) ──
+            Builder(
+              builder: (context) {
+                if (!AuthService.isAdmin) return const SizedBox.shrink();
+                final pending = PeminjamanService.getPengajuanPeminjaman();
+                if (pending.isEmpty) return const SizedBox.shrink();
+                return _buildPendingSection(pending);
+              },
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+              child: JenisDokumenBreakdown(
+                // Scoped to _pinjamanAktifRaw (status == 'Dipinjam'), not
+                // the whole archive — this page only ever lists active
+                // loans, so a breakdown of everything ever borrowed
+                // (including already-returned docs) would be misleading
+                // here. Home/History use the unscoped app-wide counts
+                // instead, which fits what those pages actually show.
+                stats: [
+                  JenisDokumenStat(
+                    jenis: 'Buku Tanah',
+                    icon: Icons.menu_book_outlined,
+                    count: _pinjamanAktifRaw
+                        .where((p) => p.jenisDokumen == 'Buku Tanah')
+                        .length,
+                    color: _accentGreen,
+                  ),
+                  JenisDokumenStat(
+                    jenis: 'Surat Ukur',
+                    icon: Icons.straighten_outlined,
+                    count: _pinjamanAktifRaw
+                        .where((p) => p.jenisDokumen == 'Surat Ukur')
+                        .length,
+                    color: const Color(0xFFC08A3E),
+                  ),
+                  JenisDokumenStat(
+                    jenis: 'Warkah',
+                    icon: Icons.folder_copy_outlined,
+                    count: _pinjamanAktifRaw
+                        .where((p) => p.jenisDokumen == 'Warkah')
+                        .length,
+                    color: const Color(0xFF5C5FCD),
+                  ),
+                ],
               ),
             ),
-            // Padding(
-            //   padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
-            //   child: JenisDokumenBreakdown(
-            //     // Scoped to _pinjamanAktifRaw (status == 'Dipinjam'), not
-            //     // the whole archive — this page only ever lists active
-            //     // loans, so a breakdown of everything ever borrowed
-            //     // (including already-returned docs) would be misleading
-            //     // here. Home/History use the unscoped app-wide counts
-            //     // instead, which fits what those pages actually show.
-            //     stats: [
-            //       JenisDokumenStat(
-            //         jenis: 'Buku Tanah',
-            //         icon: Icons.menu_book_outlined,
-            //         count: _pinjamanAktifRaw
-            //             .where((p) => p.jenisDokumen == 'Buku Tanah')
-            //             .length,
-            //         color: _accentGreen,
-            //       ),
-            //       JenisDokumenStat(
-            //         jenis: 'Surat Ukur',
-            //         icon: Icons.straighten_outlined,
-            //         count: _pinjamanAktifRaw
-            //             .where((p) => p.jenisDokumen == 'Surat Ukur')
-            //             .length,
-            //         color: const Color(0xFFC08A3E),
-            //       ),
-            //       JenisDokumenStat(
-            //         jenis: 'Warkah',
-            //         icon: Icons.folder_copy_outlined,
-            //         count: _pinjamanAktifRaw
-            //             .where((p) => p.jenisDokumen == 'Warkah')
-            //             .length,
-            //         color: const Color(0xFF5C5FCD),
-            //       ),
-            //     ],
-            //   ),
-            // ),
             if (_isFiltering)
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
@@ -1963,22 +2304,15 @@ class _ReturnPageState extends State<ReturnPage> {
               ),
 
             Expanded(
-              child: NotificationListener<ScrollNotification>(
+              child: NotificationListener<UserScrollNotification>(
                 onNotification: (notification) {
-                  final metrics = notification.metrics;
-
-                  // Posisi, bukan arah — lihat penjelasan lengkap di
-                  // history_page.dart. Selain "di paling atas" (atau
-                  // daftarnya kependekan buat discroll sama sekali) →
-                  // compact, titik — search bar selalu tampil begitu
-                  // geser dari atas, nggak peduli arah scroll-nya.
-                  final atTop =
-                      metrics.maxScrollExtent <= 0 || metrics.pixels <= 0;
-                  final target = atTop
-                      ? _HeaderVisibility.full
-                      : _HeaderVisibility.compact;
-                  if (_headerVisibility != target) {
-                    setState(() => _headerVisibility = target);
+                  if (notification.direction == ScrollDirection.reverse &&
+                      _showHeader) {
+                    setState(() => _showHeader = false);
+                  } else if (notification.direction ==
+                          ScrollDirection.forward &&
+                      !_showHeader) {
+                    setState(() => _showHeader = true);
                   }
                   return false;
                 },

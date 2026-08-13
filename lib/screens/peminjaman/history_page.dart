@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import '../../models/peminjaman.dart';
 import '../../services/peminjaman_service.dart';
 import '../../data/data.dart';
@@ -10,7 +9,7 @@ import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/app_scan_fab.dart';
 import '../../widgets/back_to_home.dart';
 import '../../widgets/app_top_bar.dart';
-import '../../widgets/jenis_dokumen_breakdown.dart';
+// import '../../widgets/jenis_dokumen_breakdown.dart'; // removed for now, see build()
 
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
@@ -18,6 +17,26 @@ class HistoryPage extends StatefulWidget {
   @override
   State<HistoryPage> createState() => _HistoryPageState();
 }
+
+// ─── Item #6 (koreksi): dua state, bukan tiga ───
+// Sebelumnya ada state ketiga ("hidden") yang muncul saat scroll ke
+// BAWAH (ScrollDirection.reverse), jadi search bar + status chips
+// ikut hilang total. Itu yang bikin kerasa "uncoordinated/messy" —
+// deteksi arah scroll (forward/reverse) itu sendiri noisy banget pas
+// daftarnya pendek (2-3 item), jadi gampang flip-flop antar state
+// cuma dari drag kecil atau bounce physics.
+//
+// Sekarang cuma bergantung pada POSISI scroll, bukan ARAH scroll:
+// full    → header gradient + stat + search bar + status chips, semua
+//           tampil (posisi beneran di paling atas, metrics.pixels <= 0
+//           — termasuk saat daftarnya pendek/kosong sehingga nggak ada
+//           yang bisa discroll sama sekali).
+// compact → header gradient disembunyikan, tapi search bar DAN status
+//           chips (Semua/Sedang Dipinjam/Telah Kembali) tetap tampil —
+//           ini state default begitu user geser dari posisi paling
+//           atas, entah scroll ke atas ATAU ke bawah. Nggak pernah
+//           balik ke "semuanya ilang" lagi.
+enum _HeaderVisibility { full, compact }
 
 class _HistoryPageState extends State<HistoryPage> {
   late List<Peminjaman> _history;
@@ -28,6 +47,7 @@ class _HistoryPageState extends State<HistoryPage> {
   String? _filterKecamatan;
   String? _filterKelurahan;
   String? _filterJenisHak;
+  String? _filterJenisDokumen; // 'Buku Tanah' | 'Surat Ukur' | 'Warkah'
   String _filterStatus = 'Semua'; // Semua | Sedang Dipinjam | Telah Kembali
 
   int _selectedNavIndex = 1; // Arsip aktif di halaman ini
@@ -35,7 +55,8 @@ class _HistoryPageState extends State<HistoryPage> {
   bool _isLoading = true;
 
   // Item #6: drives the collapsing header/search-bar behavior on scroll.
-  bool _showHeader = true;
+  // See _HeaderVisibility above for what each state shows.
+  _HeaderVisibility _headerVisibility = _HeaderVisibility.full;
   String? _loadError;
 
   static const Color _primaryGreen = Color(0xFF1B4332);
@@ -134,6 +155,7 @@ class _HistoryPageState extends State<HistoryPage> {
       _filterKecamatan != null ||
       _filterKelurahan != null ||
       _filterJenisHak != null ||
+      _filterJenisDokumen != null ||
       _filterStatus != 'Semua';
 
   // ─── ROBUST KELURAHAN LOOKUP (matches FormPage) ───
@@ -246,10 +268,14 @@ class _HistoryPageState extends State<HistoryPage> {
       if (_filterJenisHak != null && p.jenisHak != _filterJenisHak) {
         return false;
       }
+      if (_filterJenisDokumen != null &&
+          p.jenisDokumen != _filterJenisDokumen) {
+        return false;
+      }
       if (_filterStatus == 'Sedang Dipinjam' && p.status != 'Dipinjam') {
         return false;
       }
-      if (_filterStatus == 'Telah Kembali' && p.status == 'Dipinjam') {
+      if (_filterStatus == 'Telah Kembali' && p.status != 'Kembali') {
         return false;
       }
       return true;
@@ -261,6 +287,7 @@ class _HistoryPageState extends State<HistoryPage> {
       _filterKecamatan = null;
       _filterKelurahan = null;
       _filterJenisHak = null;
+      _filterJenisDokumen = null;
       _filterStatus = 'Semua';
     });
   }
@@ -481,6 +508,7 @@ class _HistoryPageState extends State<HistoryPage> {
     String? tempKecamatan = _filterKecamatan;
     String? tempKelurahan = _filterKelurahan;
     String? tempJenisHak = _filterJenisHak;
+    String? tempJenisDokumen = _filterJenisDokumen;
     // tempKecamatan/tempKelurahan/tempJenisHak defined above — status is
     // no longer part of this sheet at all, see _buildStatusChips() in the
     // main build() instead: it binds straight to _filterStatus so it can
@@ -558,6 +586,41 @@ class _HistoryPageState extends State<HistoryPage> {
               );
             }
 
+            Widget jenisDokumenChip(String label) {
+              // Tap the already-selected chip again to deselect it back to
+              // "Semua" — the extra mechanism this filter didn't have
+              // before (a plain dropdown would've needed a separate
+              // "Semua" entry for the same effect).
+              final selected = tempJenisDokumen == label;
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () => setSheetState(() {
+                    tempJenisDokumen = selected ? null : label;
+                  }),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(
+                      color: selected ? _accentGreen : const Color(0xFFF5F5F5),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      label,
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: selected ? Colors.white : Colors.black54,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }
+
             return Container(
               padding: EdgeInsets.only(
                 left: 20,
@@ -601,6 +664,7 @@ class _HistoryPageState extends State<HistoryPage> {
                             tempKecamatan = null;
                             tempKelurahan = null;
                             tempJenisHak = null;
+                            tempJenisDokumen = null;
                           });
                         },
                         child: const Text(
@@ -611,6 +675,19 @@ class _HistoryPageState extends State<HistoryPage> {
                     ],
                   ),
                   const SizedBox(height: 12),
+                  const Text(
+                    'Jenis Dokumen',
+                    style: TextStyle(fontSize: 13, color: Colors.black54),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      jenisDokumenChip('Buku Tanah'),
+                      jenisDokumenChip('Surat Ukur'),
+                      jenisDokumenChip('Warkah'),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
                   const Text(
                     'Kecamatan',
                     style: TextStyle(fontSize: 13, color: Colors.black54),
@@ -661,6 +738,7 @@ class _HistoryPageState extends State<HistoryPage> {
                           _filterKecamatan = tempKecamatan;
                           _filterKelurahan = tempKelurahan;
                           _filterJenisHak = tempJenisHak;
+                          _filterJenisDokumen = tempJenisDokumen;
                         });
                         Navigator.pop(context);
                       },
@@ -2382,73 +2460,123 @@ class _HistoryPageState extends State<HistoryPage> {
         floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
         body: Column(
           children: [
-            // Item #6: collapses (slides up) on scroll-down, reappears on
-            // scroll-up — see the NotificationListener around the list
-            // below that drives _showHeader.
+            // Item #6 (revisi): dua blok yang animasinya independen, jadi
+            // "full" dan "compact" nggak harus nge-lerp dari/ke ukuran
+            // yang sama — masing-masing AnimatedAlign cuma pernah punya
+            // dua kemungkinan tinggi (0 atau tinggi asli kontennya
+            // sendiri), jadi slide-nya tetap mulus walau daftar di bawah
+            // pendek/kosong. Lihat NotificationListener di sekitar list
+            // untuk logika _headerVisibility-nya.
             //
-            // BUG FIX: ClipRect clips to the Stack's own bounds, and a
-            // bare Stack sizes itself only from its non-positioned
-            // children — i.e. just _buildHeader(). The floating search
-            // bar is Positioned(bottom: -24), which intentionally hangs
-            // 24px below the header so it overlaps the header/body seam,
-            // but that overhang fell outside the Stack's (and thus
-            // ClipRect's) bounds and got sliced off, leaving the search
-            // bar visibly cropped. Fix: reserve that 24px (plus a little
-            // slack for the card's drop shadow) inside the Stack itself
-            // via a trailing spacer, so ClipRect's box is tall enough to
-            // contain the whole floating bar.
+            // BUG FIX (tetap berlaku): ClipRect clips to the Stack's own
+            // bounds, dan bare Stack cuma ngukur dari non-positioned
+            // children-nya (_buildHeader() doang). Search bar-nya
+            // Positioned(bottom: -24) supaya sengaja nongol 24px di bawah
+            // header buat nutup jahitan header/body, tapi bagian yang
+            // nongol itu jatuh di luar bounds Stack (dan ClipRect-nya)
+            // jadi kepotong. Fix-nya: sisain 24px itu (plus sedikit extra
+            // buat shadow card-nya) di dalam Stack lewat spacer, biar box
+            // ClipRect-nya cukup tinggi buat nampung seluruh floating bar.
             ClipRect(
               child: AnimatedAlign(
-                duration: const Duration(milliseconds: 260),
-                curve: Curves.easeInOut,
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOutCubic,
                 alignment: Alignment.topCenter,
-                heightFactor: _showHeader ? 1.0 : 0.0,
-                child: Stack(
-                  clipBehavior: Clip.none,
+                heightFactor: _headerVisibility == _HeaderVisibility.full
+                    ? 1.0
+                    : 0.0,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [_buildHeader(), const SizedBox(height: 40)],
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _buildHeader(),
+                            const SizedBox(height: 40),
+                          ],
+                        ),
+                        Positioned(
+                          left: 20,
+                          right: 20,
+                          bottom: 16,
+                          child: _buildFloatingSearchBar(),
+                        ),
+                      ],
                     ),
-                    Positioned(
-                      left: 20,
-                      right: 20,
-                      bottom: 16,
-                      child: _buildFloatingSearchBar(),
+                    // BUG FIX: _buildStatusChips() used to live ONLY inside
+                    // the "compact" block below, which has heightFactor 0
+                    // whenever _headerVisibility is compact — so on first
+                    // load (full, the default state) the chips were never
+                    // actually on screen at all. Rendering them here too
+                    // means they show at the top of the page, and collapse
+                    // away together with the rest of this block only when
+                    // the big gradient header itself collapses (i.e. once
+                    // the user scrolls away from the very top) — never
+                    // disappearing outright the way the old "hidden" state
+                    // used to on a downward scroll.
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+                      child: _buildStatusChips(),
                     ),
                   ],
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
-              child: _buildStatusChips(),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
-              child: JenisDokumenBreakdown(
-                stats: [
-                  JenisDokumenStat(
-                    jenis: 'Buku Tanah',
-                    icon: Icons.menu_book_outlined,
-                    count: PeminjamanService.getCountBukuTanah(),
-                    color: _accentGreen,
+            // Compact bar: search + status chips saja, tanpa header
+            // gradient — ini yang tampil begitu user geser dari posisi
+            // paling atas, entah scroll ke atas ATAU ke bawah (lihat
+            // NotificationListener: cuma `atTop` yang dicek, bukan arah
+            // scroll). Header gradient/stat lengkap cuma balik pas
+            // beneran nyampe atas lagi.
+            ClipRect(
+              child: AnimatedAlign(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOutCubic,
+                alignment: Alignment.topCenter,
+                heightFactor: _headerVisibility == _HeaderVisibility.compact
+                    ? 1.0
+                    : 0.0,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildFloatingSearchBar(),
+                      const SizedBox(height: 14),
+                      _buildStatusChips(),
+                    ],
                   ),
-                  JenisDokumenStat(
-                    jenis: 'Surat Ukur',
-                    icon: Icons.straighten_outlined,
-                    count: PeminjamanService.getCountSuratUkur(),
-                    color: const Color(0xFFC08A3E),
-                  ),
-                  JenisDokumenStat(
-                    jenis: 'Warkah',
-                    icon: Icons.folder_copy_outlined,
-                    count: PeminjamanService.getCountWarkah(),
-                    color: const Color(0xFF5C5FCD),
-                  ),
-                ],
+                ),
               ),
             ),
+            // Padding(
+            //   padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+            //   child: JenisDokumenBreakdown(
+            //     stats: [
+            //       JenisDokumenStat(
+            //         jenis: 'Buku Tanah',
+            //         icon: Icons.menu_book_outlined,
+            //         count: PeminjamanService.getCountBukuTanah(),
+            //         color: _accentGreen,
+            //       ),
+            //       JenisDokumenStat(
+            //         jenis: 'Surat Ukur',
+            //         icon: Icons.straighten_outlined,
+            //         count: PeminjamanService.getCountSuratUkur(),
+            //         color: const Color(0xFFC08A3E),
+            //       ),
+            //       JenisDokumenStat(
+            //         jenis: 'Warkah',
+            //         icon: Icons.folder_copy_outlined,
+            //         count: PeminjamanService.getCountWarkah(),
+            //         color: const Color(0xFF5C5FCD),
+            //       ),
+            //     ],
+            //   ),
+            // ),
             if (_isFiltering)
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
@@ -2526,15 +2654,25 @@ class _HistoryPageState extends State<HistoryPage> {
                 ),
               ),
             Expanded(
-              child: NotificationListener<UserScrollNotification>(
+              child: NotificationListener<ScrollNotification>(
                 onNotification: (notification) {
-                  if (notification.direction == ScrollDirection.reverse &&
-                      _showHeader) {
-                    setState(() => _showHeader = false);
-                  } else if (notification.direction ==
-                          ScrollDirection.forward &&
-                      !_showHeader) {
-                    setState(() => _showHeader = true);
+                  final metrics = notification.metrics;
+
+                  // Posisi, bukan arah — ini yang bikin robust dan nggak
+                  // "messy" lagi walau daftarnya cuma 2-3 item:
+                  //   - metrics.maxScrollExtent <= 0: daftarnya kependekan
+                  //     buat discroll sama sekali, jangan pernah collapse.
+                  //   - metrics.pixels <= 0: beneran di posisi paling atas.
+                  // Selain dua kondisi itu → compact, titik — nggak peduli
+                  // usernya lagi scroll ke atas atau ke bawah, search bar
+                  // + status chips selalu tampil begitu geser dari atas.
+                  final atTop =
+                      metrics.maxScrollExtent <= 0 || metrics.pixels <= 0;
+                  final target = atTop
+                      ? _HeaderVisibility.full
+                      : _HeaderVisibility.compact;
+                  if (_headerVisibility != target) {
+                    setState(() => _headerVisibility = target);
                   }
                   return false;
                 },

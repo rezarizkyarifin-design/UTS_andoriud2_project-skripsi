@@ -902,6 +902,51 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // ─── Approval pengajuan peminjaman baru (11.08.2026), khusus Admin —
+  // mirror persis _buildAdminExtensionBanner di bawah, warna hijau biar
+  // kebedain dari perpanjangan (gold) sekilas pandang.
+  Widget _buildAdminLoanRequestBanner() {
+    if (!AuthService.isAdmin) return const SizedBox.shrink();
+
+    final pending = PeminjamanService.getPengajuanPeminjaman();
+    if (pending.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      child: GestureDetector(
+        onTap: _showLoanApprovalSheet,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: AppTheme.accentGreen.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.note_add, color: AppTheme.primaryGreen),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  '${pending.length} pengajuan peminjaman baru menunggu persetujuan Anda.',
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.primaryGreen,
+                  ),
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right,
+                color: AppTheme.primaryGreen,
+                size: 20,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   // ─── Item 3 lanjutan (approval flow, khusus Admin): banner kecil kalau
   // ada pengajuan perpanjangan yang menunggu keputusan. Layar approval-nya
   // sendiri belum dibangun, jadi tap-nya masih placeholder — sama seperti
@@ -1000,6 +1045,362 @@ class _HomePageState extends State<HomePage> {
   // ─── Item 4: bottom sheet approval perpanjangan untuk Admin. Dibuka dari
   // banner di atas maupun dari bell notifikasi. Pakai StatefulBuilder biar
   // list-nya bisa refresh sendiri setelah Setujui/Tolak tanpa nutup sheet.
+  // ─── Approval pengajuan peminjaman baru (11.08.2026) — mirror persis
+  // _showExtensionApprovalSheet di bawah. Beda utamanya: di-key pakai
+  // `p.id` (bukan noHak — Warkah semuanya share noHak = '-', jadi noHak
+  // nggak unik buat beberapa pengajuan Warkah sekaligus), dan info yang
+  // ditampilin per baris (jenis dokumen + keperluan) bukan tanggal
+  // perpanjangan.
+  //
+  // ─── UPDATED: PeminjamanService.setujuiPeminjaman/tolakPeminjaman now
+  // require a real 3-item checklist / a real rejection reason instead of
+  // taking just an id (see peminjaman_service.dart's doc comments on
+  // those two methods). `_decide` below now accepts those values instead
+  // of calling the service bare, and Setujui/Tolak each open a small
+  // dialog first — _confirmApprove()/_confirmReject() — so the admin is
+  // actually asked for the checklist/reason instead of it being silently
+  // hardcoded to true / a canned string, which would defeat the entire
+  // point of the service-side gate.
+  void _showLoanApprovalSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            final pending = PeminjamanService.getPengajuanPeminjaman();
+
+            Future<void> _decide(
+              String id,
+              bool approve, {
+              bool checklistDokumenDitemukan = false,
+              bool checklistKondisiBaik = false,
+              bool checklistSesuaiData = false,
+              String alasan = '',
+            }) async {
+              final ok = approve
+                  ? await PeminjamanService.setujuiPeminjaman(
+                      id,
+                      checklistDokumenDitemukan: checklistDokumenDitemukan,
+                      checklistKondisiBaik: checklistKondisiBaik,
+                      checklistSesuaiData: checklistSesuaiData,
+                    )
+                  : await PeminjamanService.tolakPeminjaman(id, alasan);
+              if (!ok) return;
+              if (!mounted) return;
+              setSheetState(() {});
+              setState(() {}); // refresh badge + banner di HomePage
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    approve
+                        ? 'Pengajuan peminjaman disetujui.'
+                        : 'Pengajuan peminjaman ditolak.',
+                  ),
+                  backgroundColor: approve
+                      ? AppTheme.accentGreen
+                      : AppTheme.dangerRed,
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              );
+              if (pending.length <= 1) Navigator.pop(sheetContext);
+            }
+
+            // Checklist dokumen fisik (3 item, semua wajib dicentang)
+            // sebelum admin bisa menyetujui pengajuan — mirror gate yang
+            // sama di PeminjamanService.setujuiPeminjaman.
+            Future<void> _confirmApprove(String id) async {
+              bool dokumen = false;
+              bool kondisi = false;
+              bool sesuai = false;
+
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (dialogContext) {
+                  return StatefulBuilder(
+                    builder: (dialogContext, setDialogState) {
+                      final semuaTercentang = dokumen && kondisi && sesuai;
+                      return AlertDialog(
+                        title: const Text('Checklist Dokumen Fisik'),
+                        content: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Pastikan ketiga hal berikut sudah diperiksa '
+                              'sebelum menyetujui pengajuan ini:',
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                color: Colors.black54,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            CheckboxListTile(
+                              value: dokumen,
+                              controlAffinity: ListTileControlAffinity.leading,
+                              contentPadding: EdgeInsets.zero,
+                              title: const Text('Dokumen ditemukan'),
+                              onChanged: (v) =>
+                                  setDialogState(() => dokumen = v ?? false),
+                            ),
+                            CheckboxListTile(
+                              value: kondisi,
+                              controlAffinity: ListTileControlAffinity.leading,
+                              contentPadding: EdgeInsets.zero,
+                              title: const Text('Kondisi dokumen baik'),
+                              onChanged: (v) =>
+                                  setDialogState(() => kondisi = v ?? false),
+                            ),
+                            CheckboxListTile(
+                              value: sesuai,
+                              controlAffinity: ListTileControlAffinity.leading,
+                              contentPadding: EdgeInsets.zero,
+                              title: const Text('Sesuai data pengajuan'),
+                              onChanged: (v) =>
+                                  setDialogState(() => sesuai = v ?? false),
+                            ),
+                          ],
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () =>
+                                Navigator.pop(dialogContext, false),
+                            child: const Text('Batal'),
+                          ),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.accentGreen,
+                            ),
+                            onPressed: semuaTercentang
+                                ? () => Navigator.pop(dialogContext, true)
+                                : null,
+                            child: const Text(
+                              'Setujui',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                },
+              );
+
+              if (confirmed == true) {
+                await _decide(
+                  id,
+                  true,
+                  checklistDokumenDitemukan: dokumen,
+                  checklistKondisiBaik: kondisi,
+                  checklistSesuaiData: sesuai,
+                );
+              }
+            }
+
+            // Alasan penolakan (wajib diisi) sebelum admin bisa menolak
+            // pengajuan — mirror parameter wajib `alasan` di
+            // PeminjamanService.tolakPeminjaman.
+            Future<void> _confirmReject(String id) async {
+              final controller = TextEditingController();
+
+              final alasan = await showDialog<String>(
+                context: context,
+                builder: (dialogContext) {
+                  return AlertDialog(
+                    title: const Text('Alasan Penolakan'),
+                    content: TextField(
+                      controller: controller,
+                      autofocus: true,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        hintText: 'Tulis alasan penolakan...',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(dialogContext),
+                        child: const Text('Batal'),
+                      ),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.dangerRed,
+                        ),
+                        onPressed: () {
+                          final text = controller.text.trim();
+                          if (text.isEmpty) return;
+                          Navigator.pop(dialogContext, text);
+                        },
+                        child: const Text(
+                          'Tolak',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              );
+
+              if (alasan != null && alasan.isNotEmpty) {
+                await _decide(id, false, alasan: alasan);
+              }
+            }
+
+            return Container(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 16,
+                bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 24,
+              ),
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(sheetContext).size.height * 0.75,
+              ),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.black12,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ),
+                  const Text(
+                    'Pengajuan Peminjaman',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${pending.length} pengajuan menunggu keputusan.',
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      color: Colors.black45,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  if (pending.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(
+                        child: Text(
+                          'Tidak ada pengajuan yang menunggu.',
+                          style: TextStyle(color: Colors.black45),
+                        ),
+                      ),
+                    )
+                  else
+                    Flexible(
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: pending.length,
+                        separatorBuilder: (_, __) => const Divider(height: 24),
+                        itemBuilder: (context, index) {
+                          final p = pending[index];
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${p.nama} — ${p.jenisDokumen}',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                _dokumenIdentifier(p),
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.black54,
+                                ),
+                              ),
+                              Text(
+                                'Rencana: ${p.tanggalPinjamFormatted} — ${p.tanggalKembaliFormatted}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppTheme.primaryGreen,
+                                ),
+                              ),
+                              if (p.keperluan.isNotEmpty) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Keperluan: ${p.keperluan}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.black45,
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: 10),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: OutlinedButton(
+                                      onPressed: () => _confirmReject(p.id!),
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: AppTheme.dangerRed,
+                                        side: const BorderSide(
+                                          color: AppTheme.dangerRed,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            30,
+                                          ),
+                                        ),
+                                      ),
+                                      child: const Text('Tolak'),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: ElevatedButton(
+                                      onPressed: () => _confirmApprove(p.id!),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: AppTheme.accentGreen,
+                                        elevation: 0,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            30,
+                                          ),
+                                        ),
+                                      ),
+                                      child: const Text(
+                                        'Setujui',
+                                        style: TextStyle(color: Colors.white),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   void _showExtensionApprovalSheet() {
     showModalBottomSheet(
       context: context,
@@ -1215,6 +1616,7 @@ class _HomePageState extends State<HomePage> {
             children: [
               _buildHeader(),
               const SizedBox(height: 18),
+              _buildAdminLoanRequestBanner(),
               _buildAdminExtensionBanner(),
               _buildPegawaiOverdueBanner(),
               _buildPersonalSummary(),

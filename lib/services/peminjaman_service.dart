@@ -6,6 +6,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/peminjaman.dart';
 import 'auth_service.dart';
 
+/// Same detection approach as auth_service.dart's _isNetworkError — see
+/// that file's comment for why this checks by type + message text rather
+/// than importing package:http directly.
 bool _isNetworkError(Object e) {
   if (e is SocketException) return true;
   final text = e.toString();
@@ -15,6 +18,8 @@ bool _isNetworkError(Object e) {
       text.contains('Connection failed');
 }
 
+/// Turns a raw Supabase/Postgrest error into something a SnackBar can show
+/// a Pegawai without them needing to read Postgres error codes.
 String _friendlyError(Object e) {
   if (_isNetworkError(e)) {
     return 'Tidak ada koneksi internet. Data terakhir yang tersimpan '
@@ -112,9 +117,19 @@ class PeminjamanService {
     }
   }
 
-  static Peminjaman? _findActiveByNoHak(String noHak) {
+  // ─── ID-KEYED LOOKUP (11.08.2026 — re-applied on merge) ─────────────
+  // This used to be _findActiveByNoHak(String noHak), matching on
+  // p.noHak == noHak. That breaks for every Warkah loan: FormPage stores
+  // noHak: '-' for all of them (Warkah's real identity field is no208,
+  // tracked separately), so with two+ active Warkah loans a noHak-keyed
+  // lookup can't tell them apart — e.g. kembalikan('-') would match every
+  // active Warkah row at once instead of just the one actually being
+  // returned. `id` is the table's real primary key and is unique
+  // regardless of document type, so every write method below is keyed
+  // by it instead.
+  static Peminjaman? _findActiveById(String id) {
     for (final p in _cache) {
-      if (p.noHak == noHak && p.status == 'Dipinjam') return p;
+      if (p.id == id && p.status == 'Dipinjam') return p;
     }
     return null;
   }
@@ -128,10 +143,11 @@ class PeminjamanService {
     }
   }
 
-  /// True if a no_hak already has an active (status == 'Dipinjam') loan.
-  /// Checked directly against Supabase rather than the local cache, so
-  /// it still catches a duplicate even if the cache is stale or another
-  /// device/session created the active loan.
+  /// True if a document already has an active loan blocking a new
+  /// request — either already approved ('Dipinjam') or still awaiting
+  /// admin decision ('Diajukan'). A pending request has to block a
+  /// duplicate submission too, or two people could submit overlapping
+  /// requests for the same document before either gets decided.
   /// [jenisDokumen] picks which column actually identifies the
   /// document: no_hak for Buku Tanah/Surat Ukur, but no_208 for Warkah
   /// — Warkah loans always store '-' in no_hak (see form_page.dart),
@@ -148,7 +164,7 @@ class PeminjamanService {
           .from('peminjaman')
           .select('id')
           .eq(column, identifier)
-          .eq('status', 'Dipinjam')
+          .inFilter('status', ['Dipinjam', 'Diajukan'])
           .limit(1);
       return rows.isNotEmpty;
     } catch (e) {
@@ -156,52 +172,163 @@ class PeminjamanService {
     }
   }
 
-  static Future<void> tambah(Peminjaman peminjaman) async {
+  /// Pegawai submissions go in as 'Diajukan' (pending admin review) —
+  /// Admin submissions are auto-approved straight to 'Dipinjam', since an
+  /// admin approving their own request would be pointless ceremony. This
+  /// is fast-fail UX only: the actual boundary is
+  /// trg_enforce_pending_status_for_pegawai in loan_approval_workflow.sql,
+  /// which forces 'Diajukan' server-side for any non-admin insert
+  /// regardless of what status the client sends — a modified client can't
+  /// skip approval by just setting status: 'Dipinjam' directly.
+  ///
+  /// Returns the inserted row (with its real `id` from Supabase) instead
+  /// of void — callers need it right away: FormPage checks the returned
+  /// `status` to decide whether to jump straight to the barcode screen
+  /// (admin, auto-approved) or show "menunggu persetujuan" (pegawai,
+  /// pending) — and either way the barcode/detail screens need the real
+  /// id, not a pre-insert placeholder.
+  static Future<Peminjaman> tambah(Peminjaman peminjaman) async {
     final withOfficer = peminjaman.diampuOleh == null
         ? peminjaman.copyWith(diampuOleh: AuthService.currentUser?.id)
         : peminjaman;
+    final withStatus = withOfficer.copyWith(
+      status: AuthService.isAdmin ? 'Dipinjam' : 'Diajukan',
+    );
 
     try {
       final inserted = await _client
           .from('peminjaman')
-          .insert(withOfficer.toMap())
+          .insert(withStatus.toMap())
           .select()
           .single();
 
-      _cache.insert(0, Peminjaman.fromMap(inserted));
+      final result = Peminjaman.fromMap(inserted);
+      _cache.insert(0, result);
+      return result;
     } catch (e) {
       throw Exception(_friendlyError(e));
     }
   }
 
-  /// Returns true if at least one row was updated. Returns false if no
-  /// matching row was found — including when RLS silently hides the row
-  /// from an UPDATE (Postgres doesn't error in that case, it just
-  /// matches 0 rows), so callers can now tell the difference between
-  /// "worked" and "silently did nothing".
-  ///
-  /// Uses .select() (a list) rather than .maybeSingle() because no_hak
-  /// isn't guaranteed unique in the table — if duplicate active rows
-  /// exist for the same no_hak (bad data from earlier testing, a double
-  /// submit, etc.) this marks all of them Kembali instead of throwing
-  /// PGRST116 ("result contains 2 rows"). Clean up real duplicates at
-  /// the data level when you find them; this is just a safety net.
-  static Future<bool> kembalikan(String noHak) async {
+  // ══════════════════════════════════════════════════════════════════
+  // APPROVAL PENGAJUAN PEMINJAMAN (11.08.2026) — admin decides a
+  // pending ('Diajukan') request. Keyed by `id` (see _findActiveById's
+  // comment above for why `no_hak`/`no_208` can't be used as a key).
+  // Client-side isAdmin check is fast-fail UX only — the real gate is
+  // trg_enforce_loan_approval_admin_only in loan_approval_workflow.sql.
+  // ══════════════════════════════════════════════════════════════════
+
+  static Peminjaman? _findPendingById(String id) {
+    for (final p in _cache) {
+      if (p.id == id && p.isPendingApproval) return p;
+    }
+    return null;
+  }
+
+  /// Approves a pending request, turning it into an active loan (status
+  /// -> 'Dipinjam'). Gated behind the 3-item physical-document checklist
+  /// — all three must be true, re-checked here rather than trusting
+  /// whatever HomePage's UI already enforced, since a modified client
+  /// could otherwise call this directly and skip the check entirely.
+  /// Barcode generation happens client-side right after this returns
+  /// true, not before — a 'Diajukan' row was never a confirmed loan, so
+  /// it never had one yet.
+  static Future<bool> setujuiPeminjaman(
+    String id, {
+    required bool checklistDokumenDitemukan,
+    required bool checklistKondisiBaik,
+    required bool checklistSesuaiData,
+  }) async {
+    if (!AuthService.isAdmin) return false;
+    if (!checklistDokumenDitemukan ||
+        !checklistKondisiBaik ||
+        !checklistSesuaiData) {
+      return false;
+    }
+    final current = _findPendingById(id);
+    if (current == null) return false;
+
     try {
-      final rows = await _client
+      final updated = await _client
+          .from('peminjaman')
+          .update({
+            'status': 'Dipinjam',
+            'disetujui_oleh': AuthService.currentUser?.id,
+            'disetujui_oleh_nama': AuthService.currentUser?.nama,
+            'checklist_dokumen_ditemukan': true,
+            'checklist_kondisi_baik': true,
+            'checklist_sesuai_data': true,
+          })
+          .eq('id', current.id!)
+          .eq('status', 'Diajukan')
+          .select()
+          .maybeSingle();
+      if (updated == null) return false;
+      _replaceInCache(Peminjaman.fromMap(updated));
+      return true;
+    } catch (e) {
+      throw Exception(_friendlyError(e));
+    }
+  }
+
+  /// Rejects a pending request (status -> 'Ditolak'). `alasan` is
+  /// required — whoever submitted the request needs to know why, not
+  /// just that it was declined.
+  ///
+  /// Fixed on merge: the previous version of this method wrote the
+  /// rejecting admin into `disetujui_oleh`/`disetujui_oleh_nama` (the
+  /// *approval* attribution columns) and had no way to record a reason
+  /// at all. Now uses the dedicated ditolak_oleh/ditolak_oleh_nama/
+  /// alasan_penolakan columns instead, matching the Peminjaman model.
+  static Future<bool> tolakPeminjaman(String id, String alasan) async {
+    if (!AuthService.isAdmin) return false;
+    final current = _findPendingById(id);
+    if (current == null) return false;
+
+    try {
+      final updated = await _client
+          .from('peminjaman')
+          .update({
+            'status': 'Ditolak',
+            'ditolak_oleh': AuthService.currentUser?.id,
+            'ditolak_oleh_nama': AuthService.currentUser?.nama,
+            'alasan_penolakan': alasan,
+          })
+          .eq('id', current.id!)
+          .eq('status', 'Diajukan')
+          .select()
+          .maybeSingle();
+      if (updated == null) return false;
+      _replaceInCache(Peminjaman.fromMap(updated));
+      return true;
+    } catch (e) {
+      throw Exception(_friendlyError(e));
+    }
+  }
+
+  /// Returns true if the loan was updated. Returns false if no matching
+  /// row was found — including when RLS silently hides the row from an
+  /// UPDATE (Postgres doesn't error in that case, it just matches 0
+  /// rows), so callers can tell "worked" apart from "silently did
+  /// nothing". Keyed by `id` (see _findActiveById's comment for why —
+  /// this used to be noHak-keyed with a multi-row `.select()` as a
+  /// duplicate-safety hedge; `id` is the actual unique primary key, so
+  /// there's no longer a duplicate-match scenario to hedge against).
+  static Future<bool> kembalikan(String id) async {
+    try {
+      final updated = await _client
           .from('peminjaman')
           .update({
             'status': 'Kembali',
             'kembali_oleh': AuthService.currentUser?.id,
             'kembali_oleh_nama': AuthService.currentUser?.nama,
           })
-          .eq('no_hak', noHak)
+          .eq('id', id)
           .eq('status', 'Dipinjam')
-          .select();
-      if (rows.isEmpty) return false;
-      for (final row in rows) {
-        _replaceInCache(Peminjaman.fromMap(row));
-      }
+          .select()
+          .maybeSingle();
+      if (updated == null) return false;
+      _replaceInCache(Peminjaman.fromMap(updated));
       return true;
     } catch (e) {
       throw Exception(_friendlyError(e));
@@ -209,10 +336,10 @@ class PeminjamanService {
   }
 
   /// Bulk version of [kembalikan] for the multi-select "Tandai Kembali"
-  /// flow — returns the list of no_hak that actually got updated so the
-  /// UI can report "X dari Y berhasil" instead of an all-or-nothing result.
-  static Future<List<String>> kembalikanBanyak(List<String> noHakList) async {
-    if (noHakList.isEmpty) return [];
+  /// flow — returns the list of ids that actually got updated so the UI
+  /// can report "X dari Y berhasil" instead of an all-or-nothing result.
+  static Future<List<String>> kembalikanBanyak(List<String> ids) async {
+    if (ids.isEmpty) return [];
     try {
       final rows = await _client
           .from('peminjaman')
@@ -221,14 +348,14 @@ class PeminjamanService {
             'kembali_oleh': AuthService.currentUser?.id,
             'kembali_oleh_nama': AuthService.currentUser?.nama,
           })
-          .inFilter('no_hak', noHakList)
+          .inFilter('id', ids)
           .eq('status', 'Dipinjam')
           .select();
       final berhasil = <String>[];
       for (final row in rows) {
         final p = Peminjaman.fromMap(row);
         _replaceInCache(p);
-        berhasil.add(p.noHak);
+        berhasil.add(p.id!);
       }
       return berhasil;
     } catch (e) {
@@ -237,21 +364,16 @@ class PeminjamanService {
   }
 
   // ─── PERPANJANG WAKTU PEMINJAMAN (langsung, tanpa approval) ───
-  // Same duplicate-safety note as kembalikan() above.
-  static Future<void> perpanjang(
-    String noHak,
-    DateTime tanggalKembaliBaru,
-  ) async {
+  static Future<void> perpanjang(String id, DateTime tanggalKembaliBaru) async {
     try {
-      final rows = await _client
+      final row = await _client
           .from('peminjaman')
           .update({'tanggal_kembali': tanggalKembaliBaru.toIso8601String()})
-          .eq('no_hak', noHak)
+          .eq('id', id)
           .eq('status', 'Dipinjam')
-          .select();
-      for (final row in rows) {
-        _replaceInCache(Peminjaman.fromMap(row));
-      }
+          .select()
+          .maybeSingle();
+      if (row != null) _replaceInCache(Peminjaman.fromMap(row));
     } catch (e) {
       throw Exception(_friendlyError(e));
     }
@@ -267,29 +389,42 @@ class PeminjamanService {
 
   // ─── JENIS DOKUMEN BREAKDOWN (08.08.2026) ───
   // Backs the "Jenis Dokumen" breakdown container on Home/History/Return
-  // (see widgets/jenis_dokumen_breakdown.dart). Counts every record
-  // regardless of status — this is a composition-of-the-archive figure,
-  // not an "active loans" figure like getSedangDipinjam() above.
-  static int getCountBukuTanah() =>
-      _cache.where((p) => p.jenisDokumen == 'Buku Tanah').length;
+  // (see widgets/jenis_dokumen_breakdown.dart — currently unused, see
+  // that widget's callers for the "removed for now" note). Excludes
+  // 'Ditolak' rows — a rejected request never actually became part of
+  // the archive, so it shouldn't count toward "what's in the archive"
+  // composition figures. 'Diajukan' (pending) rows ARE included, since
+  // they represent real physical documents the moment they're approved;
+  // excluding them would make the breakdown undercount right up until an
+  // admin acts.
+  static int getCountBukuTanah() => _cache
+      .where((p) => p.jenisDokumen == 'Buku Tanah' && !p.isRejected)
+      .length;
 
-  static int getCountSuratUkur() =>
-      _cache.where((p) => p.jenisDokumen == 'Surat Ukur').length;
+  static int getCountSuratUkur() => _cache
+      .where((p) => p.jenisDokumen == 'Surat Ukur' && !p.isRejected)
+      .length;
 
   static int getCountWarkah() =>
-      _cache.where((p) => p.jenisDokumen == 'Warkah').length;
+      _cache.where((p) => p.jenisDokumen == 'Warkah' && !p.isRejected).length;
+
+  // ─── APPROVAL PENGAJUAN PEMINJAMAN (11.08.2026) ───
+  static List<Peminjaman> getPengajuanPeminjaman() =>
+      _cache.where((p) => p.isPendingApproval).toList();
+
+  static int getMenungguPersetujuan() => getPengajuanPeminjaman().length;
 
   // ══════════════════════════════════════════════════════════════════
   // EXTENSION STATE MACHINE — same states/transitions as before, now
-  // persisted to Supabase instead of just an in-memory object.
+  // keyed by `id` instead of `no_hak` (see _findActiveById's comment).
   // ══════════════════════════════════════════════════════════════════
 
   static Future<bool> ajukanPerpanjangan(
-    String noHak,
+    String id,
     DateTime tanggalKembaliBaru,
     String alasan,
   ) async {
-    final current = _findActiveByNoHak(noHak);
+    final current = _findActiveById(id);
     if (current == null || current.isExtensionPending) return false;
 
     // Ownership gate: only the pegawai who originally borrowed this
@@ -332,9 +467,9 @@ class PeminjamanService {
   /// trip for a pegawai who obviously can't do this). The real enforcement
   /// lives in the database — see supabase_rls_admin_controls.sql — so even
   /// a modified/compromised client can't approve its own request.
-  static Future<bool> setujuiPerpanjangan(String noHak) async {
+  static Future<bool> setujuiPerpanjangan(String id) async {
     if (!AuthService.isAdmin) return false;
-    final current = _findActiveByNoHak(noHak);
+    final current = _findActiveById(id);
     if (current == null || !current.isExtensionPending) return false;
 
     final requested = current.requestedTanggalKembali!;
@@ -358,9 +493,9 @@ class PeminjamanService {
     }
   }
 
-  static Future<bool> tolakPerpanjangan(String noHak) async {
+  static Future<bool> tolakPerpanjangan(String id) async {
     if (!AuthService.isAdmin) return false;
-    final current = _findActiveByNoHak(noHak);
+    final current = _findActiveById(id);
     if (current == null || !current.isExtensionPending) return false;
 
     try {
@@ -424,6 +559,14 @@ class PeminjamanService {
   // ══════════════════════════════════════════════════════════════════
 
   /// Named to match what history_page.dart's edit dialog calls.
+  ///
+  /// Fixed on merge: this update map previously only wrote the 9
+  /// Buku-Tanah-shaped fields (nama/seksi/kecamatan/.../tanggal_kembali)
+  /// — editing a Surat Ukur or Warkah record's type-specific fields
+  /// (jenis_surat_ukur, no_208, etc.) via History Page's edit sheet
+  /// would appear to succeed but silently drop those columns, since
+  /// Supabase never received them. Now writes every column
+  /// Peminjaman.toMap() has an editable counterpart for.
   static Future<bool> editPeminjaman(Peminjaman updated) async {
     if (!AuthService.isAdmin) return false;
     if (updated.id == null) return false;
@@ -440,6 +583,13 @@ class PeminjamanService {
             'keperluan': updated.keperluan,
             'tanggal_pinjam': updated.tanggalPinjam.toIso8601String(),
             'tanggal_kembali': updated.tanggalKembali.toIso8601String(),
+            'jenis_surat_ukur': updated.jenisSuratUkur,
+            'no_tahun_surat_ukur': updated.noTahunSuratUkur,
+            'su': updated.su,
+            'gs': updated.gs,
+            'jenis_warkah': updated.jenisWarkah,
+            'no_208': updated.no208,
+            'tahun_warkah': updated.tahunWarkah,
           })
           .eq('id', updated.id!)
           .select()
