@@ -4,14 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-/// First screen shown on every cold start (see main.dart /
-/// AppRoutes.splash) — logo + name animate in, then this
-/// auto-navigates to whatever route main.dart already decided is next
-/// (onboarding, login, or home), passed in via [nextRoute].
-///
-/// Same dark-forest palette as onboarding_page.dart on purpose — see
-/// that file's comment: this should read as the first frame of the
-/// same story, not a separate splash bolted on top.
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key, required this.nextRoute});
 
@@ -69,10 +61,9 @@ class _SplashPageState extends State<SplashPage>
     // Remove the native splash only once THIS widget's first frame has
     // actually been painted — addPostFrameCallback fires right after
     // that happens. Doing this here (rather than in main.dart right
-    // before runApp()) guarantees there's no gap/overlap between the
-    // native splash disappearing and SplashPage being fully ready to
-    // show: the native splash stays up the whole time until this frame
-    // is genuinely on screen.
+    // before runApp()) guarantees there's no gap where NEITHER splash is
+    // showing: the native splash stays up the whole time until this
+    // frame is genuinely on screen.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       FlutterNativeSplash.remove();
     });
@@ -80,14 +71,23 @@ class _SplashPageState extends State<SplashPage>
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1600),
-    )..forward();
+    );
 
-    // Total time on screen: animation duration + a short hold so the
-    // finished state isn't just a flash before navigating away.
-    Future.delayed(const Duration(milliseconds: 2200), () {
-      if (!mounted) return;
-      Navigator.pushReplacementNamed(context, widget.nextRoute);
-    });
+    _runSequence();
+  }
+
+  Future<void> _runSequence() async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    if (!mounted) return;
+
+    await _controller.forward();
+    if (!mounted) return;
+
+    // Short hold once fully drawn in, so the finished state isn't just a
+    // flash before navigating away.
+    await Future.delayed(const Duration(milliseconds: 600));
+    if (!mounted) return;
+    Navigator.pushReplacementNamed(context, widget.nextRoute);
   }
 
   @override
@@ -186,8 +186,6 @@ class _SplashPageState extends State<SplashPage>
   }
 }
 
-/// Draws an arc from 0 to `progress * 360` degrees, giving the ring a
-/// "drawing itself in" feel rather than just appearing at full opacity.
 class _RingPainter extends CustomPainter {
   const _RingPainter({required this.progress, required this.color});
 
