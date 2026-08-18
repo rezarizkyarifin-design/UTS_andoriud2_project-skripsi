@@ -38,6 +38,15 @@ class _ProfilPageState extends State<ProfilPage> {
 
     showDialog(
       context: context,
+      // Fix: tapping outside the dialog used to dismiss it through
+      // Flutter's own default barrier-tap path, which pops immediately
+      // with no chance to unfocus first — the focused field's selection/
+      // context-menu overlay hadn't detached yet, tripping framework.dart's
+      // '_dependents.isEmpty' assertion. The Batal button already runs the
+      // safe unfocus-then-delay-then-pop sequence below; barrier-tap had
+      // no way to run that same sequence, so it's disabled here instead —
+      // "Batal" is still there and works the same as before.
+      barrierDismissible: false,
       builder: (dialogContext) => StatefulBuilder(
         builder: (dialogContext, setDialogState) {
           Future<void> save() async {
@@ -293,25 +302,17 @@ class _ProfilPageState extends State<ProfilPage> {
     }
   }
 
-  // ── EDIT USERNAME ──────────────────────────────────────────────
-  // Edits the bare handle (e.g. "admin") — never the "@siap.app" part,
-  // which is purely internal plumbing for Supabase Auth (see
-  // AuthService._emailFor). AuthService.changeUsername takes care of
-  // rebuilding the full synthetic address and keeping Supabase Auth's
-  // email + profiles.username in sync with each other, so this dialog
-  // only ever has to think in terms of the bare handle.
-  Future<void> _editUsername() async {
-    final bareCurrent =
-        AuthService.currentUser?.username.split('@').first ?? '';
-    final controller = TextEditingController(text: bareCurrent);
+  // ── EDIT NAMA ──────────────────────────────────────────────────
+  // Replaces the old username-edit row: nama is a plain display name
+  // (spaces are fine — "Naira Tahira"), unlike username which had to
+  // fit into a real email address. See AuthService.updateNama — this
+  // never touches Supabase Auth or the login username at all.
+  Future<void> _editNama() async {
+    final currentNama = AuthService.currentUser?.nama ?? '';
+    final controller = TextEditingController(text: currentNama);
 
     Future<void> safePop(BuildContext dialogContext, [String? value]) async {
-      // Same fix as _showChangePasswordDialog: popping immediately on tap
-      // can race the text-selection toolbar overlay still being attached
-      // to the TextField, which is what threw '_dependents.isEmpty' here.
-      // contextMenuBuilder below removes the overlay entirely, and this
-      // unfocus + one-frame delay is a belt-and-suspenders guard for any
-      // OS-level (e.g. Android) selection handle overlay it doesn't cover.
+      // Same fix as the other dialogs on this page — see _editContactEmail.
       FocusManager.instance.primaryFocus?.unfocus();
       await Future.delayed(const Duration(milliseconds: 50));
       if (!dialogContext.mounted) return;
@@ -320,17 +321,19 @@ class _ProfilPageState extends State<ProfilPage> {
 
     final result = await showDialog<String>(
       context: context,
+      // Same fix as _showChangePasswordDialog above — see its comment.
+      barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: const Text('Ubah Username'),
+        title: const Text('Ubah Nama'),
         content: TextField(
           controller: controller,
-          autocorrect: false,
           autofocus: true,
+          textCapitalization: TextCapitalization.words,
           contextMenuBuilder: (context, editableTextState) =>
               const SizedBox.shrink(),
           decoration: const InputDecoration(
-            hintText: 'username',
+            hintText: 'Nama lengkap',
             border: OutlineInputBorder(),
           ),
         ),
@@ -353,9 +356,9 @@ class _ProfilPageState extends State<ProfilPage> {
       ),
     );
     controller.dispose();
-    if (result == null || result.trim() == bareCurrent) return;
+    if (result == null || result.trim() == currentNama) return;
 
-    final error = await AuthService.changeUsername(result.trim());
+    final error = await AuthService.updateNama(result.trim());
     if (!mounted) return;
     if (error != null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -373,7 +376,7 @@ class _ProfilPageState extends State<ProfilPage> {
     setState(() {});
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: const Text('Username berhasil diubah.'),
+        content: const Text('Nama berhasil diubah.'),
         backgroundColor: AppTheme.accentGreen,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -391,8 +394,8 @@ class _ProfilPageState extends State<ProfilPage> {
     );
 
     Future<void> safePop(BuildContext dialogContext, [String? value]) async {
-      // Same fix as _editUsername/_showChangePasswordDialog — see the
-      // comment in _editUsername for why this matters.
+      // Same fix applied across every dialog on this page — see
+      // _editNama or _showChangePasswordDialog for why this matters.
       FocusManager.instance.primaryFocus?.unfocus();
       await Future.delayed(const Duration(milliseconds: 50));
       if (!dialogContext.mounted) return;
@@ -401,6 +404,7 @@ class _ProfilPageState extends State<ProfilPage> {
 
     final result = await showDialog<String>(
       context: context,
+      barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: const Text('Email Kontak'),
@@ -647,30 +651,22 @@ class _ProfilPageState extends State<ProfilPage> {
                     children: [
                       _infoRow(
                         icon: Icons.badge_outlined,
-                        label: 'Username',
-                        // Bare handle only — the "@siap.app" part is
-                        // internal plumbing for Supabase Auth login,
-                        // never shown to the person using the app.
-                        value: user?.username.split('@').first ?? '-',
+                        label: 'Nama',
+                        value: user?.nama ?? '-',
                         trailing: IconButton(
                           icon: const Icon(
                             Icons.edit_outlined,
                             size: 18,
                             color: Colors.black45,
                           ),
-                          tooltip: 'Ubah username',
-                          onPressed: _editUsername,
+                          tooltip: 'Ubah nama',
+                          onPressed: _editNama,
                         ),
                       ),
                       const Divider(height: 1),
                       _infoRow(
                         icon: Icons.email_outlined,
                         label: 'Email',
-                        // A real, separate inbox for notifications — NOT
-                        // the same value as Username above. See
-                        // AppUser.contactEmail's doc comment for why
-                        // these two used to (wrongly) show the same
-                        // synthetic address.
                         value: user?.contactEmail ?? 'Belum diisi',
                         trailing: IconButton(
                           icon: const Icon(

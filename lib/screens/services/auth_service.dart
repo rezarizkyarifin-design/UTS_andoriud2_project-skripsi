@@ -419,4 +419,33 @@ class AuthService {
       return e.toString();
     }
   }
+
+  // ══════════════════════════════════════════════════════════════════
+  // DISPLAY NAME (nama) — unlike username above, this is just a plain
+  // profiles column with no email-format constraint, so spaces are
+  // fine ("Naira Tahira"). Never touches Supabase Auth or the login
+  // username — purely cosmetic, shown around the app wherever a
+  // person's name is displayed.
+  // ══════════════════════════════════════════════════════════════════
+
+  /// Returns null on success, or a user-facing error message on failure.
+  static Future<String?> updateNama(String newNama) async {
+    final user = _currentUser;
+    if (user == null) return 'Sesi tidak ditemukan, silakan login kembali.';
+
+    final trimmed = newNama.trim();
+    if (trimmed.isEmpty) return 'Nama tidak boleh kosong.';
+
+    try {
+      await _client
+          .from('profiles')
+          .update({'nama': trimmed})
+          .eq('id', user.id);
+      _currentUser = user.copyWith(nama: trimmed);
+      await _cacheUserLocally(_currentUser!);
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
 }
