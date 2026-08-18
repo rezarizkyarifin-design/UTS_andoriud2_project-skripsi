@@ -26,6 +26,22 @@ class Peminjaman {
   final String? disetujuiOleh; // AppUser.id (uuid)
   final String? disetujuiOlehNama;
 
+  // ─── Penolakan pengajuan peminjaman baru — sebelumnya ditulis oleh
+  // PeminjamanService.tolakPeminjaman() ke DB tapi nggak pernah dibaca
+  // balik ke sini, jadi nggak ada tempat buat UI nampilinnya walau
+  // datanya udah tersimpan.
+  final String? ditolakOleh; // AppUser.id (uuid)
+  final String? ditolakOlehNama;
+  final String? alasanPenolakan;
+
+  // ─── Approval perpanjangan waktu (14.08.2026) — siapa admin yang
+  // terakhir menyetujui perpanjangan tanggal_kembali dokumen ini. Cuma
+  // slot tunggal (bukan log lengkap tiap perpanjangan), sama seperti
+  // kembaliOleh/disetujuiOleh di atas — kalau dokumen ini diperpanjang
+  // lagi nanti, field ini ketimpa dengan approval yang baru.
+  final String? perpanjanganDisetujuiOleh; // AppUser.id (uuid)
+  final String? perpanjanganDisetujuiOlehNama;
+
   // ─── Perpanjangan waktu (state machine, lihat PeminjamanService) ───
   final String? extensionStatus;
   final DateTime? requestedTanggalKembali;
@@ -68,6 +84,11 @@ class Peminjaman {
     this.kembaliOlehNama,
     this.disetujuiOleh,
     this.disetujuiOlehNama,
+    this.ditolakOleh,
+    this.ditolakOlehNama,
+    this.alasanPenolakan,
+    this.perpanjanganDisetujuiOleh,
+    this.perpanjanganDisetujuiOlehNama,
     this.extensionStatus,
     this.requestedTanggalKembali,
     this.extensionReason,
@@ -100,6 +121,12 @@ class Peminjaman {
       kembaliOlehNama: map['kembali_oleh_nama'] as String?,
       disetujuiOleh: map['disetujui_oleh'] as String?,
       disetujuiOlehNama: map['disetujui_oleh_nama'] as String?,
+      ditolakOleh: map['ditolak_oleh'] as String?,
+      ditolakOlehNama: map['ditolak_oleh_nama'] as String?,
+      alasanPenolakan: map['alasan_penolakan'] as String?,
+      perpanjanganDisetujuiOleh: map['perpanjangan_disetujui_oleh'] as String?,
+      perpanjanganDisetujuiOlehNama:
+          map['perpanjangan_disetujui_oleh_nama'] as String?,
       extensionStatus: map['extension_status'] as String?,
       requestedTanggalKembali: map['requested_tanggal_kembali'] == null
           ? null
@@ -133,6 +160,11 @@ class Peminjaman {
       'kembali_oleh_nama': kembaliOlehNama,
       'disetujui_oleh': disetujuiOleh,
       'disetujui_oleh_nama': disetujuiOlehNama,
+      'ditolak_oleh': ditolakOleh,
+      'ditolak_oleh_nama': ditolakOlehNama,
+      'alasan_penolakan': alasanPenolakan,
+      'perpanjangan_disetujui_oleh': perpanjanganDisetujuiOleh,
+      'perpanjangan_disetujui_oleh_nama': perpanjanganDisetujuiOlehNama,
       'extension_status': extensionStatus,
       'requested_tanggal_kembali': requestedTanggalKembali?.toIso8601String(),
       'extension_reason': extensionReason,
@@ -160,6 +192,25 @@ class Peminjaman {
   String? get returnedByMessage => kembaliOlehNama == null
       ? null
       : '$kembaliOlehNama menandai dokumen telah kembali';
+
+  // ─── ATRIBUSI APPROVAL PENGAJUAN ───
+  // Only set for loans that went through the 'Diajukan' → 'Dipinjam'
+  // approval flow (see PeminjamanService.setujuiPeminjaman) — a loan
+  // submitted directly by an Admin (auto-approved, no 'Diajukan' step)
+  // never has this set, same as returnedByMessage above for loans that
+  // haven't been returned yet.
+  String? get approvedByMessage =>
+      disetujuiOlehNama == null ? null : 'Disetujui oleh $disetujuiOlehNama';
+
+  // ─── ATRIBUSI PENOLAKAN PENGAJUAN ───
+  String? get rejectedByMessage =>
+      ditolakOlehNama == null ? null : 'Ditolak oleh $ditolakOlehNama';
+
+  // ─── ATRIBUSI APPROVAL PERPANJANGAN ───
+  String? get extensionApprovedByMessage =>
+      perpanjanganDisetujuiOlehNama == null
+      ? null
+      : 'Perpanjangan disetujui oleh $perpanjanganDisetujuiOlehNama';
 
   // ─── EXTENSION HELPERS ───
   bool get isExtensionPending => extensionStatus == 'Diajukan';
@@ -210,6 +261,11 @@ class Peminjaman {
     String? kembaliOlehNama,
     String? disetujuiOleh,
     String? disetujuiOlehNama,
+    String? ditolakOleh,
+    String? ditolakOlehNama,
+    String? alasanPenolakan,
+    String? perpanjanganDisetujuiOleh,
+    String? perpanjanganDisetujuiOlehNama,
     String? extensionStatus,
     DateTime? requestedTanggalKembali,
     String? extensionReason,
@@ -240,6 +296,13 @@ class Peminjaman {
       kembaliOlehNama: kembaliOlehNama ?? this.kembaliOlehNama,
       disetujuiOleh: disetujuiOleh ?? this.disetujuiOleh,
       disetujuiOlehNama: disetujuiOlehNama ?? this.disetujuiOlehNama,
+      ditolakOleh: ditolakOleh ?? this.ditolakOleh,
+      ditolakOlehNama: ditolakOlehNama ?? this.ditolakOlehNama,
+      alasanPenolakan: alasanPenolakan ?? this.alasanPenolakan,
+      perpanjanganDisetujuiOleh:
+          perpanjanganDisetujuiOleh ?? this.perpanjanganDisetujuiOleh,
+      perpanjanganDisetujuiOlehNama:
+          perpanjanganDisetujuiOlehNama ?? this.perpanjanganDisetujuiOlehNama,
       extensionStatus: clearExtension
           ? null
           : (extensionStatus ?? this.extensionStatus),

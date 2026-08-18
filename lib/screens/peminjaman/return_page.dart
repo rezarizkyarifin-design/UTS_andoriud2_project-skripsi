@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/peminjaman.dart';
-import '../../services/peminjaman_service.dart';
-import '../../services/auth_service.dart';
+import '../services/peminjaman_service.dart';
+import '../services/auth_service.dart';
 import '../../data/data.dart';
 import '../../routes/app_routes.dart';
 import '../../widgets/app_drawer.dart';
@@ -770,6 +770,21 @@ class _ReturnPageState extends State<ReturnPage> {
                   'Batas Pengembalian',
                   p.tanggalKembaliFormatted,
                 ),
+                if (p.approvedByMessage != null)
+                  row(
+                    Icons.how_to_reg_outlined,
+                    'Disetujui Oleh',
+                    p.disetujuiOlehNama!,
+                  ),
+                // This is the page where extensions actually get
+                // requested/approved, so it's the most relevant place
+                // for this — not just History after the fact.
+                if (p.extensionApprovedByMessage != null)
+                  row(
+                    Icons.more_time_outlined,
+                    'Perpanjangan Disetujui Oleh',
+                    p.perpanjanganDisetujuiOlehNama!,
+                  ),
                 const SizedBox(height: 4),
                 Row(
                   children: [

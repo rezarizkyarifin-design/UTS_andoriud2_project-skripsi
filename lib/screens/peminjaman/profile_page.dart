@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../routes/app_routes.dart';
-import '../../services/auth_service.dart';
+import '../services/auth_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/user_roles.dart';
 import '../../widgets/app_bottom_nav.dart';
@@ -294,10 +293,192 @@ class _ProfilPageState extends State<ProfilPage> {
     }
   }
 
+  // ── EDIT USERNAME ──────────────────────────────────────────────
+  // Edits the bare handle (e.g. "admin") — never the "@siap.app" part,
+  // which is purely internal plumbing for Supabase Auth (see
+  // AuthService._emailFor). AuthService.changeUsername takes care of
+  // rebuilding the full synthetic address and keeping Supabase Auth's
+  // email + profiles.username in sync with each other, so this dialog
+  // only ever has to think in terms of the bare handle.
+  Future<void> _editUsername() async {
+    final bareCurrent =
+        AuthService.currentUser?.username.split('@').first ?? '';
+    final controller = TextEditingController(text: bareCurrent);
+
+    Future<void> safePop(BuildContext dialogContext, [String? value]) async {
+      // Same fix as _showChangePasswordDialog: popping immediately on tap
+      // can race the text-selection toolbar overlay still being attached
+      // to the TextField, which is what threw '_dependents.isEmpty' here.
+      // contextMenuBuilder below removes the overlay entirely, and this
+      // unfocus + one-frame delay is a belt-and-suspenders guard for any
+      // OS-level (e.g. Android) selection handle overlay it doesn't cover.
+      FocusManager.instance.primaryFocus?.unfocus();
+      await Future.delayed(const Duration(milliseconds: 50));
+      if (!dialogContext.mounted) return;
+      Navigator.pop(dialogContext, value);
+    }
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text('Ubah Username'),
+        content: TextField(
+          controller: controller,
+          autocorrect: false,
+          autofocus: true,
+          contextMenuBuilder: (context, editableTextState) =>
+              const SizedBox.shrink(),
+          decoration: const InputDecoration(
+            hintText: 'username',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => safePop(dialogContext),
+            child: const Text('Batal', style: TextStyle(color: Colors.black54)),
+          ),
+          ElevatedButton(
+            onPressed: () => safePop(dialogContext, controller.text),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryGreen,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Text('Simpan', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (result == null || result.trim() == bareCurrent) return;
+
+    final error = await AuthService.changeUsername(result.trim());
+    if (!mounted) return;
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error),
+          backgroundColor: Colors.red.shade400,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
+      return;
+    }
+    setState(() {});
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Username berhasil diubah.'),
+        backgroundColor: AppTheme.accentGreen,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  // ── EDIT EMAIL KONTAK ──────────────────────────────────────────
+  // A genuinely separate, real inbox — used only for notifications
+  // (see AuthService.updateContactEmail). Completely unrelated to login;
+  // changing this never touches Supabase Auth or the Username above.
+  Future<void> _editContactEmail() async {
+    final controller = TextEditingController(
+      text: AuthService.currentUser?.contactEmail ?? '',
+    );
+
+    Future<void> safePop(BuildContext dialogContext, [String? value]) async {
+      // Same fix as _editUsername/_showChangePasswordDialog — see the
+      // comment in _editUsername for why this matters.
+      FocusManager.instance.primaryFocus?.unfocus();
+      await Future.delayed(const Duration(milliseconds: 50));
+      if (!dialogContext.mounted) return;
+      Navigator.pop(dialogContext, value);
+    }
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text('Email Kontak'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Email asli buat nerima notifikasi — beda dari Username yang '
+              'dipakai buat login.',
+              style: TextStyle(fontSize: 12.5, color: Colors.black54),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              keyboardType: TextInputType.emailAddress,
+              autofocus: true,
+              contextMenuBuilder: (context, editableTextState) =>
+                  const SizedBox.shrink(),
+              decoration: const InputDecoration(
+                hintText: 'nama@gmail.com',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => safePop(dialogContext),
+            child: const Text('Batal', style: TextStyle(color: Colors.black54)),
+          ),
+          ElevatedButton(
+            onPressed: () => safePop(dialogContext, controller.text),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryGreen,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Text('Simpan', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (result == null) return;
+
+    final error = await AuthService.updateContactEmail(result.trim());
+    if (!mounted) return;
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error),
+          backgroundColor: Colors.red.shade400,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
+      return;
+    }
+    setState(() {});
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Email kontak diperbarui.'),
+        backgroundColor: AppTheme.accentGreen,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
   Widget _infoRow({
     required IconData icon,
     required String label,
     required String value,
+    Widget? trailing,
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -326,6 +507,7 @@ class _ProfilPageState extends State<ProfilPage> {
               ],
             ),
           ),
+          if (trailing != null) trailing,
         ],
       ),
     );
@@ -334,7 +516,6 @@ class _ProfilPageState extends State<ProfilPage> {
   @override
   Widget build(BuildContext context) {
     final user = AuthService.currentUser;
-    final email = Supabase.instance.client.auth.currentUser?.email ?? '-';
 
     return BackToHome(
       child: Scaffold(
@@ -467,13 +648,39 @@ class _ProfilPageState extends State<ProfilPage> {
                       _infoRow(
                         icon: Icons.badge_outlined,
                         label: 'Username',
-                        value: user?.username ?? '-',
+                        // Bare handle only — the "@siap.app" part is
+                        // internal plumbing for Supabase Auth login,
+                        // never shown to the person using the app.
+                        value: user?.username.split('@').first ?? '-',
+                        trailing: IconButton(
+                          icon: const Icon(
+                            Icons.edit_outlined,
+                            size: 18,
+                            color: Colors.black45,
+                          ),
+                          tooltip: 'Ubah username',
+                          onPressed: _editUsername,
+                        ),
                       ),
                       const Divider(height: 1),
                       _infoRow(
                         icon: Icons.email_outlined,
                         label: 'Email',
-                        value: email,
+                        // A real, separate inbox for notifications — NOT
+                        // the same value as Username above. See
+                        // AppUser.contactEmail's doc comment for why
+                        // these two used to (wrongly) show the same
+                        // synthetic address.
+                        value: user?.contactEmail ?? 'Belum diisi',
+                        trailing: IconButton(
+                          icon: const Icon(
+                            Icons.edit_outlined,
+                            size: 18,
+                            color: Colors.black45,
+                          ),
+                          tooltip: 'Ubah email kontak',
+                          onPressed: _editContactEmail,
+                        ),
                       ),
                       const Divider(height: 1),
                       _infoRow(

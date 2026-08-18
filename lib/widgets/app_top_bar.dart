@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../routes/app_routes.dart';
-import '../services/auth_service.dart';
+import '../screens/services/auth_service.dart';
 import 'notification_bell.dart';
 
 /// Top bar row (hamburger menu, logo, page title, notification bell,

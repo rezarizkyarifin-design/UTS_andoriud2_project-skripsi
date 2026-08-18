@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/peminjaman.dart';
-import '../../services/peminjaman_service.dart';
+import '../services/peminjaman_service.dart';
 import '../../data/data.dart';
 import '../../routes/app_routes.dart';
 import '../../widgets/app_drawer.dart';
@@ -611,7 +611,7 @@ class _FormPageState extends State<FormPage> {
           _label('No. & Tahun Surat Ukur'),
           _textField(
             controller: _noTahunSuratUkurController,
-            placeholder: 'Contoh: 123/2020',
+            placeholder: 'cth: 123/2020',
             icon: Icons.numbers_outlined,
           ),
           const SizedBox(height: 16),
@@ -625,8 +625,10 @@ class _FormPageState extends State<FormPage> {
                     _label('SU'),
                     _textField(
                       controller: _suController,
-                      placeholder: 'Contoh: 45/2020',
+                      placeholder: 'cth: 45/2020',
                       icon: Icons.description_outlined,
+                      compact: true,
+                      hintFontSize: 11.5,
                     ),
                   ],
                 ),
@@ -639,8 +641,10 @@ class _FormPageState extends State<FormPage> {
                     _label('GS (Gambar Situasi)'),
                     _textField(
                       controller: _gsController,
-                      placeholder: 'Contoh: 67/2020',
+                      placeholder: 'cth: 67/2020',
                       icon: Icons.map_outlined,
+                      compact: true,
+                      hintFontSize: 11.5,
                     ),
                   ],
                 ),
@@ -674,9 +678,11 @@ class _FormPageState extends State<FormPage> {
                     _label('Nomor Hak'),
                     _textField(
                       controller: _noHakController,
-                      placeholder: 'Contoh: 12345',
+                      placeholder: 'cth: 12345',
                       icon: Icons.tag,
                       keyboardType: TextInputType.number,
+                      compact: true,
+                      hintFontSize: 11.5,
                     ),
                   ],
                 ),
@@ -704,8 +710,10 @@ class _FormPageState extends State<FormPage> {
                     _label('No. 208'),
                     _textField(
                       controller: _no208Controller,
-                      placeholder: 'Contoh: 12345',
+                      placeholder: 'cth: 12345',
                       icon: Icons.tag,
+                      compact: true,
+                      hintFontSize: 11.5,
                     ),
                   ],
                 ),
@@ -718,9 +726,11 @@ class _FormPageState extends State<FormPage> {
                     _label('Tahun'),
                     _textField(
                       controller: _tahunWarkahController,
-                      placeholder: 'Contoh: 2020',
+                      placeholder: 'cth: 2020',
                       icon: Icons.calendar_today_outlined,
                       keyboardType: TextInputType.number,
+                      compact: true,
+                      hintFontSize: 11.5,
                     ),
                   ],
                 ),
@@ -785,9 +795,11 @@ class _FormPageState extends State<FormPage> {
                     _label('Nomor Hak'),
                     _textField(
                       controller: _noHakController,
-                      placeholder: 'Contoh: 12345',
+                      placeholder: 'cth: 12345',
                       icon: Icons.tag,
                       keyboardType: TextInputType.number,
+                      compact: true,
+                      hintFontSize: 11.5,
                     ),
                   ],
                 ),
@@ -799,12 +811,22 @@ class _FormPageState extends State<FormPage> {
   }
 
   // ─── TEXT FIELD ───
+  // [compact] tightens the prefix-icon area and content padding, and
+  // [hintFontSize] shrinks the hint text — both meant for fields that
+  // sit inside a half-width Expanded/Row pair (SU, GS, Nomor Hak, No.
+  // 208, Tahun), where the default 14px hint plus icon didn't leave
+  // enough room for placeholders like "cth: 45/2020" to fit without
+  // Flutter silently clipping them to "cth: 45/20…". Full-width
+  // fields (Jenis Surat Ukur, No. & Tahun Surat Ukur, etc.) have plenty
+  // of room already, so they keep the original size by not passing these.
   Widget _textField({
     required TextEditingController controller,
     required String placeholder,
     required IconData icon,
     int maxLines = 1,
     TextInputType keyboardType = TextInputType.text,
+    bool compact = false,
+    double? hintFontSize,
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -818,11 +840,21 @@ class _FormPageState extends State<FormPage> {
         style: const TextStyle(fontSize: 14, color: Colors.black87),
         decoration: InputDecoration(
           hintText: placeholder,
-          hintStyle: const TextStyle(color: Colors.black38, fontSize: 14),
-          prefixIcon: Icon(icon, size: 18, color: Colors.black38),
+          hintStyle: TextStyle(
+            color: Colors.black38,
+            fontSize: hintFontSize ?? 14,
+          ),
+          prefixIcon: Icon(
+            icon,
+            size: compact ? 16 : 18,
+            color: Colors.black38,
+          ),
+          prefixIconConstraints: compact
+              ? const BoxConstraints(minWidth: 34, minHeight: 0)
+              : null,
           border: InputBorder.none,
           contentPadding: EdgeInsets.symmetric(
-            horizontal: 16,
+            horizontal: compact ? 8 : 16,
             vertical: maxLines > 1 ? 16 : 14,
           ),
         ),

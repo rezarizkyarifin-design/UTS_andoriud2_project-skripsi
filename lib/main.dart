@@ -5,8 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/theme/app_theme.dart';
 import 'routes/app_routes.dart';
-import 'services/auth_service.dart';
-import 'services/peminjaman_service.dart';
+import '../screens/services/auth_service.dart';
+import '../screens/services/peminjaman_service.dart';
 import 'screens/splash/splash_page.dart';
 
 Future<void> main() async {

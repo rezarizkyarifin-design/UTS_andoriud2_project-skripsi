@@ -4,7 +4,7 @@ import 'dart:io';
 
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../models/app_user.dart';
+import '../../models/app_user.dart';
 
 /// Thrown by [AuthService.login] specifically when the request never
 /// reached Supabase at all (no internet / DNS lookup failed), so callers
@@ -322,6 +322,99 @@ class AuthService {
         return 'Password saat ini salah.';
       }
       return e.message;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // CHANGE USERNAME (14.08.2026) — takes a bare handle (e.g. "admin",
+  // never "admin@siap.app"), rebuilds the full synthetic login address
+  // via _emailFor, and keeps THREE things in sync together: Supabase
+  // Auth's own email (what login actually checks), profiles.username
+  // (what the rest of the app reads via AppUser.username), and the
+  // locally-cached profile (so an offline reopen doesn't show a stale
+  // username). Getting any one of these out of sync with the others is
+  // exactly the "Username shows admin1@siap.app but Email shows
+  // admin@siap.app" bug this replaces.
+  // ══════════════════════════════════════════════════════════════════
+
+  /// Returns null on success, or a user-facing error message on failure.
+  static Future<String?> changeUsername(String newUsername) async {
+    final user = _currentUser;
+    if (user == null) return 'Sesi tidak ditemukan, silakan login kembali.';
+
+    final cleanUsername = newUsername.trim().toLowerCase();
+    if (cleanUsername.isEmpty) return 'Username tidak boleh kosong.';
+    if (cleanUsername.contains(' ')) return 'Username tidak boleh ada spasi.';
+
+    final newEmail = _emailFor(cleanUsername);
+    if (newEmail == user.username) return null; // no-op, unchanged
+
+    try {
+      final existing = await _client
+          .from('profiles')
+          .select('id')
+          .eq('username', newEmail)
+          .maybeSingle();
+      if (existing != null && existing['id'] != user.id) {
+        return 'Username "$cleanUsername" sudah dipakai.';
+      }
+
+      // Supabase Auth's email first — this is what login actually
+      // checks against. "Confirm email" is off for this project (see
+      // the note on _emailFor), so this takes effect immediately
+      // instead of waiting on a confirmation link nobody could open
+      // anyway (these addresses aren't real inboxes).
+      await _client.auth.updateUser(UserAttributes(email: newEmail));
+      await _client
+          .from('profiles')
+          .update({'username': newEmail})
+          .eq('id', user.id);
+
+      _currentUser = user.copyWith(username: newEmail);
+      await _cacheUserLocally(_currentUser!);
+      return null;
+    } on AuthException catch (e) {
+      return e.message;
+    } on PostgrestException catch (e) {
+      return e.message;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // CONTACT EMAIL (14.08.2026, Layer 2 notifications) — a real inbox
+  // for email notifications, completely separate from `username` (the
+  // synthetic login address above). Never touches Supabase Auth at all
+  // — this is just a plain profiles column, not a login credential.
+  // ══════════════════════════════════════════════════════════════════
+
+  /// Returns null on success, or a user-facing error message on failure.
+  /// Pass an empty string to clear a previously-set contact email.
+  static Future<String?> updateContactEmail(String email) async {
+    final user = _currentUser;
+    if (user == null) return 'Sesi tidak ditemukan, silakan login kembali.';
+
+    final trimmed = email.trim();
+    if (trimmed.isNotEmpty) {
+      final emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+      if (!emailPattern.hasMatch(trimmed)) {
+        return 'Format email tidak valid.';
+      }
+    }
+
+    try {
+      await _client
+          .from('profiles')
+          .update({'contact_email': trimmed.isEmpty ? null : trimmed})
+          .eq('id', user.id);
+      _currentUser = user.copyWith(
+        contactEmail: trimmed.isEmpty ? null : trimmed,
+      );
+      await _cacheUserLocally(_currentUser!);
+      return null;
     } catch (e) {
       return e.toString();
     }

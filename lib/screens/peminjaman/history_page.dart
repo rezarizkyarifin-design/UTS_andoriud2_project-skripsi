@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../models/peminjaman.dart';
-import '../../services/peminjaman_service.dart';
+import '../services/peminjaman_service.dart';
 import '../../data/data.dart';
 import '../../routes/app_routes.dart';
-import '../../services/auth_service.dart';
+import '../services/auth_service.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/app_scan_fab.dart';
@@ -311,21 +311,36 @@ class _HistoryPageState extends State<HistoryPage> {
     return 'Dipinjam ${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
   }
 
+  // BUG FIX: these three used to be a straight binary — anything that
+  // wasn't 'Dipinjam' fell into the "else" branch, which was styled and
+  // labeled as 'Kembali'. That was fine back when a Peminjaman only
+  // ever had those two statuses, but 'Diajukan' (pending approval) and
+  // 'Ditolak' (rejected) exist now too — and both were silently
+  // falling through to the same "Kembali" branch, which is why a
+  // request that had never actually been approved OR declined yet
+  // showed up in History looking like it had already been returned.
   Color _statusColor(Peminjaman p) {
-    if (p.status == 'Dipinjam' && p.isOverdue) return _overdueRed;
-    return p.status == 'Dipinjam' ? const Color(0xFFB07A00) : _accentGreen;
+    if (p.status == 'Diajukan') return const Color(0xFF8A6D00);
+    if (p.status == 'Ditolak') return _overdueRed;
+    if (p.status == 'Dipinjam')
+      return p.isOverdue ? _overdueRed : const Color(0xFFB07A00);
+    return _accentGreen; // 'Kembali'
   }
 
   Color _statusBg(Peminjaman p) {
-    if (p.status == 'Dipinjam' && p.isOverdue) return const Color(0xFFFDE2E1);
-    return p.status == 'Dipinjam'
-        ? const Color(0xFFFFF3D9)
-        : const Color(0xFFD8F3DC);
+    if (p.status == 'Diajukan') return const Color(0xFFFFF3D9);
+    if (p.status == 'Ditolak') return const Color(0xFFFDE2E1);
+    if (p.status == 'Dipinjam') {
+      return p.isOverdue ? const Color(0xFFFDE2E1) : const Color(0xFFFFF3D9);
+    }
+    return const Color(0xFFD8F3DC); // 'Kembali'
   }
 
   String _statusLabel(Peminjaman p) {
-    if (p.status == 'Dipinjam' && p.isOverdue) return 'Terlambat';
-    return p.status == 'Dipinjam' ? 'Dipinjam' : 'Kembali';
+    if (p.status == 'Diajukan') return 'Menunggu Persetujuan';
+    if (p.status == 'Ditolak') return 'Ditolak';
+    if (p.status == 'Dipinjam') return p.isOverdue ? 'Terlambat' : 'Dipinjam';
+    return 'Kembali';
   }
 
   // ─── Dipakai oleh AppDrawer: Dashboard pakai pushReplacement, sisanya
@@ -909,6 +924,27 @@ class _HistoryPageState extends State<HistoryPage> {
                   'Tanggal Kembali',
                   p.tanggalKembaliFormatted,
                 ),
+                if (p.approvedByMessage != null)
+                  row(
+                    Icons.how_to_reg_outlined,
+                    'Disetujui Oleh',
+                    p.disetujuiOlehNama!,
+                  ),
+                if (p.rejectedByMessage != null) ...[
+                  row(Icons.block_outlined, 'Ditolak Oleh', p.ditolakOlehNama!),
+                  if (p.alasanPenolakan != null)
+                    row(
+                      Icons.notes_outlined,
+                      'Alasan Penolakan',
+                      p.alasanPenolakan!,
+                    ),
+                ],
+                if (p.extensionApprovedByMessage != null)
+                  row(
+                    Icons.more_time_outlined,
+                    'Perpanjangan Disetujui Oleh',
+                    p.perpanjanganDisetujuiOlehNama!,
+                  ),
                 if (p.returnedByMessage != null)
                   row(
                     Icons.verified_user_outlined,
@@ -2337,6 +2373,90 @@ class _HistoryPageState extends State<HistoryPage> {
                             ),
                           ],
                         ),
+                        // ── Atribusi "Approval Pengajuan" — hanya tampil
+                        // untuk dokumen yang lewat alur Diajukan → Dipinjam
+                        // dan punya pencatatan admin yang menyetujuinya.
+                        if (peminjaman.approvedByMessage != null) ...[
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.how_to_reg_outlined,
+                                size: 13,
+                                color: Colors.black38,
+                              ),
+                              const SizedBox(width: 5),
+                              Expanded(
+                                child: Text(
+                                  peminjaman.approvedByMessage!,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontStyle: FontStyle.italic,
+                                    color: Colors.black38,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                        // ── Atribusi "Penolakan Pengajuan" — mirrors the
+                        // approval line above, for a 'Ditolak' request.
+                        if (peminjaman.rejectedByMessage != null) ...[
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.block_outlined,
+                                size: 13,
+                                color: Colors.black38,
+                              ),
+                              const SizedBox(width: 5),
+                              Expanded(
+                                child: Text(
+                                  peminjaman.rejectedByMessage!,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontStyle: FontStyle.italic,
+                                    color: Colors.black38,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                        // ── Atribusi "Approval Perpanjangan" — siapa admin
+                        // yang terakhir menyetujui perpanjangan tanggal
+                        // kembali dokumen ini (lihat perpanjanganDisetujui-
+                        // OlehNama di model — slot tunggal, bukan log).
+                        if (peminjaman.extensionApprovedByMessage != null) ...[
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.more_time_outlined,
+                                size: 13,
+                                color: Colors.black38,
+                              ),
+                              const SizedBox(width: 5),
+                              Expanded(
+                                child: Text(
+                                  peminjaman.extensionApprovedByMessage!,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontStyle: FontStyle.italic,
+                                    color: Colors.black38,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                         // ── Atribusi "Proses Kembali" — hanya tampil untuk
                         // dokumen yang sudah kembali dan punya pencatatan
                         // siapa yang memprosesnya (baris lama sebelum kolom

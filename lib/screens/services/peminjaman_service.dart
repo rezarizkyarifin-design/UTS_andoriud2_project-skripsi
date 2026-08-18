@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../models/peminjaman.dart';
+import '../../models/peminjaman.dart';
 import 'auth_service.dart';
 
 /// Same detection approach as auth_service.dart's _isNetworkError — see
@@ -467,6 +467,15 @@ class PeminjamanService {
   /// trip for a pegawai who obviously can't do this). The real enforcement
   /// lives in the database — see supabase_rls_admin_controls.sql — so even
   /// a modified/compromised client can't approve its own request.
+  ///
+  /// BUG FIX (14.08.2026): this used to clear extension_status/
+  /// requested_tanggal_kembali/extension_reason without ever recording
+  /// WHO approved the extension — there was no column for it at all, so
+  /// there was genuinely nothing to display, on any screen, no matter
+  /// how the UI was written. perpanjangan_disetujui_oleh(_nama) is a
+  /// single slot (like disetujui_oleh above), not a full history — if
+  /// this loan gets extended again later, it's overwritten with the
+  /// newer approval.
   static Future<bool> setujuiPerpanjangan(String id) async {
     if (!AuthService.isAdmin) return false;
     final current = _findActiveById(id);
@@ -481,6 +490,8 @@ class PeminjamanService {
             'extension_status': null,
             'requested_tanggal_kembali': null,
             'extension_reason': null,
+            'perpanjangan_disetujui_oleh': AuthService.currentUser?.id,
+            'perpanjangan_disetujui_oleh_nama': AuthService.currentUser?.nama,
           })
           .eq('id', current.id!)
           .select()

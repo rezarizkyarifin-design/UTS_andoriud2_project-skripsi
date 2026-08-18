@@ -2,8 +2,8 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:image_picker/image_picker.dart';
-import '../../services/peminjaman_service.dart';
-import '../../services/auth_service.dart';
+import '../services/peminjaman_service.dart';
+import '../services/auth_service.dart';
 
 class ScanPage extends StatefulWidget {
   const ScanPage({super.key});

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../core/theme/app_theme.dart';
 import '../routes/app_routes.dart';
-import '../services/auth_service.dart';
+import '../screens/services/auth_service.dart';
 
 /// Which drawer item should render as "active" (highlighted) for the
 /// current page. One enum value per screen that has a drawer entry.

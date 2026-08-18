@@ -2,8 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import '../../routes/app_routes.dart';
-import '../../services/peminjaman_service.dart';
-import '../../services/auth_service.dart';
+import '../services/peminjaman_service.dart';
+import '../services/auth_service.dart';
 import '../../models/peminjaman.dart';
 import '../../core/theme/app_theme.dart';
 import '../../widgets/app_drawer.dart';
@@ -1079,16 +1079,59 @@ class _HomePageState extends State<HomePage> {
               bool checklistSesuaiData = false,
               String alasan = '',
             }) async {
-              final ok = approve
-                  ? await PeminjamanService.setujuiPeminjaman(
-                      id,
-                      checklistDokumenDitemukan: checklistDokumenDitemukan,
-                      checklistKondisiBaik: checklistKondisiBaik,
-                      checklistSesuaiData: checklistSesuaiData,
-                    )
-                  : await PeminjamanService.tolakPeminjaman(id, alasan);
-              if (!ok) return;
+              // FIX: this used to have no try/catch at all. Both
+              // setujuiPeminjaman/tolakPeminjaman can throw (RLS
+              // rejection, missing column, dropped connection, etc.) —
+              // an uncaught throw here just vanishes into the void from
+              // an onPressed callback: no SnackBar, no setState, nothing
+              // visible, even though something real went wrong. Now the
+              // error message actually reaches the admin instead of only
+              // ever showing up (if at all) in a debug console nobody's
+              // watching.
+              bool ok;
+              try {
+                ok = approve
+                    ? await PeminjamanService.setujuiPeminjaman(
+                        id,
+                        checklistDokumenDitemukan: checklistDokumenDitemukan,
+                        checklistKondisiBaik: checklistKondisiBaik,
+                        checklistSesuaiData: checklistSesuaiData,
+                      )
+                    : await PeminjamanService.tolakPeminjaman(id, alasan);
+              } catch (e) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Gagal memproses pengajuan: $e'),
+                    backgroundColor: AppTheme.dangerRed,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+                return;
+              }
               if (!mounted) return;
+              if (!ok) {
+                // FIX: this used to just `return` here — the service
+                // legitimately returns false (not an exception) when the
+                // update matches 0 rows, e.g. an RLS policy silently
+                // blocked it, or someone else already decided this
+                // request. That's a real failure the admin needs to
+                // see, not something to swallow quietly.
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      approve
+                          ? 'Gagal menyetujui — pengajuan mungkin sudah '
+                                'diproses, atau Anda tidak punya izin.'
+                          : 'Gagal menolak — pengajuan mungkin sudah '
+                                'diproses, atau Anda tidak punya izin.',
+                    ),
+                    backgroundColor: AppTheme.dangerRed,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+                return;
+              }
               setSheetState(() {});
               setState(() {}); // refresh badge + banner di HomePage
               ScaffoldMessenger.of(context).showSnackBar(
