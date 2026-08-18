@@ -38,6 +38,80 @@ class _SignUpPageState extends State<SignUpPage> {
     super.dispose();
   }
 
+  Future<void> _showSuccessDialog() {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          title: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: AppTheme.accentGreen.withOpacity(0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.check_circle_rounded,
+                  color: AppTheme.accentGreen,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Anda Berhasil Mendaftar!',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            AuthService.isLoggedIn
+                ? 'Akun Anda sudah aktif. Anda akan diarahkan ke Beranda.'
+                : 'Akun Anda berhasil dibuat. Silakan login untuk melanjutkan.',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 13,
+              color: Colors.black54,
+            ),
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          actions: [
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryGreen,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: Text(
+                  'Lanjutkan',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     if (_passwordController.text != _confirmController.text) {
@@ -87,6 +161,8 @@ class _SignUpPageState extends State<SignUpPage> {
         // Non-fatal: HomePage will just show whatever's cached.
       }
       if (!mounted) return;
+      await _showSuccessDialog();
+      if (!mounted) return;
       Navigator.pushNamedAndRemoveUntil(
         context,
         AppRoutes.home,
@@ -95,16 +171,8 @@ class _SignUpPageState extends State<SignUpPage> {
     } else {
       // Email confirmation is on for this project — no session yet.
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Akun berhasil dibuat. Silakan login.'),
-          backgroundColor: AppTheme.accentGreen,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      );
+      await _showSuccessDialog();
+      if (!mounted) return;
       Navigator.pushReplacementNamed(context, AppRoutes.login);
     }
   }
