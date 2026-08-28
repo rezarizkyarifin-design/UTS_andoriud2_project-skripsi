@@ -17,6 +17,7 @@ class PrintingService {
   static Future<void> printBarcodeLabel({
     required String noHak,
     required String nama,
+    required String seksi,
     required String kelurahan,
     required String jenisHak,
     required String tanggalPinjam,
@@ -64,7 +65,14 @@ class PrintingService {
               ),
               pw.SizedBox(height: 2),
               pw.Text(
-                '$nama - $kelurahan',
+                // Same fix as barcode_page.dart's on-screen card — Warkah
+                // has no kelurahan (always '-'), so printing it
+                // unconditionally produced a dangling "Nama - -" on the
+                // physical label. Seksi is always present regardless of
+                // document type, so it fills that gap.
+                kelurahan != '-'
+                    ? '$nama - Seksi $seksi - $kelurahan'
+                    : '$nama - Seksi $seksi',
                 style: const pw.TextStyle(fontSize: 8),
                 textAlign: pw.TextAlign.center,
               ),

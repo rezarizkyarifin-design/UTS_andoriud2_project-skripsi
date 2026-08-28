@@ -964,8 +964,14 @@ class _HistoryPageState extends State<HistoryPage> {
                           context,
                           AppRoutes.barcode,
                           arguments: {
+                            'id': p.id ?? '',
                             'noHak': p.noHak,
                             'nama': p.nama,
+                            // Same seksi fix as FormPage's initial
+                            // navigation — Warkah has no kelurahan, so
+                            // this was the only field that still
+                            // identified who borrowed it.
+                            'seksi': p.seksi,
                             'kelurahan': p.kelurahan,
                             'jenisHak': p.jenisHak,
                             'jenisDokumen': p.jenisDokumen,

@@ -33,6 +33,7 @@ class _BarcodePageState extends State<BarcodePage> {
   Future<void> _cetak({
     required String noHak,
     required String nama,
+    required String seksi,
     required String kelurahan,
     required String jenisHak,
     required String tanggalPinjam,
@@ -44,6 +45,7 @@ class _BarcodePageState extends State<BarcodePage> {
         jenisHak: jenisHak,
         noHak: noHak,
         nama: nama,
+        seksi: seksi,
         kelurahan: kelurahan,
         tanggalPinjam: tanggalPinjam,
         tanggalKembali: tanggalKembali,
@@ -124,6 +126,11 @@ class _BarcodePageState extends State<BarcodePage> {
         ModalRoute.of(context)!.settings.arguments as Map<String, String>?;
     final noHak = args?['noHak'] ?? 'UNKNOWN';
     final nama = args?['nama'] ?? '-';
+    // Was never extracted before — Warkah has no kelurahan (always '-'),
+    // so its card showed just "Nama · -" with no way to tell which
+    // department/unit actually borrowed the document. FormPage now
+    // always includes this in the navigation args.
+    final seksi = args?['seksi'] ?? '-';
     final kelurahan = args?['kelurahan'] ?? '-';
     final jenisHak = args?['jenisHak'] ?? '-';
     final tanggalPinjam = args?['tanggalPinjam'] ?? '-';
@@ -284,7 +291,17 @@ class _BarcodePageState extends State<BarcodePage> {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    '$nama · $kelurahan',
+                                    // Warkah has no kelurahan (kelurahan is
+                                    // always '-' for it) — showing it
+                                    // anyway rendered as the dangling
+                                    // "Nama · -" bug. Seksi is always
+                                    // present regardless of document type,
+                                    // so it fills that gap instead of just
+                                    // being dropped for the types that
+                                    // don't have a kelurahan.
+                                    kelurahan != '-'
+                                        ? '$nama · Seksi $seksi · $kelurahan'
+                                        : '$nama · Seksi $seksi',
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
@@ -342,6 +359,7 @@ class _BarcodePageState extends State<BarcodePage> {
                           jenisHak: jenisHak,
                           noHak: noHak,
                           nama: nama,
+                          seksi: seksi,
                           kelurahan: kelurahan,
                           tanggalPinjam: tanggalPinjam,
                           tanggalKembali: tanggalKembali,

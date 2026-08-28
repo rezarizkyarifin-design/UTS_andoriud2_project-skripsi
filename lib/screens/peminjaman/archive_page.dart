@@ -5,6 +5,7 @@ import '../../routes/app_routes.dart';
 import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/app_drawer.dart';
+import '../../widgets/app_scan_fab.dart';
 
 class ArchivePage extends StatefulWidget {
   const ArchivePage({super.key});
@@ -305,6 +306,14 @@ class _ArchivePageState extends State<ArchivePage> {
         activeIndex: _selectedNavIndex,
         onItemSelected: _onNavTap,
       ),
+      // BUG FIX: every other main page (Home/History/Return) has this
+      // centrally-docked scan button; Archive never had it wired up at
+      // all, which is why the bottom nav notch here sat empty instead
+      // of showing the green scan FAB.
+      floatingActionButton: AppScanFab(
+        onTap: () => Navigator.pushNamed(context, AppRoutes.scan),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       body: Column(
         children: [
           // Header + floating search card — same overlapping-seam pattern

@@ -25,14 +25,20 @@ class _FormPageState extends State<FormPage> {
   String? _selectedJenisDokumen;
   static const _jenisDokumenOptions = ['Buku Tanah', 'Surat Ukur', 'Warkah'];
 
-  // Surat Ukur–specific controllers.
-  final _jenisSuratUkurController = TextEditingController();
+  // ─── Surat Ukur–specific (28.08.2026) ───────────────────────────────
+  // Previously a free-text "Jenis Surat Ukur" field, which let anyone
+  // type anything at all — but a Surat Ukur is only ever one of exactly
+  // two real classifications, SU or GS. Free text here let dirty values
+  // (typos, blanks-that-aren't-blank, inconsistent casing) into a field
+  // that filtering/search logic downstream treats as one of only two
+  // known values. Constrained to a dropdown instead.
+  String? _selectedJenisSuratUkur; // 'SU' or 'GS'
   final _noTahunSuratUkurController = TextEditingController();
-  final _suController = TextEditingController();
-  final _gsController = TextEditingController();
 
-  // Warkah–specific controllers.
-  final _jenisWarkahController = TextEditingController();
+  // ─── Warkah–specific (28.08.2026) ───────────────────────────────────
+  // Same reasoning as Surat Ukur above — Warkah is only ever one of
+  // exactly three types (BN, Subsi III, PBT), not free text.
+  String? _selectedJenisWarkah; // 'BN' | 'Subsi III' | 'PBT'
   final _no208Controller = TextEditingController();
   final _tahunWarkahController = TextEditingController();
 
@@ -60,11 +66,7 @@ class _FormPageState extends State<FormPage> {
     _namaController.dispose();
     _noHakController.dispose();
     _keperluanController.dispose();
-    _jenisSuratUkurController.dispose();
     _noTahunSuratUkurController.dispose();
-    _suController.dispose();
-    _gsController.dispose();
-    _jenisWarkahController.dispose();
     _no208Controller.dispose();
     _tahunWarkahController.dispose();
     super.dispose();
@@ -152,11 +154,7 @@ class _FormPageState extends State<FormPage> {
     _namaController.clear();
     _noHakController.clear();
     _keperluanController.clear();
-    _jenisSuratUkurController.clear();
     _noTahunSuratUkurController.clear();
-    _suController.clear();
-    _gsController.clear();
-    _jenisWarkahController.clear();
     _no208Controller.clear();
     _tahunWarkahController.clear();
     setState(() {
@@ -165,6 +163,8 @@ class _FormPageState extends State<FormPage> {
       _selectedKecamatan = null;
       _selectedKelurahan = null;
       _selectedJenisHak = null;
+      _selectedJenisSuratUkur = null;
+      _selectedJenisWarkah = null;
       _tanggalPinjam = DateTime.now();
       _tanggalKembali = _tanggalPinjam.add(const Duration(days: 7));
     });
@@ -215,23 +215,46 @@ class _FormPageState extends State<FormPage> {
         break;
 
       case 'Surat Ukur':
-        if (_jenisSuratUkurController.text.trim().isEmpty ||
+        if (_selectedJenisSuratUkur == null ||
             _noTahunSuratUkurController.text.trim().isEmpty ||
-            _suController.text.trim().isEmpty ||
-            _gsController.text.trim().isEmpty ||
             _selectedJenisHak == null ||
             _noHakController.text.trim().isEmpty) {
           _showError(lengkapiPesan);
           return;
         }
+        final noTahun = _noTahunSuratUkurController.text.trim();
+        if (!noTahun.contains('/')) {
+          _showError(
+            'Format No. & Tahun harus memuat garis miring (cth: 64/2023).',
+          );
+          return;
+        }
+        // Year rule only applies to GS specifically — the notes don't
+        // impose the same 2000-or-later constraint on SU.
+        if (_selectedJenisSuratUkur == 'GS') {
+          final tahun = int.tryParse(noTahun.split('/').last.trim());
+          if (tahun == null || tahun < 2000) {
+            _showError(
+              'Tahun GS tidak valid — harus tahun 2000 atau lebih baru.',
+            );
+            return;
+          }
+        }
         dedupeKey = _noHakController.text.trim();
         break;
 
       case 'Warkah':
-        if (_jenisWarkahController.text.trim().isEmpty ||
+        if (_selectedJenisWarkah == null ||
             _no208Controller.text.trim().isEmpty ||
             _tahunWarkahController.text.trim().isEmpty) {
           _showError(lengkapiPesan);
+          return;
+        }
+        // PBT is searched per kecamatan (unlike BN/Subsi III, which are
+        // searched by No. 208 alone) — so it's the one Warkah type that
+        // actually needs a kecamatan on record.
+        if (_selectedJenisWarkah == 'PBT' && _selectedKecamatan == null) {
+          _showError('Kecamatan wajib dipilih untuk jenis Warkah PBT.');
           return;
         }
         dedupeKey = _no208Controller.text.trim();
@@ -261,8 +284,13 @@ class _FormPageState extends State<FormPage> {
       // seksi/kecamatan/kelurahan/jenisHak/noHak stay non-nullable
       // Strings on the model (so History/Return/Barcode/Home keep
       // compiling unchanged) — '-' stands in wherever a field genuinely
-      // doesn't apply to the chosen document type.
-      kecamatan: isBukuTanah ? _selectedKecamatan! : '-',
+      // doesn't apply to the chosen document type. Kecamatan is the one
+      // exception that ISN'T Buku-Tanah-only anymore: Warkah/PBT also
+      // needs it (see the 'PBT' validation above), since PBT is searched
+      // per kecamatan rather than by No. 208 alone like BN/Subsi III.
+      kecamatan: isBukuTanah || (isWarkah && _selectedJenisWarkah == 'PBT')
+          ? _selectedKecamatan!
+          : '-',
       kelurahan: isBukuTanah ? _selectedKelurahan! : '-',
       jenisHak: (isBukuTanah || isSuratUkur) ? _selectedJenisHak! : '-',
       noHak: isWarkah ? '-' : _noHakController.text.trim(),
@@ -270,21 +298,28 @@ class _FormPageState extends State<FormPage> {
       tanggalPinjam: _tanggalPinjam,
       tanggalKembali: _tanggalKembali,
       jenisDokumen: _selectedJenisDokumen!,
-      jenisSuratUkur: isSuratUkur
-          ? _jenisSuratUkurController.text.trim()
-          : null,
+      jenisSuratUkur: isSuratUkur ? _selectedJenisSuratUkur : null,
       noTahunSuratUkur: isSuratUkur
           ? _noTahunSuratUkurController.text.trim()
           : null,
-      su: isSuratUkur ? _suController.text.trim() : null,
-      gs: isSuratUkur ? _gsController.text.trim() : null,
-      jenisWarkah: isWarkah ? _jenisWarkahController.text.trim() : null,
+      // Single "No. & Tahun" input now stands for whichever of SU/GS was
+      // actually picked — stored into the matching column, the other
+      // stays null, instead of the old form requiring (and storing)
+      // both regardless of which one the document actually was.
+      su: (isSuratUkur && _selectedJenisSuratUkur == 'SU')
+          ? _noTahunSuratUkurController.text.trim()
+          : null,
+      gs: (isSuratUkur && _selectedJenisSuratUkur == 'GS')
+          ? _noTahunSuratUkurController.text.trim()
+          : null,
+      jenisWarkah: isWarkah ? _selectedJenisWarkah : null,
       no208: isWarkah ? _no208Controller.text.trim() : null,
       tahunWarkah: isWarkah ? _tahunWarkahController.text.trim() : null,
     );
 
+    final Peminjaman inserted;
     try {
-      await PeminjamanService.tambah(peminjaman);
+      inserted = await PeminjamanService.tambah(peminjaman);
     } catch (e) {
       if (!mounted) return;
       _showError('Gagal menyimpan data: $e');
@@ -292,6 +327,31 @@ class _FormPageState extends State<FormPage> {
     }
 
     if (!mounted) return;
+
+    // Pegawai submissions land as 'Diajukan' (pending Admin review) —
+    // there's no confirmed loan yet, so no barcode to show. This used to
+    // navigate straight to BarcodePage regardless of status, since the
+    // previous version of this function discarded tambah()'s return
+    // value entirely and never actually checked what status the row
+    // came back with.
+    if (inserted.isPendingApproval) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Pengajuan terkirim — menunggu persetujuan Admin. Barcode akan '
+            'tersedia setelah disetujui.',
+          ),
+          backgroundColor: const Color(0xFFB07A00),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
+      _resetForm();
+      Navigator.pop(context);
+      return;
+    }
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -305,13 +365,18 @@ class _FormPageState extends State<FormPage> {
     // Simpan data buat argumen navigasi dulu sebelum form direset, karena
     // _resetForm() mengosongkan controller yang jadi sumber data ini.
     final args = {
-      'noHak': peminjaman.noHak,
-      'nama': peminjaman.nama,
-      'kelurahan': peminjaman.kelurahan,
-      'jenisHak': peminjaman.jenisHak,
-      'jenisDokumen': peminjaman.jenisDokumen,
-      'tanggalPinjam': _formatDate(peminjaman.tanggalPinjam),
-      'tanggalKembali': _formatDate(peminjaman.tanggalKembali),
+      'id': inserted.id ?? '',
+      'noHak': inserted.noHak,
+      'nama': inserted.nama,
+      // Was missing entirely before — Warkah has no kelurahan (always
+      // '-'), so its barcode card showed just "Nama · -" with no way to
+      // tell which department/unit borrowed it. Now always included.
+      'seksi': inserted.seksi,
+      'kelurahan': inserted.kelurahan,
+      'jenisHak': inserted.jenisHak,
+      'jenisDokumen': inserted.jenisDokumen,
+      'tanggalPinjam': _formatDate(inserted.tanggalPinjam),
+      'tanggalKembali': _formatDate(inserted.tanggalKembali),
     };
 
     _resetForm();
@@ -605,56 +670,35 @@ class _FormPageState extends State<FormPage> {
       case 'Surat Ukur':
         return [
           _label('Jenis Surat Ukur'),
-          _textField(
-            controller: _jenisSuratUkurController,
-            placeholder: 'Masukkan jenis surat ukur',
+          _dropdownField(
+            placeholder: 'Pilih SU atau GS',
             icon: Icons.straighten_outlined,
+            items: const ['SU', 'GS'],
+            value: _selectedJenisSuratUkur,
+            onChanged: (v) => setState(() => _selectedJenisSuratUkur = v),
           ),
           const SizedBox(height: 16),
-          _label('No. & Tahun Surat Ukur'),
-          _textField(
-            controller: _noTahunSuratUkurController,
-            placeholder: 'cth: 123/2020',
-            icon: Icons.numbers_outlined,
-          ),
-          const SizedBox(height: 16),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _label('SU'),
-                    _textField(
-                      controller: _suController,
-                      placeholder: 'cth: 45/2020',
-                      icon: Icons.description_outlined,
-                      compact: true,
-                      hintFontSize: 11.5,
-                    ),
-                  ],
+          // No. & Tahun's label follows whichever of SU/GS was picked —
+          // and the field itself only appears once one has been, since
+          // "No. & Tahun" alone (before a type is chosen) is ambiguous
+          // about which of the two it's actually for.
+          if (_selectedJenisSuratUkur != null) ...[
+            _label('No. & Tahun $_selectedJenisSuratUkur'),
+            _textField(
+              controller: _noTahunSuratUkurController,
+              placeholder: 'cth: 64/2023',
+              icon: Icons.numbers_outlined,
+            ),
+            if (_selectedJenisSuratUkur == 'GS')
+              const Padding(
+                padding: EdgeInsets.only(top: 4, left: 4),
+                child: Text(
+                  'Tahun harus 2000 atau lebih baru.',
+                  style: TextStyle(fontSize: 11, color: Colors.black38),
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _label('GS (Gambar Situasi)'),
-                    _textField(
-                      controller: _gsController,
-                      placeholder: 'cth: 67/2020',
-                      icon: Icons.map_outlined,
-                      compact: true,
-                      hintFontSize: 11.5,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
+            const SizedBox(height: 16),
+          ],
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -697,12 +741,31 @@ class _FormPageState extends State<FormPage> {
       case 'Warkah':
         return [
           _label('Jenis Warkah'),
-          _textField(
-            controller: _jenisWarkahController,
-            placeholder: 'Masukkan jenis warkah',
+          _dropdownField(
+            placeholder: 'Pilih Jenis Warkah',
             icon: Icons.folder_copy_outlined,
+            items: const ['BN', 'Subsi III', 'PBT'],
+            value: _selectedJenisWarkah,
+            onChanged: (v) => setState(() {
+              _selectedJenisWarkah = v;
+              // BN/Subsi III are searched by No. 208 alone — only PBT
+              // needs a kecamatan on record, so clear any stale
+              // selection left over from switching away from PBT.
+              if (v != 'PBT') _selectedKecamatan = null;
+            }),
           ),
           const SizedBox(height: 16),
+          if (_selectedJenisWarkah == 'PBT') ...[
+            _label('Kecamatan'),
+            _dropdownField(
+              placeholder: 'Pilih Kecamatan',
+              icon: Icons.location_city_outlined,
+              items: Data.kecamatan,
+              value: _selectedKecamatan,
+              onChanged: (v) => setState(() => _selectedKecamatan = v),
+            ),
+            const SizedBox(height: 16),
+          ],
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
