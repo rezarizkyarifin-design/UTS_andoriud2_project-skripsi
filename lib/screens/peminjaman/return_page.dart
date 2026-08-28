@@ -40,14 +40,20 @@ class _ReturnPageState extends State<ReturnPage> {
   String? _filterJenisDokumen; // 'Buku Tanah' | 'Surat Ukur' | 'Warkah'
 
   late List<Peminjaman> _all;
-  int _selectedNavIndex = 2;
+  int _selectedNavIndex = 3;
 
   bool _isLoading = true;
   String? _loadError;
 
   // ─── Note item #13: multi-select "Tandai Kembali" ───
   bool _selectionMode = false;
-  final Set<String> _selectedNoHak = {};
+  // Renamed from _selectedNoHak: this feeds straight into
+  // PeminjamanService.kembalikanBanyak(ids), which is id-keyed (see the
+  // 11.08.2026 comment on PeminjamanService._findActiveById for why —
+  // noHak is '-' for every Warkah loan, so it can't tell two active
+  // Warkah documents apart). Selecting by noHak here would've silently
+  // fed the wrong values into an id-keyed bulk update.
+  final Set<String> _selectedIds = {};
   bool _isBulkSaving = false;
 
   // Item #6: drives the collapsing header/search-bar behavior on scroll.
@@ -87,23 +93,23 @@ class _ReturnPageState extends State<ReturnPage> {
   void _toggleSelectionMode() {
     setState(() {
       _selectionMode = !_selectionMode;
-      _selectedNoHak.clear();
+      _selectedIds.clear();
     });
   }
 
-  void _toggleSelected(String noHak) {
+  void _toggleSelected(String id) {
     setState(() {
-      if (_selectedNoHak.contains(noHak)) {
-        _selectedNoHak.remove(noHak);
+      if (_selectedIds.contains(id)) {
+        _selectedIds.remove(id);
       } else {
-        _selectedNoHak.add(noHak);
+        _selectedIds.add(id);
       }
     });
   }
 
   Future<void> _bulkKembalikan() async {
-    if (_selectedNoHak.isEmpty) return;
-    final targets = _selectedNoHak.toList();
+    if (_selectedIds.isEmpty) return;
+    final targets = _selectedIds.toList();
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -149,7 +155,7 @@ class _ReturnPageState extends State<ReturnPage> {
     setState(() {
       _isBulkSaving = false;
       _selectionMode = false;
-      _selectedNoHak.clear();
+      _selectedIds.clear();
       _all = PeminjamanService.getAll();
     });
 
@@ -389,7 +395,7 @@ class _ReturnPageState extends State<ReturnPage> {
               bool ok = false;
               String? errorMsg;
               try {
-                ok = await PeminjamanService.kembalikan(p.noHak);
+                ok = await PeminjamanService.kembalikan(p.id!);
               } catch (e) {
                 errorMsg = e.toString();
               }
@@ -602,7 +608,7 @@ class _ReturnPageState extends State<ReturnPage> {
     bool ok = false;
     String? errorMsg;
     try {
-      ok = await PeminjamanService.ajukanPerpanjangan(p.noHak, picked, alasan);
+      ok = await PeminjamanService.ajukanPerpanjangan(p.id!, picked, alasan);
     } catch (e) {
       errorMsg = e.toString();
     }
@@ -1293,7 +1299,7 @@ class _ReturnPageState extends State<ReturnPage> {
   // ─── CARD ITEM ───
   Widget _item(Peminjaman p) {
     final accent = p.isOverdue ? _overdueRed : const Color(0xFFB07A00);
-    final selected = _selectedNoHak.contains(p.noHak);
+    final selected = _selectedIds.contains(p.id);
     // Item #1 fix: the "Perpanjang" button is only meaningful for the
     // pegawai who actually borrowed this document — see the ownership
     // gate in PeminjamanService.ajukanPerpanjangan for the enforcement
@@ -1308,13 +1314,13 @@ class _ReturnPageState extends State<ReturnPage> {
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
         onTap: _selectionMode
-            ? () => _toggleSelected(p.noHak)
+            ? () => _toggleSelected(p.id!)
             : () => _showDetail(p),
         onLongPress: () {
           if (!_selectionMode) {
             setState(() => _selectionMode = true);
           }
-          _toggleSelected(p.noHak);
+          _toggleSelected(p.id!);
         },
         child: Container(
           decoration: BoxDecoration(
@@ -1345,7 +1351,7 @@ class _ReturnPageState extends State<ReturnPage> {
                       child: Checkbox(
                         value: selected,
                         activeColor: _accentGreen,
-                        onChanged: (_) => _toggleSelected(p.noHak),
+                        onChanged: (_) => _toggleSelected(p.id!),
                       ),
                     ),
                   ),
@@ -1367,46 +1373,60 @@ class _ReturnPageState extends State<ReturnPage> {
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            CircleAvatar(
-                              radius: 18,
-                              backgroundColor: const Color(0xFFD8F3DC),
-                              child: Text(
-                                _initials(p.nama),
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: _primaryGreen,
+                            Expanded(
+                              // Wraps the profile trigger area
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () => _showUserProfileModal(context, p),
+                                child: Row(
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 18,
+                                      backgroundColor: const Color(0xFFD8F3DC),
+                                      child: Text(
+                                        _initials(p.nama),
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: _primaryGreen,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            p.nama,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontSize:
+                                                  15, // or 16 depending on the page
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.black87,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            p.seksi,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.black45,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    p.nama,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.black87,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    p.seksi,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.black45,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
+                            const SizedBox(width: 8),
                             Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 10,
@@ -1635,22 +1655,89 @@ class _ReturnPageState extends State<ReturnPage> {
     );
   }
 
+  void _showUserProfileModal(BuildContext context, Peminjaman p) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(24),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 24),
+                decoration: BoxDecoration(
+                  color: Colors.black12,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
+            CircleAvatar(
+              radius: 40,
+              backgroundColor: const Color(0xFFD8F3DC),
+              child: Text(
+                _initials(p.nama),
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1B4332),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              p.nama,
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF5F5F5),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                p.seksi,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Colors.black54,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            const SizedBox(height: 32),
+          ],
+        ),
+      ),
+    );
+  }
+
   // ─── Dipakai oleh AppBottomNav ───
   void _onNavTap(int index) {
+    FocusManager.instance.primaryFocus?.unfocus();
     switch (index) {
       case 0:
-        FocusManager.instance.primaryFocus?.unfocus();
         Navigator.pushReplacementNamed(context, AppRoutes.home);
         break;
       case 1:
-        _navigateAndRefresh(AppRoutes.history);
+        _navigateAndRefresh(AppRoutes.archive);
         break;
       case 2:
-        setState(() => _selectedNavIndex = 2);
+        _navigateAndRefresh(AppRoutes.history);
         break;
       case 3:
-        FocusManager.instance.primaryFocus?.unfocus();
-        Navigator.pushNamed(context, AppRoutes.profile);
+        setState(() => _selectedNavIndex = 3);
         break;
     }
   }
@@ -1670,7 +1757,7 @@ class _ReturnPageState extends State<ReturnPage> {
         bottomNavigationBar: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (_selectionMode && _selectedNoHak.isNotEmpty)
+            if (_selectionMode && _selectedIds.isNotEmpty)
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
@@ -1682,7 +1769,7 @@ class _ReturnPageState extends State<ReturnPage> {
                     children: [
                       Expanded(
                         child: Text(
-                          '${_selectedNoHak.length} dokumen dipilih',
+                          '${_selectedIds.length} dokumen dipilih',
                           style: const TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,

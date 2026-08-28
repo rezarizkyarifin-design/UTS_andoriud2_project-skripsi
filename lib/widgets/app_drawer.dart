@@ -5,7 +5,13 @@ import '../screens/services/auth_service.dart';
 
 /// Which drawer item should render as "active" (highlighted) for the
 /// current page. One enum value per screen that has a drawer entry.
-enum DrawerSection { dashboard, peminjaman, daftarPeminjaman, pengembalian }
+enum DrawerSection {
+  dashboard,
+  peminjaman,
+  archive,
+  daftarPeminjaman,
+  pengembalian,
+}
 
 /// Shared app drawer, used identically across Home/Form/History/Return.
 ///
@@ -82,6 +88,13 @@ class AppDrawer extends StatelessWidget {
             label: 'Peminjaman',
             section: DrawerSection.peminjaman,
             route: AppRoutes.form,
+          ),
+          _item(
+            context,
+            icon: Icons.folder_outlined,
+            label: 'Arsip',
+            section: DrawerSection.archive,
+            route: AppRoutes.archive,
           ),
           _item(
             context,

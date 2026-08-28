@@ -11,6 +11,7 @@ import '../screens/peminjaman/scan_page.dart';
 import '../screens/peminjaman/return_page.dart';
 import '../screens/peminjaman/barcode_page.dart';
 import '../screens/peminjaman/profile_page.dart';
+import '../screens/peminjaman/archive_page.dart';
 
 class AppRoutes {
   static const String onboarding = '/onboarding';
@@ -19,6 +20,7 @@ class AppRoutes {
   static const String home = '/home';
   static const String form = '/form';
   static const String history = '/history';
+  static const String archive = '/archive';
   static const String scan = '/scan';
   static const String returnPage = '/return';
   static const String barcode = '/barcode';
@@ -34,6 +36,7 @@ class AppRoutes {
     home: (context) => const HomePage(),
     form: (context) => const FormPage(),
     history: (context) => const HistoryPage(),
+    archive: (context) => const ArchivePage(),
     scan: (context) => const ScanPage(),
     returnPage: (context) => const ReturnPage(),
     barcode: (context) => const BarcodePage(),

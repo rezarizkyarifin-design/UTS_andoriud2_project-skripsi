@@ -50,7 +50,7 @@ class _HistoryPageState extends State<HistoryPage> {
   String? _filterJenisDokumen; // 'Buku Tanah' | 'Surat Ukur' | 'Warkah'
   String _filterStatus = 'Semua'; // Semua | Sedang Dipinjam | Telah Kembali
 
-  int _selectedNavIndex = 1; // Arsip aktif di halaman ini
+  int _selectedNavIndex = 2; // Riwayat aktif di halaman ini (Index 2)
 
   bool _isLoading = true;
 
@@ -1003,7 +1003,7 @@ class _HistoryPageState extends State<HistoryPage> {
                           bool ok = false;
                           String? errorMsg;
                           try {
-                            ok = await PeminjamanService.kembalikan(p.noHak);
+                            ok = await PeminjamanService.kembalikan(p.id!);
                           } catch (e) {
                             errorMsg = e.toString();
                           }
@@ -2198,44 +2198,60 @@ class _HistoryPageState extends State<HistoryPage> {
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            CircleAvatar(
-                              radius: 18,
-                              backgroundColor: const Color(0xFFD8F3DC),
-                              child: Text(
-                                _initials(peminjaman.nama),
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: _primaryGreen,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
                             Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    peminjaman.nama,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.black87,
+                              // Wraps the profile trigger area
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () => _showUserProfileModal(
+                                  context,
+                                  peminjaman,
+                                ), // or 'p' in return_page
+                                child: Row(
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 18,
+                                      backgroundColor: const Color(0xFFD8F3DC),
+                                      child: Text(
+                                        _initials(peminjaman.nama),
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: _primaryGreen,
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    peminjaman.keperluan,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.black45,
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            peminjaman.nama,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontSize:
+                                                  15, // or 16 depending on the page
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.black87,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            peminjaman.seksi,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.black45,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                             const SizedBox(width: 8),
@@ -2498,6 +2514,74 @@ class _HistoryPageState extends State<HistoryPage> {
     );
   }
 
+  void _showUserProfileModal(BuildContext context, Peminjaman p) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(24),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 24),
+                decoration: BoxDecoration(
+                  color: Colors.black12,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
+            CircleAvatar(
+              radius: 40,
+              backgroundColor: const Color(0xFFD8F3DC),
+              child: Text(
+                _initials(p.nama),
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1B4332),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              p.nama,
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF5F5F5),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                p.seksi,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Colors.black54,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            const SizedBox(height: 32),
+          ],
+        ),
+      ),
+    );
+  }
+
   // ─── BOTTOM NAV ───
   // ─── Dipakai oleh AppBottomNav ───
   void _onNavTap(int index) {
@@ -2507,13 +2591,13 @@ class _HistoryPageState extends State<HistoryPage> {
         Navigator.pushReplacementNamed(context, AppRoutes.home);
         break;
       case 1:
-        setState(() => _selectedNavIndex = 1);
+        _navigateAndRefresh(AppRoutes.archive);
         break;
       case 2:
-        _navigateAndRefresh(AppRoutes.returnPage);
+        setState(() => _selectedNavIndex = 2);
         break;
       case 3:
-        Navigator.pushNamed(context, AppRoutes.profile);
+        _navigateAndRefresh(AppRoutes.returnPage);
         break;
     }
   }

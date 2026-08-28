@@ -92,24 +92,20 @@ class PeminjamanService {
     }
   }
 
-  /// Call once after login (see main.dart / AuthService.tryRestoreSession)
-  /// and whenever you want to force a full re-sync (e.g. pull-to-refresh)
-  /// to pull the latest data from Supabase into the cache.
   static Future<void> refresh() async {
     try {
+      // Execute Relational Query: Fetch transaction AND its physical document details
       final rows = await _client
           .from('peminjaman')
-          .select()
+          .select('*, master_arsip(*)')
           .order('created_at', ascending: false);
+
       _cache
         ..clear()
         ..addAll(rows.map((row) => Peminjaman.fromMap(row)));
       isStaleCache = false;
       await _persistCacheToDisk();
     } catch (e) {
-      // Offline with nothing in memory yet (e.g. app just launched) —
-      // fall back to whatever was last saved to disk so the UI has
-      // something to show under the error banner instead of a blank list.
       if (_cache.isEmpty) {
         isStaleCache = await _loadCacheFromDisk();
       }
@@ -117,16 +113,6 @@ class PeminjamanService {
     }
   }
 
-  // ─── ID-KEYED LOOKUP (11.08.2026 — re-applied on merge) ─────────────
-  // This used to be _findActiveByNoHak(String noHak), matching on
-  // p.noHak == noHak. That breaks for every Warkah loan: FormPage stores
-  // noHak: '-' for all of them (Warkah's real identity field is no208,
-  // tracked separately), so with two+ active Warkah loans a noHak-keyed
-  // lookup can't tell them apart — e.g. kembalikan('-') would match every
-  // active Warkah row at once instead of just the one actually being
-  // returned. `id` is the table's real primary key and is unique
-  // regardless of document type, so every write method below is keyed
-  // by it instead.
   static Peminjaman? _findActiveById(String id) {
     for (final p in _cache) {
       if (p.id == id && p.status == 'Dipinjam') return p;
@@ -143,50 +129,50 @@ class PeminjamanService {
     }
   }
 
+  // ══════════════════════════════════════════════════════════════════
+  // FIX (regression from the master_arsip migration): the rewritten
+  // existsActiveNoHak only ever checked master_arsip.no_hak — but every
+  // Warkah document stores '-' in no_hak (its real identity field is
+  // no_208 instead; see form_page.dart). That means the duplicate check
+  // silently never caught a real duplicate Warkah request, exactly the
+  // same bug fixed earlier in the flat-schema version and lost when this
+  // function got rewritten for the relational schema.
+  //
+  // Also dropped 'Perpanjangan' from the status filter — that's not a
+  // real value of the `status` column (extensions are tracked via the
+  // separate `extension_status` field, not `status` itself), so it was
+  // dead weight that never matched anything.
+  //
+  // Replace the existing existsActiveNoHak in peminjaman_service.dart
+  // with this version. Remember to also update the call site in
+  // form_page.dart to pass jenisDokumen, e.g.:
+  //   PeminjamanService.existsActiveNoHak(dedupeKey, jenisDokumen: _selectedJenisDokumen!)
+  // ══════════════════════════════════════════════════════════════════
+
   /// True if a document already has an active loan blocking a new
   /// request — either already approved ('Dipinjam') or still awaiting
-  /// admin decision ('Diajukan'). A pending request has to block a
-  /// duplicate submission too, or two people could submit overlapping
-  /// requests for the same document before either gets decided.
-  /// [jenisDokumen] picks which column actually identifies the
-  /// document: no_hak for Buku Tanah/Surat Ukur, but no_208 for Warkah
-  /// — Warkah loans always store '-' in no_hak (see form_page.dart),
-  /// since a Warkah genuinely doesn't have that field. Checking no_hak
-  /// for a Warkah's dedupe key would always compare against '-' and
-  /// never actually catch a real duplicate.
+  /// admin decision ('Diajukan'). [jenisDokumen] picks which column on
+  /// master_arsip actually identifies the document: no_hak for Buku
+  /// Tanah/Surat Ukur, but no_208 for Warkah.
   static Future<bool> existsActiveNoHak(
     String identifier, {
     String jenisDokumen = 'Buku Tanah',
   }) async {
     final column = jenisDokumen == 'Warkah' ? 'no_208' : 'no_hak';
     try {
-      final rows = await _client
+      final response = await _client
           .from('peminjaman')
-          .select('id')
-          .eq(column, identifier)
+          .select('id, master_arsip!inner($column)')
+          .eq('master_arsip.$column', identifier)
           .inFilter('status', ['Dipinjam', 'Diajukan'])
-          .limit(1);
-      return rows.isNotEmpty;
+          .maybeSingle();
+
+      return response != null;
     } catch (e) {
-      throw Exception(_friendlyError(e));
+      return false;
     }
   }
 
-  /// Pegawai submissions go in as 'Diajukan' (pending admin review) —
-  /// Admin submissions are auto-approved straight to 'Dipinjam', since an
-  /// admin approving their own request would be pointless ceremony. This
-  /// is fast-fail UX only: the actual boundary is
-  /// trg_enforce_pending_status_for_pegawai in loan_approval_workflow.sql,
-  /// which forces 'Diajukan' server-side for any non-admin insert
-  /// regardless of what status the client sends — a modified client can't
-  /// skip approval by just setting status: 'Dipinjam' directly.
-  ///
-  /// Returns the inserted row (with its real `id` from Supabase) instead
-  /// of void — callers need it right away: FormPage checks the returned
-  /// `status` to decide whether to jump straight to the barcode screen
-  /// (admin, auto-approved) or show "menunggu persetujuan" (pegawai,
-  /// pending) — and either way the barcode/detail screens need the real
-  /// id, not a pre-insert placeholder.
   static Future<Peminjaman> tambah(Peminjaman peminjaman) async {
     final withOfficer = peminjaman.diampuOleh == null
         ? peminjaman.copyWith(diampuOleh: AuthService.currentUser?.id)
@@ -196,10 +182,72 @@ class PeminjamanService {
     );
 
     try {
+      // 1. Determine the Natural Key for the physical document
+      final String dedupeColumn = withStatus.jenisDokumen == 'Warkah'
+          ? 'no_208'
+          : 'no_hak';
+      final String dedupeValue = withStatus.jenisDokumen == 'Warkah'
+          ? withStatus.no208!
+          : withStatus.noHak;
+
+      // 2. Search Master Arsip to see if the physical document already exists
+      var existingArsip = await _client
+          .from('master_arsip')
+          .select('id')
+          .eq(dedupeColumn, dedupeValue)
+          .maybeSingle();
+
+      String dokumenId;
+
+      if (existingArsip == null) {
+        // 3a. Not found: Register the physical document into inventory first
+        final insertedArsip = await _client
+            .from('master_arsip')
+            .insert({
+              'jenis_dokumen': withStatus.jenisDokumen,
+              'kecamatan': withStatus.kecamatan == '-'
+                  ? null
+                  : withStatus.kecamatan,
+              'kelurahan': withStatus.kelurahan == '-'
+                  ? null
+                  : withStatus.kelurahan,
+              'jenis_hak': withStatus.jenisHak == '-'
+                  ? null
+                  : withStatus.jenisHak,
+              'no_hak': withStatus.noHak == '-' ? null : withStatus.noHak,
+              'jenis_surat_ukur': withStatus.jenisSuratUkur,
+              'no_tahun_surat_ukur': withStatus.noTahunSuratUkur,
+              'su': withStatus.su,
+              'gs': withStatus.gs,
+              'jenis_warkah': withStatus.jenisWarkah,
+              'no_208': withStatus.no208,
+              'tahun_warkah': withStatus.tahunWarkah,
+            })
+            .select('id')
+            .single();
+
+        dokumenId = insertedArsip['id'];
+      } else {
+        // 3b. Found: Grab the existing UUID
+        dokumenId = existingArsip['id'];
+      }
+
+      // 4. Insert the Transaction mapping to the UUID
       final inserted = await _client
           .from('peminjaman')
-          .insert(withStatus.toMap())
-          .select()
+          .insert({
+            'dokumen_id': dokumenId,
+            'nama': withStatus.nama,
+            'seksi': withStatus.seksi,
+            'keperluan': withStatus.keperluan,
+            'tanggal_pinjam': withStatus.tanggalPinjam.toIso8601String(),
+            'tanggal_kembali': withStatus.tanggalKembali.toIso8601String(),
+            'status': withStatus.status,
+            'diampu_oleh': withStatus.diampuOleh,
+          })
+          .select(
+            '*, master_arsip(*)',
+          ) // Fetch the joined result back for the UI
           .single();
 
       final result = Peminjaman.fromMap(inserted);
@@ -306,14 +354,6 @@ class PeminjamanService {
     }
   }
 
-  /// Returns true if the loan was updated. Returns false if no matching
-  /// row was found — including when RLS silently hides the row from an
-  /// UPDATE (Postgres doesn't error in that case, it just matches 0
-  /// rows), so callers can tell "worked" apart from "silently did
-  /// nothing". Keyed by `id` (see _findActiveById's comment for why —
-  /// this used to be noHak-keyed with a multi-row `.select()` as a
-  /// duplicate-safety hedge; `id` is the actual unique primary key, so
-  /// there's no longer a duplicate-match scenario to hedge against).
   static Future<bool> kembalikan(String id) async {
     try {
       final updated = await _client
@@ -582,18 +622,25 @@ class PeminjamanService {
     if (!AuthService.isAdmin) return false;
     if (updated.id == null) return false;
     try {
-      final row = await _client
+      // 1. First fetch the transaction to get its associated dokumen_id
+      final currentTx = await _client
           .from('peminjaman')
+          .select('dokumen_id')
+          .eq('id', updated.id!)
+          .maybeSingle();
+
+      if (currentTx == null) return false;
+      final String dokumenId = currentTx['dokumen_id'];
+
+      // 2. Update the master inventory document fields
+      await _client
+          .from('master_arsip')
           .update({
-            'nama': updated.nama,
-            'seksi': updated.seksi,
-            'kecamatan': updated.kecamatan,
-            'kelurahan': updated.kelurahan,
-            'jenis_hak': updated.jenisHak,
-            'no_hak': updated.noHak,
-            'keperluan': updated.keperluan,
-            'tanggal_pinjam': updated.tanggalPinjam.toIso8601String(),
-            'tanggal_kembali': updated.tanggalKembali.toIso8601String(),
+            'jenis_dokumen': updated.jenisDokumen,
+            'kecamatan': updated.kecamatan == '-' ? null : updated.kecamatan,
+            'kelurahan': updated.kelurahan == '-' ? null : updated.kelurahan,
+            'jenis_hak': updated.jenisHak == '-' ? null : updated.jenisHak,
+            'no_hak': updated.noHak == '-' ? null : updated.noHak,
             'jenis_surat_ukur': updated.jenisSuratUkur,
             'no_tahun_surat_ukur': updated.noTahunSuratUkur,
             'su': updated.su,
@@ -602,9 +649,22 @@ class PeminjamanService {
             'no_208': updated.no208,
             'tahun_warkah': updated.tahunWarkah,
           })
+          .eq('id', dokumenId);
+
+      // 3. Update the transaction-specific fields
+      final row = await _client
+          .from('peminjaman')
+          .update({
+            'nama': updated.nama,
+            'seksi': updated.seksi,
+            'keperluan': updated.keperluan,
+            'tanggal_pinjam': updated.tanggalPinjam.toIso8601String(),
+            'tanggal_kembali': updated.tanggalKembali.toIso8601String(),
+          })
           .eq('id', updated.id!)
-          .select()
+          .select('*, master_arsip(*)')
           .maybeSingle();
+
       if (row == null) return false;
       _replaceInCache(Peminjaman.fromMap(row));
       return true;

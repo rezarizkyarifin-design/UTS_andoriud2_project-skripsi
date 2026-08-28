@@ -104,14 +104,15 @@ class Peminjaman {
 
   // ─── SUPABASE MAPPING ───────────────────────────────────────────
   factory Peminjaman.fromMap(Map<String, dynamic> map) {
+    // Check if the data came with a nested 'master_arsip' relation
+    final arsip = map['master_arsip'] is Map<String, dynamic>
+        ? map['master_arsip'] as Map<String, dynamic>
+        : map; // Fallback to root map if flat/cached locally
+
     return Peminjaman(
       id: map['id'] as String?,
       nama: map['nama'] as String,
       seksi: map['seksi'] as String,
-      kecamatan: map['kecamatan'] as String,
-      kelurahan: map['kelurahan'] as String,
-      jenisHak: map['jenis_hak'] as String,
-      noHak: map['no_hak'] as String,
       keperluan: map['keperluan'] as String,
       tanggalPinjam: DateTime.parse(map['tanggal_pinjam'] as String),
       tanggalKembali: DateTime.parse(map['tanggal_kembali'] as String),
@@ -132,14 +133,32 @@ class Peminjaman {
           ? null
           : DateTime.parse(map['requested_tanggal_kembali'] as String),
       extensionReason: map['extension_reason'] as String?,
-      jenisDokumen: map['jenis_dokumen'] as String? ?? 'Buku Tanah',
-      jenisSuratUkur: map['jenis_surat_ukur'] as String?,
-      noTahunSuratUkur: map['no_tahun_surat_ukur'] as String?,
-      su: map['su'] as String?,
-      gs: map['gs'] as String?,
-      jenisWarkah: map['jenis_warkah'] as String?,
-      no208: map['no_208'] as String?,
-      tahunWarkah: map['tahun_warkah'] as String?,
+
+      // ─── MASTER DATA FIELDS (Read from nested arsip or fallback to root) ───
+      jenisDokumen:
+          arsip['jenis_dokumen'] as String? ??
+          map['jenis_dokumen'] as String? ??
+          'Buku Tanah',
+      kecamatan:
+          arsip['kecamatan'] as String? ?? map['kecamatan'] as String? ?? '-',
+      kelurahan:
+          arsip['kelurahan'] as String? ?? map['kelurahan'] as String? ?? '-',
+      jenisHak:
+          arsip['jenis_hak'] as String? ?? map['jenis_hak'] as String? ?? '-',
+      noHak: arsip['no_hak'] as String? ?? map['no_hak'] as String? ?? '-',
+      jenisSuratUkur:
+          arsip['jenis_surat_ukur'] as String? ??
+          map['jenis_surat_ukur'] as String?,
+      noTahunSuratUkur:
+          arsip['no_tahun_surat_ukur'] as String? ??
+          map['no_tahun_surat_ukur'] as String?,
+      su: arsip['su'] as String? ?? map['su'] as String?,
+      gs: arsip['gs'] as String? ?? map['gs'] as String?,
+      jenisWarkah:
+          arsip['jenis_warkah'] as String? ?? map['jenis_warkah'] as String?,
+      no208: arsip['no_208'] as String? ?? map['no_208'] as String?,
+      tahunWarkah:
+          arsip['tahun_warkah'] as String? ?? map['tahun_warkah'] as String?,
     );
   }
 

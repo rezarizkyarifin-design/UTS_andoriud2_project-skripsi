@@ -241,7 +241,10 @@ class _FormPageState extends State<FormPage> {
         return;
     }
 
-    final sudahAda = await PeminjamanService.existsActiveNoHak(dedupeKey);
+    final sudahAda = await PeminjamanService.existsActiveNoHak(
+      dedupeKey,
+      jenisDokumen: _selectedJenisDokumen!,
+    );
     if (!mounted) return;
     if (sudahAda) {
       _showError('$dedupeKey sudah dipinjam dan belum dikembalikan.');

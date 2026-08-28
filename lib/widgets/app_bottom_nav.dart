@@ -15,8 +15,8 @@ class AppBottomNav extends StatelessWidget {
   static const _items = [
     {'icon': Icons.home_rounded, 'label': 'Beranda'},
     {'icon': Icons.folder_outlined, 'label': 'Arsip'},
+    {'icon': Icons.history, 'label': 'Riwayat'},
     {'icon': Icons.assignment_return, 'label': 'Kembali'},
-    {'icon': Icons.person_outline, 'label': 'Profil'},
   ];
 
   @override
