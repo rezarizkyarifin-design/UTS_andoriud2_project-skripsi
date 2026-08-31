@@ -19,11 +19,11 @@ class _BarcodePageState extends State<BarcodePage> {
   bool _isPrinting = false;
   bool _isSavingImage = false;
 
-  void _copyToClipboard(String text) {
-    Clipboard.setData(ClipboardData(text: text));
+  void _copyToClipboard(String label, String value) {
+    Clipboard.setData(ClipboardData(text: value));
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Nomor Hak $text disalin ke papan klip'),
+        content: Text('$label $value disalin ke papan klip'),
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
       ),
@@ -31,19 +31,21 @@ class _BarcodePageState extends State<BarcodePage> {
   }
 
   Future<void> _cetak({
-    required String noHak,
+    required String identifierLabel,
+    required String identifierValue,
+    String? secondaryDetail,
     required String nama,
     required String seksi,
     required String kelurahan,
-    required String jenisHak,
     required String tanggalPinjam,
     required String tanggalKembali,
   }) async {
     setState(() => _isPrinting = true);
     try {
       await PrintingService.printBarcodeLabel(
-        jenisHak: jenisHak,
-        noHak: noHak,
+        identifierLabel: identifierLabel,
+        identifierValue: identifierValue,
+        secondaryDetail: secondaryDetail,
         nama: nama,
         seksi: seksi,
         kelurahan: kelurahan,
@@ -57,12 +59,12 @@ class _BarcodePageState extends State<BarcodePage> {
     }
   }
 
-  Future<void> _bagikanGambar(String noHak) async {
+  Future<void> _bagikanGambar(String identifierValue) async {
     setState(() => _isSavingImage = true);
     try {
       await PrintingService.shareAsImage(
         boundaryKey: _qrBoundaryKey,
-        noHak: noHak,
+        identifierValue: identifierValue,
       );
     } catch (e) {
       if (mounted) _showError('Gagal menyimpan gambar: $e');
@@ -124,17 +126,78 @@ class _BarcodePageState extends State<BarcodePage> {
   Widget build(BuildContext context) {
     final args =
         ModalRoute.of(context)!.settings.arguments as Map<String, String>?;
-    final noHak = args?['noHak'] ?? 'UNKNOWN';
+    final noHak = args?['noHak'] ?? '-';
     final nama = args?['nama'] ?? '-';
-    // Was never extracted before — Warkah has no kelurahan (always '-'),
-    // so its card showed just "Nama · -" with no way to tell which
-    // department/unit actually borrowed the document. FormPage now
-    // always includes this in the navigation args.
     final seksi = args?['seksi'] ?? '-';
     final kelurahan = args?['kelurahan'] ?? '-';
     final jenisHak = args?['jenisHak'] ?? '-';
+    final jenisDokumen = args?['jenisDokumen'] ?? 'Buku Tanah';
     final tanggalPinjam = args?['tanggalPinjam'] ?? '-';
     final tanggalKembali = args?['tanggalKembali'] ?? '-';
+
+    // ── Surat Ukur–specific ──
+    final jenisSuratUkur = args?['jenisSuratUkur'] ?? '';
+    final noTahunSuratUkur = args?['noTahunSuratUkur'] ?? '';
+    final su = args?['su'] ?? '';
+    final gs = args?['gs'] ?? '';
+
+    // ── Warkah–specific ──
+    final jenisWarkah = args?['jenisWarkah'] ?? '';
+    final no208 = args?['no208'] ?? '';
+    final tahunWarkah = args?['tahunWarkah'] ?? '';
+
+    // ── Compute type-aware identifiers ──
+    //
+    // Buku Tanah  → label = jenisHak (e.g. "Hak Milik"), value = noHak
+    //                secondary = kelurahan if present
+    // Surat Ukur  → label = "$jenisSuratUkur $noTahunSuratUkur",
+    //                value = SU number (su) or GS number (gs),
+    //                secondary = "No. SU: $su / GS: $gs"
+    // Warkah      → label = jenisWarkah, value = no208 (the real
+    //                identifier; noHak is always '-' for Warkah),
+    //                secondary = "Tahun $tahunWarkah"
+    final String identifierLabel;
+    final String identifierValue; // shown big on the card + in QR
+    final String qrData; // encoded into the QR code
+    final String? secondaryDetail;
+
+    switch (jenisDokumen) {
+      case 'Surat Ukur':
+        // Prefer SU number; fall back to GS number if SU is empty.
+        final suNumber = su.isNotEmpty ? su : gs;
+        identifierLabel =
+            '${jenisSuratUkur.isNotEmpty ? jenisSuratUkur : 'Surat Ukur'}'
+            '${noTahunSuratUkur.isNotEmpty ? ' – $noTahunSuratUkur' : ''}';
+        identifierValue = suNumber.isNotEmpty ? suNumber : noHak;
+        qrData = suNumber.isNotEmpty ? suNumber : noHak;
+        secondaryDetail = [
+          if (su.isNotEmpty) 'No. SU: $su',
+          if (gs.isNotEmpty) 'GS: $gs',
+        ].join(' / ');
+        break;
+
+      case 'Warkah':
+        identifierLabel =
+            '${jenisWarkah.isNotEmpty ? jenisWarkah : 'Warkah'}'
+            '${tahunWarkah.isNotEmpty ? ' Tahun $tahunWarkah' : ''}';
+        identifierValue = no208.isNotEmpty ? no208 : '-';
+        qrData = no208.isNotEmpty ? no208 : '-';
+        secondaryDetail = tahunWarkah.isNotEmpty ? 'Tahun $tahunWarkah' : null;
+        break;
+
+      default: // 'Buku Tanah'
+        identifierLabel = jenisHak;
+        identifierValue = noHak;
+        qrData = noHak;
+        secondaryDetail = null;
+    }
+
+    // Subtitle line shown below the big identifier on the card:
+    // always show "Nama · Seksi X" regardless of type; then append
+    // kelurahan only for Buku Tanah (it's always '-' for the others).
+    final subtitleLine = kelurahan != '-'
+        ? '$nama · Seksi $seksi · $kelurahan'
+        : '$nama · Seksi $seksi';
 
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -233,7 +296,7 @@ class _BarcodePageState extends State<BarcodePage> {
                           ),
                         ),
                         child: QrImageView(
-                          data: noHak,
+                          data: qrData,
                           version: QrVersions.auto,
                           size: 200.0,
                           eyeStyle: const QrEyeStyle(
@@ -248,7 +311,7 @@ class _BarcodePageState extends State<BarcodePage> {
                       ),
                       const SizedBox(height: 18),
 
-                      // ── Jenis Hak (label) + No. Hak box (with copy button)
+                      // ── Identifier label + value box (copy button)
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.symmetric(
@@ -272,7 +335,7 @@ class _BarcodePageState extends State<BarcodePage> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    jenisHak,
+                                    identifierLabel,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
@@ -282,26 +345,29 @@ class _BarcodePageState extends State<BarcodePage> {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    noHak,
+                                    identifierValue,
                                     style: const TextStyle(
                                       fontSize: 15,
                                       fontWeight: FontWeight.bold,
                                       color: Colors.black87,
                                     ),
                                   ),
+                                  if (secondaryDetail != null &&
+                                      secondaryDetail.isNotEmpty) ...[
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      secondaryDetail,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 10.5,
+                                        color: Colors.black45,
+                                      ),
+                                    ),
+                                  ],
                                   const SizedBox(height: 2),
                                   Text(
-                                    // Warkah has no kelurahan (kelurahan is
-                                    // always '-' for it) — showing it
-                                    // anyway rendered as the dangling
-                                    // "Nama · -" bug. Seksi is always
-                                    // present regardless of document type,
-                                    // so it fills that gap instead of just
-                                    // being dropped for the types that
-                                    // don't have a kelurahan.
-                                    kelurahan != '-'
-                                        ? '$nama · Seksi $seksi · $kelurahan'
-                                        : '$nama · Seksi $seksi',
+                                    subtitleLine,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
@@ -318,9 +384,12 @@ class _BarcodePageState extends State<BarcodePage> {
                                 size: 20,
                                 color: Colors.black45,
                               ),
-                              onPressed: () => _copyToClipboard(noHak),
+                              onPressed: () => _copyToClipboard(
+                                identifierLabel,
+                                identifierValue,
+                              ),
                               splashRadius: 22,
-                              tooltip: 'Salin Nomor Hak',
+                              tooltip: 'Salin nomor dokumen',
                             ),
                           ],
                         ),
@@ -356,8 +425,9 @@ class _BarcodePageState extends State<BarcodePage> {
                   onPressed: _isPrinting
                       ? null
                       : () => _cetak(
-                          jenisHak: jenisHak,
-                          noHak: noHak,
+                          identifierLabel: identifierLabel,
+                          identifierValue: identifierValue,
+                          secondaryDetail: secondaryDetail,
                           nama: nama,
                           seksi: seksi,
                           kelurahan: kelurahan,
@@ -404,7 +474,7 @@ class _BarcodePageState extends State<BarcodePage> {
                 child: OutlinedButton.icon(
                   onPressed: _isSavingImage
                       ? null
-                      : () => _bagikanGambar(noHak),
+                      : () => _bagikanGambar(identifierValue),
                   icon: _isSavingImage
                       ? const SizedBox(
                           width: 16,

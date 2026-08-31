@@ -154,18 +154,19 @@ class _HomePageState extends State<HomePage> {
   // a count down.
 
   void _onNavTap(int index) {
+    FocusManager.instance.primaryFocus?.unfocus();
     switch (index) {
       case 0:
-        setState(() => _selectedNavIndex = 0);
+        Navigator.pushReplacementNamed(context, AppRoutes.home);
         break;
       case 1:
-        _navigateAndRefresh(AppRoutes.history);
+        _navigateAndRefresh(AppRoutes.archive);
         break;
       case 2:
-        _navigateAndRefresh(AppRoutes.returnPage);
+        setState(() => _selectedNavIndex = 2);
         break;
       case 3:
-        Navigator.pushNamed(context, AppRoutes.profile);
+        _navigateAndRefresh(AppRoutes.returnPage);
         break;
     }
   }
@@ -684,13 +685,24 @@ class _HomePageState extends State<HomePage> {
                     context,
                     AppRoutes.barcode,
                     arguments: {
+                      'id': p.id ?? '',
                       'noHak': p.noHak,
                       'nama': p.nama,
+                      'seksi': p.seksi,
                       'kelurahan': p.kelurahan,
                       'jenisHak': p.jenisHak,
                       'jenisDokumen': p.jenisDokumen,
                       'tanggalPinjam': p.tanggalPinjamFormatted,
                       'tanggalKembali': p.tanggalKembaliFormatted,
+                      // ── Surat Ukur–specific ──
+                      'jenisSuratUkur': p.jenisSuratUkur ?? '',
+                      'noTahunSuratUkur': p.noTahunSuratUkur ?? '',
+                      'su': p.su ?? '',
+                      'gs': p.gs ?? '',
+                      // ── Warkah–specific ──
+                      'jenisWarkah': p.jenisWarkah ?? '',
+                      'no208': p.no208 ?? '',
+                      'tahunWarkah': p.tahunWarkah ?? '',
                     },
                   ),
                   child: Container(

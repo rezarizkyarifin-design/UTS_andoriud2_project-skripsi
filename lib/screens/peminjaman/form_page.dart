@@ -368,15 +368,21 @@ class _FormPageState extends State<FormPage> {
       'id': inserted.id ?? '',
       'noHak': inserted.noHak,
       'nama': inserted.nama,
-      // Was missing entirely before — Warkah has no kelurahan (always
-      // '-'), so its barcode card showed just "Nama · -" with no way to
-      // tell which department/unit borrowed it. Now always included.
       'seksi': inserted.seksi,
       'kelurahan': inserted.kelurahan,
       'jenisHak': inserted.jenisHak,
       'jenisDokumen': inserted.jenisDokumen,
       'tanggalPinjam': _formatDate(inserted.tanggalPinjam),
       'tanggalKembali': _formatDate(inserted.tanggalKembali),
+      // ── Surat Ukur–specific (null/empty for other types) ──
+      'jenisSuratUkur': inserted.jenisSuratUkur ?? '',
+      'noTahunSuratUkur': inserted.noTahunSuratUkur ?? '',
+      'su': inserted.su ?? '',
+      'gs': inserted.gs ?? '',
+      // ── Warkah–specific (null/empty for other types) ──
+      'jenisWarkah': inserted.jenisWarkah ?? '',
+      'no208': inserted.no208 ?? '',
+      'tahunWarkah': inserted.tahunWarkah ?? '',
     };
 
     _resetForm();

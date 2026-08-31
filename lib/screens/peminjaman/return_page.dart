@@ -274,6 +274,12 @@ class _ReturnPageState extends State<ReturnPage> {
       case 'Surat Ukur':
         return '${p.noTahunSuratUkur ?? '-'} • SU ${p.su ?? '-'}/GS ${p.gs ?? '-'}';
       case 'Warkah':
+        // PBT is searched by kecamatan, not purely by No. 208 — show
+        // kecamatan prominently for PBT so the card is actually
+        // scannable at a glance.
+        if (p.jenisWarkah == 'PBT' && p.kecamatan != '-') {
+          return 'No. 208: ${p.no208 ?? '-'} • ${p.kecamatan}';
+        }
         return 'No. 208: ${p.no208 ?? '-'} (${p.tahunWarkah ?? '-'})';
       default:
         return '${p.noHak}/${p.kelurahan}';
@@ -312,6 +318,11 @@ class _ReturnPageState extends State<ReturnPage> {
           row(Icons.folder_copy_outlined, 'Jenis Warkah', p.jenisWarkah ?? '-'),
           row(Icons.numbers_outlined, 'No. 208', p.no208 ?? '-'),
           row(Icons.event_outlined, 'Tahun Warkah', p.tahunWarkah ?? '-'),
+          // PBT is retrieved per kecamatan (unlike BN/Subsi III which
+          // are retrieved by No. 208 only) — show kecamatan whenever
+          // the record actually stored one.
+          if (p.jenisWarkah == 'PBT' && p.kecamatan != '-')
+            row(Icons.location_city_outlined, 'Kecamatan', p.kecamatan),
         ];
       default: // Buku Tanah
         return [
