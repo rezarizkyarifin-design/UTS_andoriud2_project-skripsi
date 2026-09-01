@@ -6,7 +6,6 @@ import '../services/peminjaman_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../widgets/double_back_to_exit.dart';
 import '../../widgets/animated_terrain_bg.dart';
-import 'signup_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -22,12 +21,11 @@ class _LoginPageState extends State<LoginPage> {
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
-  static const _forestDark = Color(0xFF0F2A1E);
-  static const _sage = Color(0xFF3D8361);
-  static const _gold = Color(0xFFC08A3E);
-  static const _parchment = Color(0xFFFAF6EE);
-  static const _fieldFill = Color(0xFFF3EFE4);
-  static const _ink = Color(0xFF1E2A22);
+  static const _forestDark = AppTheme.forestDark;
+  static const _sage = AppTheme.sage;
+  static const _gold = AppTheme.gold;
+  static const _fieldFill = AppTheme.surfaceMuted;
+  static const _ink = AppTheme.ink;
 
   @override
   void dispose() {
@@ -76,7 +74,7 @@ class _LoginPageState extends State<LoginPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(networkErrorMessage),
-            backgroundColor: Colors.orange.shade700,
+            backgroundColor: AppTheme.warningAmber,
             duration: const Duration(seconds: 3),
           ),
         );
@@ -96,7 +94,7 @@ class _LoginPageState extends State<LoginPage> {
               content: Text(
                 'Login berhasil, tapi gagal memuat data: $refreshError',
               ),
-              backgroundColor: Colors.orange.shade700,
+              backgroundColor: AppTheme.warningAmber,
               duration: const Duration(seconds: 4),
             ),
           );
@@ -116,7 +114,7 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     return DoubleBackToExit(
       child: Scaffold(
-        backgroundColor: const Color.fromARGB(255, 252, 250, 247),
+        backgroundColor: AppTheme.parchment,
         body: CustomScrollView(
           slivers: [
             // ── Header: Responsive height (42% of screen) instead of fixed pixels ──
@@ -219,6 +217,13 @@ class _LoginPageState extends State<LoginPage> {
                                     child: Image.network(
                                       'https://pbs.twimg.com/profile_images/1525051472873783296/zBL0VecH_400x400.jpg',
                                       fit: BoxFit.cover,
+                                      errorBuilder:
+                                          (context, error, stackTrace) =>
+                                              const Icon(
+                                                Icons.account_balance,
+                                                color: AppTheme.primaryGreen,
+                                                size: 24,
+                                              ),
                                     ),
                                   ),
                                 ),

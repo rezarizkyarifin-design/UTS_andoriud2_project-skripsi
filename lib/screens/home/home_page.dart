@@ -163,7 +163,7 @@ class _HomePageState extends State<HomePage> {
         _navigateAndRefresh(AppRoutes.archive);
         break;
       case 2:
-        setState(() => _selectedNavIndex = 2);
+        _navigateAndRefresh(AppRoutes.history);
         break;
       case 3:
         _navigateAndRefresh(AppRoutes.returnPage);
@@ -182,11 +182,7 @@ class _HomePageState extends State<HomePage> {
   Widget _buildHeader() {
     return Container(
       decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [AppTheme.primaryGreen, AppTheme.accentGreen],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        gradient: AppTheme.brandGradient,
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
       ),
       child: SafeArea(

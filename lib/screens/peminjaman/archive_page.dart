@@ -33,8 +33,8 @@ class _ArchivePageState extends State<ArchivePage> {
 
   static const _jenisColors = {
     'Buku Tanah': AppTheme.primaryGreen,
-    'Surat Ukur': Color(0xFFC08A3E), // same gold used elsewhere in the app
-    'Warkah': Color(0xFF5B7FDB),
+    'Surat Ukur': AppTheme.warningAmber,
+    'Warkah': Color(0xFF5C5FCD),
   };
 
   @override
@@ -339,11 +339,7 @@ class _ArchivePageState extends State<ArchivePage> {
                     width: double.infinity,
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
                     decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [AppTheme.primaryGreen, AppTheme.accentGreen],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
+                      gradient: AppTheme.brandGradient,
                       borderRadius: BorderRadius.vertical(
                         bottom: Radius.circular(28),
                       ),

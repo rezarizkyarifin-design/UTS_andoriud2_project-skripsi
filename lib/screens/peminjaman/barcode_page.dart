@@ -77,7 +77,7 @@ class _BarcodePageState extends State<BarcodePage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: Colors.red.shade400,
+        backgroundColor: AppTheme.dangerRed,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
@@ -124,27 +124,31 @@ class _BarcodePageState extends State<BarcodePage> {
 
   @override
   Widget build(BuildContext context) {
-    final args =
-        ModalRoute.of(context)!.settings.arguments as Map<String, String>?;
-    final noHak = args?['noHak'] ?? '-';
-    final nama = args?['nama'] ?? '-';
-    final seksi = args?['seksi'] ?? '-';
-    final kelurahan = args?['kelurahan'] ?? '-';
-    final jenisHak = args?['jenisHak'] ?? '-';
-    final jenisDokumen = args?['jenisDokumen'] ?? 'Buku Tanah';
-    final tanggalPinjam = args?['tanggalPinjam'] ?? '-';
-    final tanggalKembali = args?['tanggalKembali'] ?? '-';
+    final rawArgs = ModalRoute.of(context)?.settings.arguments;
+    final args = rawArgs is Map
+        ? rawArgs.map(
+            (key, value) => MapEntry(key.toString(), value.toString()),
+          )
+        : const <String, String>{};
+    final noHak = args['noHak'] ?? '-';
+    final nama = args['nama'] ?? '-';
+    final seksi = args['seksi'] ?? '-';
+    final kelurahan = args['kelurahan'] ?? '-';
+    final jenisHak = args['jenisHak'] ?? '-';
+    final jenisDokumen = args['jenisDokumen'] ?? 'Buku Tanah';
+    final tanggalPinjam = args['tanggalPinjam'] ?? '-';
+    final tanggalKembali = args['tanggalKembali'] ?? '-';
 
     // ── Surat Ukur–specific ──
-    final jenisSuratUkur = args?['jenisSuratUkur'] ?? '';
-    final noTahunSuratUkur = args?['noTahunSuratUkur'] ?? '';
-    final su = args?['su'] ?? '';
-    final gs = args?['gs'] ?? '';
+    final jenisSuratUkur = args['jenisSuratUkur'] ?? '';
+    final noTahunSuratUkur = args['noTahunSuratUkur'] ?? '';
+    final su = args['su'] ?? '';
+    final gs = args['gs'] ?? '';
 
     // ── Warkah–specific ──
-    final jenisWarkah = args?['jenisWarkah'] ?? '';
-    final no208 = args?['no208'] ?? '';
-    final tahunWarkah = args?['tahunWarkah'] ?? '';
+    final jenisWarkah = args['jenisWarkah'] ?? '';
+    final no208 = args['no208'] ?? '';
+    final tahunWarkah = args['tahunWarkah'] ?? '';
 
     // ── Compute type-aware identifiers ──
     //
@@ -277,7 +281,7 @@ class _BarcodePageState extends State<BarcodePage> {
                     borderRadius: BorderRadius.circular(24),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
+                        color: Colors.black.withValues(alpha: 0.05),
                         blurRadius: 16,
                         offset: const Offset(0, 6),
                       ),
@@ -460,7 +464,9 @@ class _BarcodePageState extends State<BarcodePage> {
                     backgroundColor: AppTheme.accentGreen,
                     padding: const EdgeInsets.symmetric(vertical: 15),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
+                      borderRadius: BorderRadius.circular(
+                        AppTheme.radiusMedium,
+                      ),
                     ),
                     elevation: 0,
                   ),
@@ -502,7 +508,9 @@ class _BarcodePageState extends State<BarcodePage> {
                     side: const BorderSide(color: AppTheme.accentGreen),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
+                      borderRadius: BorderRadius.circular(
+                        AppTheme.radiusMedium,
+                      ),
                     ),
                   ),
                 ),

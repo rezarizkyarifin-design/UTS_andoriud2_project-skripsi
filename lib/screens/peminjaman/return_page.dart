@@ -9,6 +9,7 @@ import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/app_scan_fab.dart';
 import '../../widgets/back_to_home.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../core/theme/app_theme.dart';
 // import '../../widgets/jenis_dokumen_breakdown.dart'; // removed for now, see build()
 
 class ReturnPage extends StatefulWidget {
@@ -17,18 +18,6 @@ class ReturnPage extends StatefulWidget {
   @override
   State<ReturnPage> createState() => _ReturnPageState();
 }
-
-// ─── Item #6 (koreksi): dua state, bukan tiga — lihat penjelasan
-// lengkap di history_page.dart, logikanya sama persis di sini. Ringkasnya:
-// full    → header gradient + stat + search bar, semua tampil (posisi
-//           beneran di paling atas, atau daftarnya kependekan buat
-//           discroll sama sekali).
-// compact → header gradient disembunyikan, tapi search bar tetap
-//           tampil — state default begitu user geser dari paling atas,
-//           entah scroll ke atas ATAU ke bawah. (Return Page nggak
-//           punya status chips kayak History, jadi compact-nya cuma
-//           search bar.) Nggak pernah balik ke "semuanya ilang" lagi.
-enum _HeaderVisibility { full, compact }
 
 class _ReturnPageState extends State<ReturnPage> {
   final _searchController = TextEditingController();
@@ -56,13 +45,11 @@ class _ReturnPageState extends State<ReturnPage> {
   final Set<String> _selectedIds = {};
   bool _isBulkSaving = false;
 
-  // Item #6: drives the collapsing header/search-bar behavior on scroll.
-  // See _HeaderVisibility above for what each state shows.
-  _HeaderVisibility _headerVisibility = _HeaderVisibility.full;
-
-  static const Color _primaryGreen = Color(0xFF1B4332);
-  static const Color _accentGreen = Color(0xFF2D6A4F);
-  static const Color _overdueRed = Color(0xFFC0392B);
+  // Compatibility aliases for the existing page sections; the values now
+  // come from the shared theme instead of being defined here.
+  static const Color _primaryGreen = AppTheme.primaryGreen;
+  static const Color _accentGreen = AppTheme.accentGreen;
+  static const Color _overdueRed = AppTheme.dangerRed;
 
   @override
   void initState() {
@@ -126,7 +113,7 @@ class _ReturnPageState extends State<ReturnPage> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: _accentGreen,
+              backgroundColor: AppTheme.accentGreen,
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -174,8 +161,8 @@ class _ReturnPageState extends State<ReturnPage> {
                     ' ditandai kembali ($gagal gagal).',
         ),
         backgroundColor: errorMsg != null || gagal > 0
-            ? Colors.orange.shade700
-            : _accentGreen,
+            ? AppTheme.warningAmber
+            : AppTheme.accentGreen,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
@@ -213,7 +200,7 @@ class _ReturnPageState extends State<ReturnPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Gagal memuat data terbaru: $e'),
-          backgroundColor: Colors.red.shade400,
+          backgroundColor: AppTheme.dangerRed,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -424,7 +411,9 @@ class _ReturnPageState extends State<ReturnPage> {
                         : 'Gagal mengembalikan dokumen'
                               '${errorMsg != null ? ': $errorMsg' : ' (data tidak ditemukan / akses ditolak).'}',
                   ),
-                  backgroundColor: ok ? _accentGreen : Colors.red.shade400,
+                  backgroundColor: ok
+                      ? AppTheme.accentGreen
+                      : AppTheme.dangerRed,
                   behavior: SnackBarBehavior.floating,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -948,11 +937,7 @@ class _ReturnPageState extends State<ReturnPage> {
 
     return Container(
       decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [_primaryGreen, _accentGreen],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        gradient: AppTheme.brandGradient,
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
       ),
       child: SafeArea(
@@ -1832,104 +1817,21 @@ class _ReturnPageState extends State<ReturnPage> {
         floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
         body: Column(
           children: [
-            // Item #6 (revisi): dua blok yang animasinya independen, jadi
-            // "full" dan "compact" nggak harus nge-lerp dari/ke ukuran
-            // yang sama — masing-masing AnimatedAlign cuma pernah punya
-            // dua kemungkinan tinggi (0 atau tinggi asli kontennya
-            // sendiri), jadi slide-nya tetap mulus walau daftar di bawah
-            // pendek/kosong. Lihat NotificationListener di sekitar list
-            // untuk logika _headerVisibility-nya.
-            //
-            // BUG FIX (tetap berlaku): ClipRect clips to the Stack's own
-            // bounds, dan bare Stack cuma ngukur dari non-positioned
-            // children-nya (_buildHeader() doang). Search bar-nya
-            // Positioned(bottom: -24) supaya sengaja nongol 24px di bawah
-            // header buat nutup jahitan header/body, tapi bagian yang
-            // nongol itu jatuh di luar bounds Stack (dan ClipRect-nya)
-            // jadi kepotong. Fix-nya: sisain 24px itu (plus sedikit extra
-            // buat shadow card-nya) di dalam Stack lewat spacer, biar box
-            // ClipRect-nya cukup tinggi buat nampung seluruh floating bar.
-            ClipRect(
-              child: AnimatedAlign(
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeOutCubic,
-                alignment: Alignment.topCenter,
-                heightFactor: _headerVisibility == _HeaderVisibility.full
-                    ? 1.0
-                    : 0.0,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [_buildHeader(), const SizedBox(height: 40)],
-                    ),
-                    Positioned(
-                      left: 20,
-                      right: 20,
-                      bottom: 16,
-                      child: _buildFloatingSearchBar(),
-                    ),
-                  ],
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [_buildHeader(), const SizedBox(height: 40)],
                 ),
-              ),
-            ),
-            // Compact bar: search bar doang, tanpa header gradient — ini
-            // yang tampil begitu user geser dari posisi paling atas,
-            // entah scroll ke atas ATAU ke bawah (lihat NotificationListener:
-            // cuma `atTop` yang dicek, bukan arah scroll). Header
-            // gradient/stat lengkap cuma balik pas beneran nyampe atas.
-            ClipRect(
-              child: AnimatedAlign(
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeOutCubic,
-                alignment: Alignment.topCenter,
-                heightFactor: _headerVisibility == _HeaderVisibility.compact
-                    ? 1.0
-                    : 0.0,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
+                Positioned(
+                  left: 20,
+                  right: 20,
+                  bottom: 16,
                   child: _buildFloatingSearchBar(),
                 ),
-              ),
+              ],
             ),
-            // Padding(
-            //   padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
-            //   child: JenisDokumenBreakdown(
-            //     // Scoped to _pinjamanAktifRaw (status == 'Dipinjam'), not
-            //     // the whole archive — this page only ever lists active
-            //     // loans, so a breakdown of everything ever borrowed
-            //     // (including already-returned docs) would be misleading
-            //     // here. Home/History use the unscoped app-wide counts
-            //     // instead, which fits what those pages actually show.
-            //     stats: [
-            //       JenisDokumenStat(
-            //         jenis: 'Buku Tanah',
-            //         icon: Icons.menu_book_outlined,
-            //         count: _pinjamanAktifRaw
-            //             .where((p) => p.jenisDokumen == 'Buku Tanah')
-            //             .length,
-            //         color: _accentGreen,
-            //       ),
-            //       JenisDokumenStat(
-            //         jenis: 'Surat Ukur',
-            //         icon: Icons.straighten_outlined,
-            //         count: _pinjamanAktifRaw
-            //             .where((p) => p.jenisDokumen == 'Surat Ukur')
-            //             .length,
-            //         color: const Color(0xFFC08A3E),
-            //       ),
-            //       JenisDokumenStat(
-            //         jenis: 'Warkah',
-            //         icon: Icons.folder_copy_outlined,
-            //         count: _pinjamanAktifRaw
-            //             .where((p) => p.jenisDokumen == 'Warkah')
-            //             .length,
-            //         color: const Color(0xFF5C5FCD),
-            //       ),
-            //     ],
-            //   ),
-            // ),
             if (_isFiltering)
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
@@ -1948,7 +1850,7 @@ class _ReturnPageState extends State<ReturnPage> {
                     const Spacer(),
                     GestureDetector(
                       onTap: _resetFilters,
-                      child: Text(
+                      child: const Text(
                         'Hapus Filter',
                         style: TextStyle(
                           fontSize: 12,
@@ -1961,7 +1863,6 @@ class _ReturnPageState extends State<ReturnPage> {
                 ),
               ),
             const SizedBox(height: 14),
-
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
@@ -2074,148 +1975,123 @@ class _ReturnPageState extends State<ReturnPage> {
                   ),
                 ),
               ),
-
             Expanded(
-              child: NotificationListener<ScrollNotification>(
-                onNotification: (notification) {
-                  final metrics = notification.metrics;
-
-                  // Posisi, bukan arah — lihat penjelasan lengkap di
-                  // history_page.dart. Selain "di paling atas" (atau
-                  // daftarnya kependekan buat discroll sama sekali) →
-                  // compact, titik — search bar selalu tampil begitu
-                  // geser dari atas, nggak peduli arah scroll-nya.
-                  final atTop =
-                      metrics.maxScrollExtent <= 0 || metrics.pixels <= 0;
-                  final target = atTop
-                      ? _HeaderVisibility.full
-                      : _HeaderVisibility.compact;
-                  if (_headerVisibility != target) {
-                    setState(() => _headerVisibility = target);
-                  }
-                  return false;
-                },
-                child: RefreshIndicator(
-                  onRefresh: _onPullRefresh,
-                  color: _accentGreen,
-                  child: _isLoading && _all.isEmpty
-                      ? ListView(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          children: [
-                            SizedBox(
-                              height: MediaQuery.of(context).size.height * 0.55,
-                              child: const Center(
-                                child: CircularProgressIndicator(),
-                              ),
+              child: RefreshIndicator(
+                onRefresh: _onPullRefresh,
+                color: _accentGreen,
+                child: _isLoading && _all.isEmpty
+                    ? ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: [
+                          SizedBox(
+                            height: MediaQuery.of(context).size.height * 0.55,
+                            child: const Center(
+                              child: CircularProgressIndicator(),
                             ),
-                          ],
-                        )
-                      : aktif.isEmpty
-                      ? ListView(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          children: [
-                            SizedBox(
-                              height: MediaQuery.of(context).size.height * 0.55,
-                              child: Center(
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 36,
-                                  ),
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Container(
-                                        width: 92,
-                                        height: 92,
-                                        decoration: const BoxDecoration(
-                                          color: Color(0xFFD8F3DC),
-                                          shape: BoxShape.circle,
-                                        ),
-                                        child: Icon(
-                                          Icons.inventory_2_outlined,
-                                          size: 40,
-                                          color: _accentGreen,
-                                        ),
+                          ),
+                        ],
+                      )
+                    : aktif.isEmpty
+                    ? ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: [
+                          SizedBox(
+                            height: MediaQuery.of(context).size.height * 0.55,
+                            child: Center(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 36,
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      width: 92,
+                                      height: 92,
+                                      decoration: const BoxDecoration(
+                                        color: Color(0xFFD8F3DC),
+                                        shape: BoxShape.circle,
                                       ),
-                                      const SizedBox(height: 20),
-                                      Text(
-                                        _pinjamanAktifRaw.isEmpty
-                                            ? 'Tidak Ada Pinjaman Aktif'
-                                            : 'Tidak Ada Hasil',
-                                        style: const TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.black87,
-                                        ),
+                                      child: const Icon(
+                                        Icons.inventory_2_outlined,
+                                        size: 40,
+                                        color: _accentGreen,
                                       ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        _pinjamanAktifRaw.isEmpty
-                                            ? 'Semua dokumen sudah dikembalikan. '
-                                                  'Dokumen yang sedang dipinjam '
-                                                  'akan muncul di sini.'
-                                            : 'Coba ubah kata kunci pencarian '
-                                                  'atau filter yang sedang aktif.',
-                                        textAlign: TextAlign.center,
-                                        style: const TextStyle(
-                                          fontSize: 13,
-                                          color: Colors.black45,
-                                          height: 1.4,
-                                        ),
+                                    ),
+                                    const SizedBox(height: 20),
+                                    Text(
+                                      _pinjamanAktifRaw.isEmpty
+                                          ? 'Tidak Ada Pinjaman Aktif'
+                                          : 'Tidak Ada Hasil',
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.black87,
                                       ),
-                                      const SizedBox(height: 22),
-                                      if (_pinjamanAktifRaw.isEmpty)
-                                        OutlinedButton.icon(
-                                          onPressed: () => _navigateAndRefresh(
-                                            AppRoutes.form,
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      _pinjamanAktifRaw.isEmpty
+                                          ? 'Semua dokumen sudah dikembalikan. Dokumen yang sedang dipinjam akan muncul di sini.'
+                                          : 'Coba ubah kata kunci pencarian atau filter yang sedang aktif.',
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        color: Colors.black45,
+                                        height: 1.4,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 22),
+                                    if (_pinjamanAktifRaw.isEmpty)
+                                      OutlinedButton.icon(
+                                        onPressed: () =>
+                                            _navigateAndRefresh(AppRoutes.form),
+                                        icon: const Icon(Icons.add, size: 18),
+                                        label: const Text('Catat Peminjaman'),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: _accentGreen,
+                                          side: const BorderSide(
+                                            color: _accentGreen,
                                           ),
-                                          icon: const Icon(Icons.add, size: 18),
-                                          label: const Text('Catat Peminjaman'),
-                                          style: OutlinedButton.styleFrom(
-                                            foregroundColor: _accentGreen,
-                                            side: const BorderSide(
-                                              color: _accentGreen,
-                                            ),
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 22,
-                                              vertical: 12,
-                                            ),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(30),
-                                            ),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 22,
+                                            vertical: 12,
                                           ),
-                                        )
-                                      else
-                                        TextButton(
-                                          onPressed: () {
-                                            _searchController.clear();
-                                            _resetFilters();
-                                          },
-                                          child: Text(
-                                            'Hapus Pencarian & Filter',
-                                            style: TextStyle(
-                                              color: _accentGreen,
-                                              fontWeight: FontWeight.w600,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              30,
                                             ),
                                           ),
                                         ),
-                                    ],
-                                  ),
+                                      )
+                                    else
+                                      TextButton(
+                                        onPressed: () {
+                                          _searchController.clear();
+                                          _resetFilters();
+                                        },
+                                        child: const Text(
+                                          'Hapus Pencarian & Filter',
+                                          style: TextStyle(
+                                            color: _accentGreen,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 ),
                               ),
                             ),
-                          ],
-                        )
-                      : ListView.separated(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                          itemCount: aktif.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(height: 12),
-                          itemBuilder: (context, index) => _item(aktif[index]),
-                        ),
-                ),
+                          ),
+                        ],
+                      )
+                    : ListView.separated(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                        itemCount: aktif.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 12),
+                        itemBuilder: (context, index) => _item(aktif[index]),
+                      ),
               ),
             ),
           ],

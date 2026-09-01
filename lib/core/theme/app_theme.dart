@@ -38,20 +38,113 @@ class AppTheme {
   ); // input fields, inner info boxes
   static const Color divider = Color(0xFFE0E0E0);
 
+  // ── Shared shape and surface tokens ──
+  static const double radiusSmall = 12;
+  static const double radiusMedium = 16;
+  static const double radiusLarge = 20;
+  static const double radiusSheet = 24;
+  static const Color textPrimary = Color(0xFF1F2933);
+  static const Color textSecondary = Color(0xFF667085);
+  static const Color textMuted = Color(0xFF98A2B3);
+  static const Color forestDark = Color(0xFF0F2A1E);
+  static const Color sage = Color(0xFF3D8361);
+  static const Color gold = Color(0xFFC08A3E);
+  static const Color parchment = Color(0xFFFAF6EE);
+  static const Color ink = Color(0xFF1E2A22);
+
+  static const LinearGradient brandGradient = LinearGradient(
+    colors: [primaryGreen, accentGreen],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
+  static const BoxShadow cardShadow = BoxShadow(
+    color: Color(0x0A000000),
+    blurRadius: 12,
+    offset: Offset(0, 4),
+  );
+
   static final lightTheme = ThemeData(
     scaffoldBackgroundColor: background,
-    colorScheme: ColorScheme.fromSeed(seedColor: primaryGreen),
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: primaryGreen,
+      surface: Colors.white,
+      error: dangerRed,
+    ),
+    fontFamily: 'Roboto',
+    appBarTheme: const AppBarTheme(
+      backgroundColor: Colors.transparent,
+      foregroundColor: Colors.white,
+      elevation: 0,
+      centerTitle: false,
+    ),
     cardTheme: CardThemeData(
       elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(radiusLarge)),
+      ),
       color: Colors.white,
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: const Color(0xFFF1F3F5),
+      fillColor: surfaceMuted,
+      labelStyle: const TextStyle(color: textSecondary),
+      hintStyle: const TextStyle(color: textMuted),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.all(Radius.circular(radiusMedium)),
         borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.all(Radius.circular(radiusMedium)),
+        borderSide: BorderSide.none,
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.all(Radius.circular(radiusMedium)),
+        borderSide: BorderSide(color: accentGreen, width: 1.5),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: accentGreen,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        minimumSize: const Size(0, 48),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(radiusMedium)),
+        ),
+      ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: primaryGreen,
+        minimumSize: const Size(0, 48),
+        side: const BorderSide(color: divider),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(radiusMedium)),
+        ),
+      ),
+    ),
+    dialogTheme: const DialogThemeData(
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(radiusLarge)),
+      ),
+    ),
+    snackBarTheme: SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(radiusSmall),
+      ),
+      backgroundColor: textPrimary,
+      contentTextStyle: const TextStyle(color: Colors.white),
+    ),
+    bottomSheetTheme: const BottomSheetThemeData(
+      backgroundColor: Colors.white,
+      modalBackgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(radiusSheet)),
       ),
     ),
   );

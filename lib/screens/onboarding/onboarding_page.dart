@@ -19,11 +19,11 @@ class OnboardingPage extends StatefulWidget {
 class _OnboardingPageState extends State<OnboardingPage> {
   // Same palette as login_page.dart, on purpose — onboarding should feel
   // like the first act of the same story, not a separate app.
-  static const _forestDark = Color(0xFF0F2A1E);
-  static const _sage = Color(0xFF3D8361);
-  static const _gold = Color(0xFFC08A3E);
-  static const _parchment = Color(0xFFFAF6EE);
-  static const _ink = Color(0xFF1E2A22);
+  static const _forestDark = AppTheme.forestDark;
+  static const _sage = AppTheme.sage;
+  static const _gold = AppTheme.gold;
+  static const _parchment = AppTheme.parchment;
+  static const _ink = AppTheme.ink;
 
   late final PageController _pageController;
   double _page = 0;

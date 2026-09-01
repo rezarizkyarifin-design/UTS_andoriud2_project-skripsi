@@ -6,6 +6,7 @@ import '../../routes/app_routes.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/app_scan_fab.dart';
+import '../../core/theme/app_theme.dart';
 
 class FormPage extends StatefulWidget {
   const FormPage({super.key});
@@ -50,8 +51,8 @@ class _FormPageState extends State<FormPage> {
   late DateTime _tanggalPinjam;
   late DateTime _tanggalKembali;
 
-  static const Color _primaryGreen = Color(0xFF1B4332);
-  static const Color _accentGreen = Color(0xFF2D6A4F);
+  static const Color _primaryGreen = AppTheme.primaryGreen;
+  static const Color _accentGreen = AppTheme.accentGreen;
   static const Color _accentPurple = Color(0xFF5C5FCD);
 
   @override
@@ -264,10 +265,17 @@ class _FormPageState extends State<FormPage> {
         return;
     }
 
-    final sudahAda = await PeminjamanService.existsActiveNoHak(
-      dedupeKey,
-      jenisDokumen: _selectedJenisDokumen!,
-    );
+    bool sudahAda;
+    try {
+      sudahAda = await PeminjamanService.existsActiveNoHak(
+        dedupeKey,
+        jenisDokumen: _selectedJenisDokumen!,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      _showError('Gagal memeriksa ketersediaan dokumen: $e');
+      return;
+    }
     if (!mounted) return;
     if (sudahAda) {
       _showError('$dedupeKey sudah dipinjam dan belum dikembalikan.');
@@ -442,6 +450,12 @@ class _FormPageState extends State<FormPage> {
                       child: Image.network(
                         'https://pbs.twimg.com/profile_images/1525051472873783296/zBL0VecH_400x400.jpg',
                         fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) =>
+                            const Icon(
+                              Icons.account_balance,
+                              color: AppTheme.primaryGreen,
+                              size: 18,
+                            ),
                       ),
                     ),
                   ),
@@ -646,7 +660,7 @@ class _FormPageState extends State<FormPage> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      jenis == 'Warkah' ? 'Warkah\n(Persyaratan)' : jenis,
+                      jenis,
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 12,
@@ -902,8 +916,8 @@ class _FormPageState extends State<FormPage> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFF5F5F5),
-        borderRadius: BorderRadius.circular(30),
+        color: AppTheme.surfaceMuted,
+        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
       ),
       child: TextField(
         controller: controller,
@@ -946,7 +960,7 @@ class _FormPageState extends State<FormPage> {
     return Container(
       decoration: BoxDecoration(
         color: isDisabled ? const Color(0xFFEEEEEE) : const Color(0xFFF5F5F5),
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: DropdownButtonHideUnderline(
@@ -1030,8 +1044,8 @@ class _FormPageState extends State<FormPage> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: const Color(0xFFF5F5F5),
-          borderRadius: BorderRadius.circular(30),
+          color: AppTheme.surfaceMuted,
+          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
         ),
         child: Row(
           children: [
@@ -1090,7 +1104,7 @@ class _FormPageState extends State<FormPage> {
         _selectedKecamatan == null || kelurahanOptions.isEmpty;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7F5),
+      backgroundColor: AppTheme.background,
       drawer: AppDrawer(
         active: DrawerSection.peminjaman,
         onNavigate: _onDrawerNavigate,

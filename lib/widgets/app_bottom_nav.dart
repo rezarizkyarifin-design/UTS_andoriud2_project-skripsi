@@ -57,7 +57,7 @@ class AppBottomNav extends StatelessWidget {
         children: [
           Icon(
             item['icon'] as IconData,
-            color: isSelected ? AppTheme.primaryGreen : Colors.black38,
+            color: isSelected ? AppTheme.primaryGreen : AppTheme.textMuted,
             size: 22,
           ),
           const SizedBox(height: 2),
@@ -70,7 +70,7 @@ class AppBottomNav extends StatelessWidget {
               style: TextStyle(
                 fontSize: 10.5,
                 height: 1.0,
-                color: isSelected ? AppTheme.primaryGreen : Colors.black38,
+                color: isSelected ? AppTheme.primaryGreen : AppTheme.textMuted,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
               ),
             ),
