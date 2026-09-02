@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/peminjaman.dart';
 import '../services/peminjaman_service.dart';
+import '../services/auth_service.dart';
 import '../../data/data.dart';
 import '../../routes/app_routes.dart';
 import '../../widgets/app_drawer.dart';
@@ -280,6 +281,28 @@ class _FormPageState extends State<FormPage> {
     if (sudahAda) {
       _showError('$dedupeKey sudah dipinjam dan belum dikembalikan.');
       return;
+    }
+
+    if (!AuthService.isAdmin) {
+      bool registered;
+      try {
+        registered = await PeminjamanService.isArchiveRegistered(
+          dedupeKey,
+          jenisDokumen: _selectedJenisDokumen!,
+        );
+      } catch (e) {
+        if (!mounted) return;
+        _showError('Gagal memeriksa inventaris arsip: $e');
+        return;
+      }
+      if (!mounted) return;
+      if (!registered) {
+        _showError(
+          'Dokumen belum terdaftar di inventaris. Minta Admin menambahkan '
+          'arsip tersebut terlebih dahulu.',
+        );
+        return;
+      }
     }
 
     final isBukuTanah = _selectedJenisDokumen == 'Buku Tanah';
@@ -1080,18 +1103,19 @@ class _FormPageState extends State<FormPage> {
   static const int _selectedNavIndex = 1;
 
   void _onNavTap(int index) {
+    FocusManager.instance.primaryFocus?.unfocus();
     switch (index) {
       case 0:
         Navigator.pushReplacementNamed(context, AppRoutes.home);
         break;
       case 1:
-        _navigateAndRefresh(AppRoutes.history);
+        _navigateAndRefresh(AppRoutes.archive);
         break;
       case 2:
-        _navigateAndRefresh(AppRoutes.returnPage);
+        _navigateAndRefresh(AppRoutes.history);
         break;
       case 3:
-        Navigator.pushNamed(context, AppRoutes.profile);
+        _navigateAndRefresh(AppRoutes.returnPage);
         break;
     }
   }

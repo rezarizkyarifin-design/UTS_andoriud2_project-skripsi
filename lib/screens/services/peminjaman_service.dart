@@ -173,6 +173,61 @@ class PeminjamanService {
     }
   }
 
+  /// Returns whether the physical document has been registered by an Admin
+  /// in `master_arsip`. This is intentionally separate from the active-loan
+  /// check: a document can be available in inventory even when it has no
+  /// current loan.
+  static Future<bool> isArchiveRegistered(
+    String identifier, {
+    required String jenisDokumen,
+  }) async {
+    final column = jenisDokumen == 'Warkah' ? 'no_208' : 'no_hak';
+    try {
+      final response = await _client
+          .from('master_arsip')
+          .select('id')
+          .eq('jenis_dokumen', jenisDokumen)
+          .eq(column, identifier)
+          .maybeSingle();
+      return response != null;
+    } catch (e) {
+      throw Exception(_friendlyError(e));
+    }
+  }
+
+  /// Synchronous availability check for an Archive-page card/detail sheet.
+  ///
+  /// Reads straight from [_cache] (already kept fresh by whichever page
+  /// last called [refresh]/[getAll] — Home/History/Return all do on
+  /// open) instead of hitting Supabase again, so opening an archive
+  /// detail sheet doesn't need its own network round-trip. Matches the
+  /// same identifying column [existsActiveNoHak] uses (no_208 for
+  /// Warkah, no_hak for everything else) and the same "blocking" status
+  /// set ('Dipinjam' = physically checked out, 'Diajukan' = pending
+  /// admin decision) — an admin checking whether a requested document is
+  /// available needs to see "already requested elsewhere" just as much
+  /// as "already out," since approving a second request for either would
+  /// just be handed back a "gagal" from the same dedupe check tambah()
+  /// already enforces.
+  ///
+  /// Returns the blocking [Peminjaman] record itself (not just a bool)
+  /// so the caller can show who has it / when it was borrowed.
+  static Peminjaman? findActiveLoanForArsip(Map<String, dynamic> arsip) {
+    final jenis = arsip['jenis_dokumen'] as String? ?? 'Buku Tanah';
+    final identifier = jenis == 'Warkah'
+        ? (arsip['no_208'] as String?)
+        : (arsip['no_hak'] as String?);
+    if (identifier == null || identifier.trim().isEmpty) return null;
+
+    for (final p in _cache) {
+      if (p.jenisDokumen != jenis) continue;
+      final pIdentifier = jenis == 'Warkah' ? p.no208 : p.noHak;
+      if (pIdentifier != identifier) continue;
+      if (p.status == 'Dipinjam' || p.status == 'Diajukan') return p;
+    }
+    return null;
+  }
+
   static Future<Peminjaman> tambah(Peminjaman peminjaman) async {
     final withOfficer = peminjaman.diampuOleh == null
         ? peminjaman.copyWith(diampuOleh: AuthService.currentUser?.id)

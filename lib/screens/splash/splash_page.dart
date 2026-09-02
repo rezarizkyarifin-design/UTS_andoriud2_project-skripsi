@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../core/theme/app_theme.dart';
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key, required this.nextRoute});
@@ -16,10 +17,11 @@ class SplashPage extends StatefulWidget {
 
 class _SplashPageState extends State<SplashPage>
     with SingleTickerProviderStateMixin {
-  static const _forestDark = Color(0xFF0F2A1E);
-  static const _sage = Color(0xFF3D8361);
-  static const _gold = Color(0xFFC08A3E);
-  static const _parchment = Color(0xFFFAF6EE);
+  // Use AppTheme constants for consistency across the app
+  static const _forestDark = AppTheme.forestDark;
+  static const _sage = AppTheme.sage;
+  static const _gold = AppTheme.gold;
+  static const _parchment = AppTheme.parchment;
 
   late final AnimationController _controller;
 

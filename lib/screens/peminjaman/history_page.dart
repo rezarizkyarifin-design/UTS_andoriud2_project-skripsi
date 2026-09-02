@@ -19,25 +19,6 @@ class HistoryPage extends StatefulWidget {
   State<HistoryPage> createState() => _HistoryPageState();
 }
 
-// ─── Item #6 (koreksi): dua state, bukan tiga ───
-// Sebelumnya ada state ketiga ("hidden") yang muncul saat scroll ke
-// BAWAH (ScrollDirection.reverse), jadi search bar + status chips
-// ikut hilang total. Itu yang bikin kerasa "uncoordinated/messy" —
-// deteksi arah scroll (forward/reverse) itu sendiri noisy banget pas
-// daftarnya pendek (2-3 item), jadi gampang flip-flop antar state
-// cuma dari drag kecil atau bounce physics.
-//
-// Sekarang cuma bergantung pada POSISI scroll, bukan ARAH scroll:
-// full    → header gradient + stat + search bar + status chips, semua
-//           tampil (posisi beneran di paling atas, metrics.pixels <= 0
-//           — termasuk saat daftarnya pendek/kosong sehingga nggak ada
-//           yang bisa discroll sama sekali).
-// compact → header gradient disembunyikan, tapi search bar DAN status
-//           chips (Semua/Sedang Dipinjam/Telah Kembali) tetap tampil —
-//           ini state default begitu user geser dari posisi paling
-//           atas, entah scroll ke atas ATAU ke bawah. Nggak pernah
-//           balik ke "semuanya ilang" lagi.
-
 class _HistoryPageState extends State<HistoryPage> {
   late List<Peminjaman> _history;
 

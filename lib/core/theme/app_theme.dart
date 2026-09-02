@@ -32,11 +32,25 @@ class AppTheme {
   static const Color dangerRed = Color(0xFFC0392B); // "Terlambat" text
   static const Color dangerBg = Color(0xFFFDE2E1); // "Terlambat" chip bg
 
+  // "Warkah" / QR-scan third-category accent — was scattered as a bare
+  // Color(0xFF5C5FCD) literal across HomePage's quick-access grid, the
+  // jenis-dokumen breakdown, and ArchivePage's filter chips. Same idea as
+  // successGreen/warningAmber/dangerRed above: give it one name so every
+  // screen that needs "the Warkah color" pulls from here instead of
+  // retyping the hex and slowly drifting apart.
+  static const Color infoPurple = Color(0xFF5C5FCD);
+  static const Color infoBg = Color(0xFFE7E8FA);
+
   // ── Neutral surfaces ──
   static const Color surfaceMuted = Color(
     0xFFF5F5F5,
   ); // input fields, inner info boxes
   static const Color divider = Color(0xFFE0E0E0);
+
+  // Sheet body background — used behind the section cards in bottom
+  // sheets (Edit Peminjaman, Edit/Tambah Arsip) so white cards have
+  // something to sit on instead of floating on more white.
+  static const Color sheetBody = Color(0xFFF7F8F7);
 
   // ── Shared shape and surface tokens ──
   static const double radiusSmall = 12;

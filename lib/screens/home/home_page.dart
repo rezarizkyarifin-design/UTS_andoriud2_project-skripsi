@@ -249,25 +249,25 @@ class _HomePageState extends State<HomePage> {
       {
         'icon': Icons.edit_document,
         'label': 'Form\nPeminjaman',
-        'color': const Color(0xFF2D6A4F),
+        'color': AppTheme.primaryGreen,
         'route': AppRoutes.form,
       },
       {
         'icon': Icons.list_alt,
         'label': 'Daftar\nPeminjaman',
-        'color': const Color(0xFF2D6A4F),
+        'color': AppTheme.primaryGreen,
         'route': AppRoutes.history,
       },
       {
         'icon': Icons.assignment_return,
         'label': 'Pengem-\nbalian',
-        'color': const Color(0xFF2D6A4F),
+        'color': AppTheme.primaryGreen,
         'route': AppRoutes.returnPage,
       },
       {
         'icon': Icons.qr_code_scanner,
         'label': 'Scan QR\nCode',
-        'color': const Color(0xFF5C5FCD),
+        'color': AppTheme.infoPurple,
         'route': AppRoutes.scan,
       },
     ];
@@ -474,13 +474,13 @@ class _HomePageState extends State<HomePage> {
             jenis: 'Surat Ukur',
             icon: Icons.straighten_outlined,
             count: PeminjamanService.getCountSuratUkur(),
-            color: const Color(0xFFC08A3E),
+            color: AppTheme.gold,
           ),
           JenisDokumenStat(
             jenis: 'Warkah',
             icon: Icons.folder_copy_outlined,
             count: PeminjamanService.getCountWarkah(),
-            color: const Color(0xFF5C5FCD),
+            color: AppTheme.infoPurple,
           ),
         ],
         onTapJenis: (jenis) => _navigateAndRefresh(AppRoutes.history),
@@ -549,14 +549,14 @@ class _HomePageState extends State<HomePage> {
         children: [
           chip(
             icon: Icons.sync_alt_rounded,
-            color: Colors.orange,
+            color: AppTheme.warningAmber,
             value: aktif.toString(),
             label: 'Sedang\nDipinjam',
             onTap: () => _navigateAndRefresh(AppRoutes.returnPage),
           ),
           chip(
             icon: Icons.inventory_2_outlined,
-            color: Colors.green,
+            color: AppTheme.successGreen,
             value: kembali.toString(),
             label: 'Telah\nKembali',
             onTap: () => _navigateAndRefresh(AppRoutes.history),
@@ -741,10 +741,10 @@ class _HomePageState extends State<HomePage> {
                               ),
                               decoration: BoxDecoration(
                                 color: overdue
-                                    ? const Color(0xFFFDE2E1)
+                                    ? AppTheme.dangerBg
                                     : p.status == 'Dipinjam'
-                                    ? const Color(0xFFFFF3D9)
-                                    : const Color(0xFFD8F3DC),
+                                    ? AppTheme.warningBg
+                                    : AppTheme.successBg,
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
@@ -759,8 +759,8 @@ class _HomePageState extends State<HomePage> {
                                   color: overdue
                                       ? AppTheme.dangerRed
                                       : p.status == 'Dipinjam'
-                                      ? const Color(0xFFB07A00)
-                                      : AppTheme.accentGreen,
+                                      ? AppTheme.warningAmber
+                                      : AppTheme.successGreen,
                                 ),
                               ),
                             ),
@@ -926,12 +926,12 @@ class _HomePageState extends State<HomePage> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            color: AppTheme.accentGreen.withOpacity(0.12),
+            color: AppTheme.successBg,
             borderRadius: BorderRadius.circular(16),
           ),
           child: Row(
             children: [
-              const Icon(Icons.note_add, color: AppTheme.primaryGreen),
+              const Icon(Icons.note_add, color: AppTheme.successGreen),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -939,13 +939,13 @@ class _HomePageState extends State<HomePage> {
                   style: const TextStyle(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w600,
-                    color: AppTheme.primaryGreen,
+                    color: AppTheme.successGreen,
                   ),
                 ),
               ),
               const Icon(
                 Icons.chevron_right,
-                color: AppTheme.primaryGreen,
+                color: AppTheme.successGreen,
                 size: 20,
               ),
             ],
@@ -972,12 +972,12 @@ class _HomePageState extends State<HomePage> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            color: const Color(0xFFFFF3D9),
+            color: AppTheme.warningBg,
             borderRadius: BorderRadius.circular(16),
           ),
           child: Row(
             children: [
-              const Icon(Icons.pending_actions, color: Color(0xFFB07A00)),
+              const Icon(Icons.pending_actions, color: AppTheme.warningAmber),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -985,13 +985,13 @@ class _HomePageState extends State<HomePage> {
                   style: const TextStyle(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFFB07A00),
+                    color: AppTheme.warningAmber,
                   ),
                 ),
               ),
               const Icon(
                 Icons.chevron_right,
-                color: Color(0xFFB07A00),
+                color: AppTheme.warningAmber,
                 size: 20,
               ),
             ],
@@ -1018,7 +1018,7 @@ class _HomePageState extends State<HomePage> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            color: const Color(0xFFFDE2E1),
+            color: AppTheme.dangerBg,
             borderRadius: BorderRadius.circular(16),
           ),
           child: Row(

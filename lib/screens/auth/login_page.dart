@@ -114,7 +114,7 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     return DoubleBackToExit(
       child: Scaffold(
-        backgroundColor: AppTheme.parchment,
+        backgroundColor: const Color.fromARGB(255, 252, 252, 252),
         body: CustomScrollView(
           slivers: [
             // ── Header: Responsive height (42% of screen) instead of fixed pixels ──
