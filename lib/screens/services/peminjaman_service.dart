@@ -223,7 +223,13 @@ class PeminjamanService {
       if (p.jenisDokumen != jenis) continue;
       final pIdentifier = jenis == 'Warkah' ? p.no208 : p.noHak;
       if (pIdentifier != identifier) continue;
-      if (p.status == 'Dipinjam' || p.status == 'Diajukan') return p;
+      // BUG FIX: a document with a pending, not-yet-accepted request
+      // ('Diajukan') should still show as 'Tersedia' in Archive — it
+      // only actually leaves the shelf once an admin approves it
+      // ('Dipinjam'). Counting 'Diajukan' here made Archive mark a
+      // document unavailable the instant anyone requested it, before
+      // an admin had acted on that request at all.
+      if (p.status == 'Dipinjam') return p;
     }
     return null;
   }
@@ -364,7 +370,7 @@ class PeminjamanService {
           })
           .eq('id', current.id!)
           .eq('status', 'Diajukan')
-          .select()
+          .select('*, master_arsip(*)')
           .maybeSingle();
       if (updated == null) return false;
       _replaceInCache(Peminjaman.fromMap(updated));
@@ -399,7 +405,7 @@ class PeminjamanService {
           })
           .eq('id', current.id!)
           .eq('status', 'Diajukan')
-          .select()
+          .select('*, master_arsip(*)')
           .maybeSingle();
       if (updated == null) return false;
       _replaceInCache(Peminjaman.fromMap(updated));
@@ -409,7 +415,22 @@ class PeminjamanService {
     }
   }
 
+  // BUG FIX: only the pegawai who owns this loan (diampuOleh) or an
+  // admin could mark it returned — there was no check at all before, so
+  // any authenticated pegawai could "Proses Kembali" someone else's
+  // document. Same ownership shape as ajukanPerpanjangan's gate below;
+  // legacy rows with no recorded owner (diampuOleh == null) stay open.
+  // As with the other client-side gates in this file, the authoritative
+  // enforcement belongs in a Supabase RLS policy — this is fast-fail UX
+  // plus a safety net for a modified client.
   static Future<bool> kembalikan(String id) async {
+    final current = _findActiveById(id);
+    if (current == null) return false;
+    final requesterId = AuthService.currentUser?.id;
+    final isOwner =
+        current.diampuOleh == null || current.diampuOleh == requesterId;
+    if (!isOwner && !AuthService.isAdmin) return false;
+
     try {
       final updated = await _client
           .from('peminjaman')
@@ -420,7 +441,7 @@ class PeminjamanService {
           })
           .eq('id', id)
           .eq('status', 'Dipinjam')
-          .select()
+          .select('*, master_arsip(*)')
           .maybeSingle();
       if (updated == null) return false;
       _replaceInCache(Peminjaman.fromMap(updated));
@@ -433,8 +454,23 @@ class PeminjamanService {
   /// Bulk version of [kembalikan] for the multi-select "Tandai Kembali"
   /// flow — returns the list of ids that actually got updated so the UI
   /// can report "X dari Y berhasil" instead of an all-or-nothing result.
+  ///
+  /// BUG FIX: same ownership gate as [kembalikan] — ids for documents
+  /// owned by someone else are dropped before hitting the database
+  /// (instead of silently returning everyone's documents), unless the
+  /// requester is an admin.
   static Future<List<String>> kembalikanBanyak(List<String> ids) async {
     if (ids.isEmpty) return [];
+    final requesterId = AuthService.currentUser?.id;
+    final allowedIds = AuthService.isAdmin
+        ? ids
+        : ids.where((id) {
+            final current = _findActiveById(id);
+            return current != null &&
+                (current.diampuOleh == null ||
+                    current.diampuOleh == requesterId);
+          }).toList();
+    if (allowedIds.isEmpty) return [];
     try {
       final rows = await _client
           .from('peminjaman')
@@ -443,9 +479,9 @@ class PeminjamanService {
             'kembali_oleh': AuthService.currentUser?.id,
             'kembali_oleh_nama': AuthService.currentUser?.nama,
           })
-          .inFilter('id', ids)
+          .inFilter('id', allowedIds)
           .eq('status', 'Dipinjam')
-          .select();
+          .select('*, master_arsip(*)');
       final berhasil = <String>[];
       for (final row in rows) {
         final p = Peminjaman.fromMap(row);
@@ -466,7 +502,7 @@ class PeminjamanService {
           .update({'tanggal_kembali': tanggalKembaliBaru.toIso8601String()})
           .eq('id', id)
           .eq('status', 'Dipinjam')
-          .select()
+          .select('*, master_arsip(*)')
           .maybeSingle();
       if (row != null) _replaceInCache(Peminjaman.fromMap(row));
     } catch (e) {
@@ -514,6 +550,16 @@ class PeminjamanService {
   // keyed by `id` instead of `no_hak` (see _findActiveById's comment).
   // ══════════════════════════════════════════════════════════════════
 
+  // BUG FIX (urgent): this and every other mutation below used to
+  // `.select()` after `.update()` with no join, so the row returned by
+  // Supabase only had peminjaman's own columns. Peminjaman.fromMap falls
+  // back to '-' for kecamatan/kelurahan/jenis_hak/no_hak (and null for
+  // the Surat Ukur/Warkah fields) when `master_arsip` isn't nested in
+  // the map — so requesting/approving/rejecting an extension (or
+  // returning, approving, rejecting a loan) silently blanked out the
+  // document's master data in the cache. Now selects '*, master_arsip(*)'
+  // like the initial fetch/refresh does, so the replaced cache entry
+  // keeps its real master data.
   static Future<bool> ajukanPerpanjangan(
     String id,
     DateTime tanggalKembaliBaru,
@@ -548,7 +594,7 @@ class PeminjamanService {
             'extension_reason': alasan,
           })
           .eq('id', current.id!)
-          .select()
+          .select('*, master_arsip(*)')
           .maybeSingle();
       if (updated == null) return false;
       _replaceInCache(Peminjaman.fromMap(updated));
@@ -589,7 +635,7 @@ class PeminjamanService {
             'perpanjangan_disetujui_oleh_nama': AuthService.currentUser?.nama,
           })
           .eq('id', current.id!)
-          .select()
+          .select('*, master_arsip(*)')
           .maybeSingle();
       if (updated == null) return false;
       _replaceInCache(Peminjaman.fromMap(updated));
@@ -613,7 +659,7 @@ class PeminjamanService {
             'extension_reason': null,
           })
           .eq('id', current.id!)
-          .select()
+          .select('*, master_arsip(*)')
           .maybeSingle();
       if (updated == null) return false;
       _replaceInCache(Peminjaman.fromMap(updated));
@@ -632,11 +678,17 @@ class PeminjamanService {
   // oversight elsewhere in the app); Pegawai sees only documents they
   // personally processed — same scope as getAktifUntukPegawaiSaatIni(),
   // just filtered down to the overdue ones.
+  //
+  // BUG FIX: results weren't ordered at all — the most-overdue document
+  // (the most urgent one to return) could sit anywhere in the list,
+  // buried under ones only a day late. Sorted most-overdue-first so the
+  // notification surfaces the most urgent return at the top.
   static List<Peminjaman> getOverdueForNotifikasi() {
-    if (AuthService.isAdmin) {
-      return _cache.where((p) => p.isOverdue).toList();
-    }
-    return getAktifUntukPegawaiSaatIni().where((p) => p.isOverdue).toList();
+    final overdue = AuthService.isAdmin
+        ? _cache.where((p) => p.isOverdue).toList()
+        : getAktifUntukPegawaiSaatIni().where((p) => p.isOverdue).toList();
+    overdue.sort((a, b) => b.hariTerlambat.compareTo(a.hariTerlambat));
+    return overdue;
   }
 
   // ─── Item 2 (Dashboard counters), di-scope ke Pegawai yang login ───

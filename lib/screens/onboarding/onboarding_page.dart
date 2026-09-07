@@ -306,7 +306,8 @@ class _AnimatedBadge extends StatelessWidget {
 
   const _AnimatedBadge({required this.page, required this.slides});
 
-  static const _gold = Color(0xFFC08A3E);
+  // Use AppTheme constants for consistency
+  static const _gold = AppTheme.gold;
 
   @override
   Widget build(BuildContext context) {
@@ -353,7 +354,7 @@ class _AnimatedBadge extends StatelessWidget {
                   icon,
                   key: ValueKey(icon),
                   size: 44,
-                  color: const Color(0xFF2E7D52),
+                  color: AppTheme.sage,
                 ),
               ),
             ),
@@ -368,7 +369,8 @@ class _SlideText extends StatelessWidget {
   final OnboardingSlide slide;
   const _SlideText({required this.slide});
 
-  static const _ink = Color(0xFF1E2A22);
+  // Use AppTheme constant for consistency
+  static const _ink = AppTheme.ink;
 
   @override
   Widget build(BuildContext context) {

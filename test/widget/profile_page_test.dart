@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import '../../lib/screens/peminjaman/profile_page.dart'; // Adjust import path
+import 'package:projeck_skripsi/screens/peminjaman/profile_page.dart'; // Adjust import path
 
 void main() {
   Widget createProfilePage() {

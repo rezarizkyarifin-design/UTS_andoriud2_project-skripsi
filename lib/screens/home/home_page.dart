@@ -20,7 +20,7 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  int _selectedNavIndex = 0;
+  final int _selectedNavIndex = 0;
 
   // Ganti / tambah path sesuai foto yang kamu taruh di assets/images/
   final List<String> _bannerImages = const [
@@ -200,9 +200,11 @@ class _HomePageState extends State<HomePage> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.10),
+                  color: Colors.white.withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: Colors.white.withOpacity(0.15)),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.15),
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -281,7 +283,7 @@ class _HomePageState extends State<HomePage> {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),
@@ -299,7 +301,7 @@ class _HomePageState extends State<HomePage> {
                     width: 52,
                     height: 52,
                     decoration: BoxDecoration(
-                      color: (item['color'] as Color).withOpacity(0.12),
+                      color: (item['color'] as Color).withValues(alpha: 0.12),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
@@ -401,7 +403,7 @@ class _HomePageState extends State<HomePage> {
                               decoration: BoxDecoration(
                                 gradient: LinearGradient(
                                   colors: [
-                                    Colors.black.withOpacity(0.55),
+                                    Colors.black.withValues(alpha: 0.55),
                                     Colors.transparent,
                                   ],
                                   begin: Alignment.bottomCenter,
@@ -512,7 +514,7 @@ class _HomePageState extends State<HomePage> {
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.04),
+                  color: Colors.black.withValues(alpha: 0.04),
                   blurRadius: 10,
                   offset: const Offset(0, 3),
                 ),
@@ -709,7 +711,7 @@ class _HomePageState extends State<HomePage> {
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.04),
+                          color: Colors.black.withValues(alpha: 0.04),
                           blurRadius: 10,
                           offset: const Offset(0, 3),
                         ),
@@ -885,7 +887,7 @@ class _HomePageState extends State<HomePage> {
           borderRadius: BorderRadius.circular(18),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 10,
               offset: const Offset(0, 3),
             ),
@@ -905,6 +907,59 @@ class _HomePageState extends State<HomePage> {
               AppTheme.dangerRed,
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  // ─── BUG FIX (missing notification): Admin had no on-homepage alert
+  // for overdue documents at all — only Pegawai got one
+  // (_buildPegawaiOverdueBanner below), scoped to their own loans. An
+  // admin needs the same alert but scoped to every officer's overdue
+  // documents (mirrors the broad-oversight scope used elsewhere for
+  // Admin, e.g. getOverdueForNotifikasi). Placed first among the
+  // homepage banners since a late return is more urgent than a pending
+  // approval.
+  Widget _buildAdminOverdueBanner() {
+    if (!AuthService.isAdmin) return const SizedBox.shrink();
+
+    final overdue = PeminjamanService.getTerlambat();
+    if (overdue == 0) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      child: GestureDetector(
+        onTap: _showOverdueSheet,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: AppTheme.dangerBg,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.warning_amber_rounded,
+                color: AppTheme.dangerRed,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  '$overdue dokumen sudah lewat batas waktu pengembalian.',
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.dangerRed,
+                  ),
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right,
+                color: AppTheme.dangerRed,
+                size: 20,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1079,7 +1134,7 @@ class _HomePageState extends State<HomePage> {
           builder: (sheetContext, setSheetState) {
             final pending = PeminjamanService.getPengajuanPeminjaman();
 
-            Future<void> _decide(
+            Future<void> decide(
               String id,
               bool approve, {
               bool checklistDokumenDitemukan = false,
@@ -1164,7 +1219,7 @@ class _HomePageState extends State<HomePage> {
             // Checklist dokumen fisik (3 item, semua wajib dicentang)
             // sebelum admin bisa menyetujui pengajuan — mirror gate yang
             // sama di PeminjamanService.setujuiPeminjaman.
-            Future<void> _confirmApprove(String id) async {
+            Future<void> confirmApprove(String id) async {
               bool dokumen = false;
               bool kondisi = false;
               bool sesuai = false;
@@ -1242,7 +1297,7 @@ class _HomePageState extends State<HomePage> {
               );
 
               if (confirmed == true) {
-                await _decide(
+                await decide(
                   id,
                   true,
                   checklistDokumenDitemukan: dokumen,
@@ -1255,7 +1310,7 @@ class _HomePageState extends State<HomePage> {
             // Alasan penolakan (wajib diisi) sebelum admin bisa menolak
             // pengajuan — mirror parameter wajib `alasan` di
             // PeminjamanService.tolakPeminjaman.
-            Future<void> _confirmReject(String id) async {
+            Future<void> confirmReject(String id) async {
               final controller = TextEditingController();
 
               final alasan = await showDialog<String>(
@@ -1297,7 +1352,7 @@ class _HomePageState extends State<HomePage> {
               );
 
               if (alasan != null && alasan.isNotEmpty) {
-                await _decide(id, false, alasan: alasan);
+                await decide(id, false, alasan: alasan);
               }
             }
 
@@ -1402,7 +1457,7 @@ class _HomePageState extends State<HomePage> {
                                 children: [
                                   Expanded(
                                     child: OutlinedButton(
-                                      onPressed: () => _confirmReject(p.id!),
+                                      onPressed: () => confirmReject(p.id!),
                                       style: OutlinedButton.styleFrom(
                                         foregroundColor: AppTheme.dangerRed,
                                         side: const BorderSide(
@@ -1420,7 +1475,7 @@ class _HomePageState extends State<HomePage> {
                                   const SizedBox(width: 10),
                                   Expanded(
                                     child: ElevatedButton(
-                                      onPressed: () => _confirmApprove(p.id!),
+                                      onPressed: () => confirmApprove(p.id!),
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: AppTheme.accentGreen,
                                         elevation: 0,
@@ -1462,10 +1517,16 @@ class _HomePageState extends State<HomePage> {
           builder: (sheetContext, setSheetState) {
             final pending = PeminjamanService.getPengajuanPerpanjangan();
 
-            Future<void> _decide(String noHak, bool approve) async {
+            // BUG FIX: setujuiPerpanjangan/tolakPerpanjangan look the loan
+            // up by `id` (see _findActiveById), but the callers below used
+            // to pass `p.noHak` — which never matches, so approve/reject
+            // silently did nothing. Now takes the real `id`, plus a
+            // separate `label` just for display in the snackbar (showing
+            // the raw id there would be meaningless to the user).
+            Future<void> decide(String id, String label, bool approve) async {
               final ok = approve
-                  ? await PeminjamanService.setujuiPerpanjangan(noHak)
-                  : await PeminjamanService.tolakPerpanjangan(noHak);
+                  ? await PeminjamanService.setujuiPerpanjangan(id)
+                  : await PeminjamanService.tolakPerpanjangan(id);
               if (!ok) return;
               if (!mounted) return;
               setSheetState(() {});
@@ -1474,8 +1535,8 @@ class _HomePageState extends State<HomePage> {
                 SnackBar(
                   content: Text(
                     approve
-                        ? 'Perpanjangan $noHak disetujui.'
-                        : 'Perpanjangan $noHak ditolak.',
+                        ? 'Perpanjangan $label disetujui.'
+                        : 'Perpanjangan $label ditolak.',
                   ),
                   backgroundColor: approve
                       ? AppTheme.accentGreen
@@ -1591,7 +1652,8 @@ class _HomePageState extends State<HomePage> {
                                 children: [
                                   Expanded(
                                     child: OutlinedButton(
-                                      onPressed: () => _decide(p.noHak, false),
+                                      onPressed: () =>
+                                          decide(p.id!, p.noHak, false),
                                       style: OutlinedButton.styleFrom(
                                         foregroundColor: AppTheme.dangerRed,
                                         side: const BorderSide(
@@ -1609,7 +1671,8 @@ class _HomePageState extends State<HomePage> {
                                   const SizedBox(width: 10),
                                   Expanded(
                                     child: ElevatedButton(
-                                      onPressed: () => _decide(p.noHak, true),
+                                      onPressed: () =>
+                                          decide(p.id!, p.noHak, true),
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: AppTheme.accentGreen,
                                         elevation: 0,
@@ -1626,6 +1689,170 @@ class _HomePageState extends State<HomePage> {
                                     ),
                                   ),
                                 ],
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // ─── BUG FIX: tapping the admin overdue banner used to just navigate
+  // to ReturnPage — inconsistent with the loan-request/extension banners
+  // above, which open a sheet listing exactly what's pending right from
+  // the homepage. Mirrors those two sheets: lists every overdue document
+  // (admin scope — see getOverdueForNotifikasi), most overdue first, with
+  // a "Proses Kembali" action per row so returning one doesn't require
+  // leaving the sheet.
+  void _showOverdueSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            final overdue = PeminjamanService.getOverdueForNotifikasi();
+
+            Future<void> prosesKembali(Peminjaman p) async {
+              bool ok = false;
+              try {
+                ok = await PeminjamanService.kembalikan(p.id!);
+              } catch (_) {
+                ok = false;
+              }
+              if (!mounted) return;
+              setSheetState(() {});
+              setState(() {}); // refresh badge + banner di HomePage
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    ok
+                        ? '${_dokumenIdentifier(p)} berhasil dikembalikan.'
+                        : 'Gagal mengembalikan dokumen.',
+                  ),
+                  backgroundColor: ok
+                      ? AppTheme.accentGreen
+                      : AppTheme.dangerRed,
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              );
+              if (overdue.length <= 1) Navigator.pop(sheetContext);
+            }
+
+            return Container(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 16,
+                bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 24,
+              ),
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(sheetContext).size.height * 0.75,
+              ),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.black12,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ),
+                  const Text(
+                    'Dokumen Terlambat Dikembalikan',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${overdue.length} dokumen sudah lewat batas waktu.',
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      color: Colors.black45,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  if (overdue.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(
+                        child: Text(
+                          'Tidak ada dokumen yang terlambat.',
+                          style: TextStyle(color: Colors.black45),
+                        ),
+                      ),
+                    )
+                  else
+                    Flexible(
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: overdue.length,
+                        separatorBuilder: (_, __) => const Divider(height: 24),
+                        itemBuilder: (context, index) {
+                          final p = overdue[index];
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${p.nama} — ${_dokumenIdentifier(p)}',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Batas pengembalian: ${p.tanggalKembaliFormatted}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.black54,
+                                ),
+                              ),
+                              Text(
+                                'Terlambat ${p.hariTerlambat} hari',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppTheme.dangerRed,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton(
+                                  onPressed: () => prosesKembali(p),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppTheme.accentGreen,
+                                    elevation: 0,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(30),
+                                    ),
+                                  ),
+                                  child: const Text(
+                                    'Proses Kembali',
+                                    style: TextStyle(color: Colors.white),
+                                  ),
+                                ),
                               ),
                             ],
                           );
@@ -1667,6 +1894,7 @@ class _HomePageState extends State<HomePage> {
             children: [
               _buildHeader(),
               const SizedBox(height: 18),
+              _buildAdminOverdueBanner(),
               _buildAdminLoanRequestBanner(),
               _buildAdminExtensionBanner(),
               _buildPegawaiOverdueBanner(),

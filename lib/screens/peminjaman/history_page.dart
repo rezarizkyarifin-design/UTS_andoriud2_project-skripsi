@@ -313,8 +313,9 @@ class _HistoryPageState extends State<HistoryPage> {
   Color _statusColor(Peminjaman p) {
     if (p.status == 'Diajukan') return const Color(0xFF8A6D00);
     if (p.status == 'Ditolak') return _overdueRed;
-    if (p.status == 'Dipinjam')
+    if (p.status == 'Dipinjam') {
       return p.isOverdue ? _overdueRed : const Color(0xFFB07A00);
+    }
     return _accentGreen; // 'Kembali'
   }
 
@@ -361,9 +362,9 @@ class _HistoryPageState extends State<HistoryPage> {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.10),
+            color: Colors.white.withValues(alpha: 0.10),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withOpacity(0.15)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
           ),
           child: Column(
             children: [
@@ -443,7 +444,7 @@ class _HistoryPageState extends State<HistoryPage> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 16,
             offset: const Offset(0, 6),
           ),
@@ -1422,7 +1423,7 @@ class _HistoryPageState extends State<HistoryPage> {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
+                    color: Colors.black.withValues(alpha: 0.04),
                     blurRadius: 10,
                     offset: const Offset(0, 3),
                   ),
@@ -2005,7 +2006,7 @@ class _HistoryPageState extends State<HistoryPage> {
                         color: Colors.white,
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
+                            color: Colors.black.withValues(alpha: 0.05),
                             blurRadius: 12,
                             offset: const Offset(0, -3),
                           ),
@@ -2295,9 +2296,9 @@ class _HistoryPageState extends State<HistoryPage> {
                             vertical: 12,
                           ),
                           decoration: BoxDecoration(
-                            color: _accentGreen.withOpacity(0.06),
+                            color: _accentGreen.withValues(alpha: 0.06),
                             border: Border.all(
-                              color: _accentGreen.withOpacity(0.15),
+                              color: _accentGreen.withValues(alpha: 0.15),
                             ),
                             borderRadius: BorderRadius.circular(14),
                           ),

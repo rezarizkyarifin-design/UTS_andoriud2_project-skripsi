@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import '../../lib/screens/peminjaman/form_page.dart';
+import 'package:projeck_skripsi/screens/peminjaman/form_page.dart';
 
 void main() {
   Widget buildTestableWidget(Widget child) {

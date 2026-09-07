@@ -132,9 +132,9 @@ class _SplashPageState extends State<SplashPage>
                             height: 92,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: _sage.withOpacity(0.18),
+                              color: _sage.withValues(alpha: 0.18),
                               border: Border.all(
-                                color: _sage.withOpacity(0.6),
+                                color: _sage.withValues(alpha: 0.6),
                                 width: 1.2,
                               ),
                             ),
@@ -170,7 +170,7 @@ class _SplashPageState extends State<SplashPage>
                           'Kantor Pertanahan Kota Cilegon',
                           textAlign: TextAlign.center,
                           style: GoogleFonts.plusJakartaSans(
-                            color: _parchment.withOpacity(0.7),
+                            color: _parchment.withValues(alpha: 0.7),
                             fontSize: 12.5,
                             fontWeight: FontWeight.w500,
                           ),

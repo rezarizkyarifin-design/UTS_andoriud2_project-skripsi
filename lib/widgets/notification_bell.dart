@@ -313,7 +313,7 @@ class _NotificationDropdownState extends State<_NotificationDropdown> {
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.16),
+                color: Colors.black.withValues(alpha: 0.16),
                 blurRadius: 24,
                 offset: const Offset(0, 10),
               ),
@@ -341,7 +341,7 @@ class _NotificationDropdownState extends State<_NotificationDropdown> {
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
-                          color: AppTheme.primaryGreen.withOpacity(0.10),
+                          color: AppTheme.primaryGreen.withValues(alpha: 0.10),
                           borderRadius: BorderRadius.circular(99),
                         ),
                         child: Text(
@@ -447,7 +447,7 @@ class _NotificationTile extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 18,
-                  backgroundColor: accentColor.withOpacity(0.14),
+                  backgroundColor: accentColor.withValues(alpha: 0.14),
                   child: Text(
                     initial,
                     style: TextStyle(
@@ -466,7 +466,7 @@ class _NotificationTile extends StatelessWidget {
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.12),
+                          color: Colors.black.withValues(alpha: 0.12),
                           blurRadius: 2,
                         ),
                       ],

@@ -412,6 +412,7 @@ class AuthService {
           .eq('id', user.id);
       _currentUser = user.copyWith(
         contactEmail: trimmed.isEmpty ? null : trimmed,
+        clearContactEmail: trimmed.isEmpty,
       );
       await _cacheUserLocally(_currentUser!);
       return null;

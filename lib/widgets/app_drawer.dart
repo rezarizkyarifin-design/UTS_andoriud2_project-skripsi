@@ -254,7 +254,7 @@ class AppDrawer extends StatelessWidget {
               boxShadow: isActive
                   ? [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.06),
+                        color: Colors.black.withValues(alpha: 0.06),
                         blurRadius: 10,
                         offset: const Offset(0, 3),
                       ),
@@ -268,7 +268,7 @@ class AppDrawer extends StatelessWidget {
                   height: 36,
                   decoration: BoxDecoration(
                     color: isActive
-                        ? AppTheme.accentGreen.withOpacity(0.14)
+                        ? AppTheme.accentGreen.withValues(alpha: 0.14)
                         : AppTheme.surfaceMuted,
                     shape: BoxShape.circle,
                   ),

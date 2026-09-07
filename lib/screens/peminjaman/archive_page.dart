@@ -18,7 +18,7 @@ class ArchivePage extends StatefulWidget {
 }
 
 class _ArchivePageState extends State<ArchivePage> {
-  int _selectedNavIndex = 1; // Arsip aktif di index 1
+  final int _selectedNavIndex = 1; // Arsip aktif di index 1
   bool _isLoading = true;
   // BUG FIX: a failed fetch used to leave both of these empty with
   // _isLoading flipped to false — indistinguishable from "loaded fine,
@@ -471,7 +471,7 @@ class _ArchivePageState extends State<ArchivePage> {
                           ),
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? AppTheme.accentGreen.withOpacity(0.10)
+                                ? AppTheme.accentGreen.withValues(alpha: 0.10)
                                 : AppTheme.surfaceMuted,
                             borderRadius: BorderRadius.circular(14),
                             border: Border.all(
@@ -637,7 +637,7 @@ class _ArchivePageState extends State<ArchivePage> {
                             borderRadius: BorderRadius.circular(18),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.04),
+                                color: Colors.black.withValues(alpha: 0.04),
                                 blurRadius: 10,
                                 offset: const Offset(0, 3),
                               ),
@@ -934,7 +934,7 @@ class _ArchivePageState extends State<ArchivePage> {
                   children: [
                     CircleAvatar(
                       radius: 22,
-                      backgroundColor: accent.withOpacity(0.12),
+                      backgroundColor: accent.withValues(alpha: 0.12),
                       child: Icon(
                         jenis == 'Buku Tanah'
                             ? Icons.menu_book_outlined
@@ -1519,7 +1519,7 @@ class _ArchivePageState extends State<ArchivePage> {
                           ),
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? AppTheme.accentGreen.withOpacity(0.10)
+                                ? AppTheme.accentGreen.withValues(alpha: 0.10)
                                 : AppTheme.surfaceMuted,
                             borderRadius: BorderRadius.circular(14),
                             border: Border.all(
@@ -1674,7 +1674,7 @@ class _ArchivePageState extends State<ArchivePage> {
                             borderRadius: BorderRadius.circular(18),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.04),
+                                color: Colors.black.withValues(alpha: 0.04),
                                 blurRadius: 10,
                                 offset: const Offset(0, 3),
                               ),
@@ -1903,7 +1903,7 @@ class _ArchivePageState extends State<ArchivePage> {
               border: Border(left: BorderSide(color: accent, width: 4)),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.04),
+                  color: Colors.black.withValues(alpha: 0.04),
                   blurRadius: 10,
                   offset: const Offset(0, 3),
                 ),
@@ -1915,7 +1915,7 @@ class _ArchivePageState extends State<ArchivePage> {
                 vertical: 8,
               ),
               leading: CircleAvatar(
-                backgroundColor: accent.withOpacity(0.12),
+                backgroundColor: accent.withValues(alpha: 0.12),
                 child: Icon(icon, color: accent),
               ),
               title: Text(
@@ -2001,7 +2001,7 @@ class _ArchivePageState extends State<ArchivePage> {
         margin: const EdgeInsets.symmetric(horizontal: 4),
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.12),
+          color: Colors.white.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(16),
         ),
         child: Column(
@@ -2211,7 +2211,7 @@ class _ArchivePageState extends State<ArchivePage> {
                   borderRadius: BorderRadius.circular(30),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.08),
+                      color: Colors.black.withValues(alpha: 0.08),
                       blurRadius: 16,
                       offset: const Offset(0, 6),
                     ),
@@ -2330,7 +2330,7 @@ class _ArchivePageState extends State<ArchivePage> {
                     borderRadius: BorderRadius.circular(30),
                     boxShadow: [
                       BoxShadow(
-                        color: AppTheme.primaryGreen.withOpacity(0.35),
+                        color: AppTheme.primaryGreen.withValues(alpha: 0.35),
                         blurRadius: 16,
                         offset: const Offset(0, 6),
                       ),

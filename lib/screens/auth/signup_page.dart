@@ -53,7 +53,7 @@ class _SignUpPageState extends State<SignUpPage> {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: AppTheme.accentGreen.withOpacity(0.12),
+                  color: AppTheme.accentGreen.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
@@ -255,8 +255,9 @@ class _SignUpPageState extends State<SignUpPage> {
                         ),
                         autocorrect: false,
                         validator: (v) {
-                          if (v == null || v.trim().isEmpty)
+                          if (v == null || v.trim().isEmpty) {
                             return 'Wajib diisi';
+                          }
                           if (v.contains(' ')) return 'Tidak boleh ada spasi';
                           return null;
                         },

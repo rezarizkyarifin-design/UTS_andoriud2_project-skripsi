@@ -32,6 +32,14 @@ class AppUser {
     UserRole? role,
     String? jabatan,
     String? contactEmail,
+    // BUG FIX: `contactEmail: contactEmail ?? this.contactEmail` can
+    // never actually clear the field — passing null to "clear it" just
+    // falls back to the old value, so AuthService.updateContactEmail('')
+    // wrote null to Supabase correctly but left the in-memory
+    // _currentUser (and the offline cache) showing the stale email.
+    // Same clearing pattern already used by Peminjaman.copyWith's
+    // clearExtension.
+    bool clearContactEmail = false,
   }) {
     return AppUser(
       id: id ?? this.id,
@@ -39,7 +47,9 @@ class AppUser {
       username: username ?? this.username,
       role: role ?? this.role,
       jabatan: jabatan ?? this.jabatan,
-      contactEmail: contactEmail ?? this.contactEmail,
+      contactEmail: clearContactEmail
+          ? null
+          : (contactEmail ?? this.contactEmail),
     );
   }
 

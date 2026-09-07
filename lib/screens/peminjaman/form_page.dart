@@ -511,9 +511,11 @@ class _FormPageState extends State<FormPage> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.10),
+                  color: Colors.white.withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: Colors.white.withOpacity(0.15)),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.15),
+                  ),
                 ),
                 child: Row(
                   children: [
@@ -586,7 +588,7 @@ class _FormPageState extends State<FormPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
@@ -666,7 +668,7 @@ class _FormPageState extends State<FormPage> {
                 ),
                 decoration: BoxDecoration(
                   color: isSelected
-                      ? _accentGreen.withOpacity(0.10)
+                      ? _accentGreen.withValues(alpha: 0.10)
                       : const Color(0xFFF5F5F5),
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(

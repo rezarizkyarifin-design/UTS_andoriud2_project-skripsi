@@ -36,7 +36,7 @@ class JenisDokumenBreakdown extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
@@ -92,7 +92,7 @@ class JenisDokumenBreakdown extends StatelessWidget {
               width: 34,
               height: 34,
               decoration: BoxDecoration(
-                color: stat.color.withOpacity(0.10),
+                color: stat.color.withValues(alpha: 0.10),
                 shape: BoxShape.circle,
               ),
               child: Icon(stat.icon, size: 16, color: stat.color),

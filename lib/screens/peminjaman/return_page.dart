@@ -373,7 +373,26 @@ class _ReturnPageState extends State<ReturnPage> {
   }
 
   // ─── PROSES KEMBALI ───
+  // BUG FIX: no ownership check at all before — any pegawai could mark
+  // any other pegawai's document as returned from this dialog. Mirrors
+  // _perpanjangWaktu's guard below; the real gate is
+  // PeminjamanService.kembalikan itself, this is defense in depth for
+  // whatever UI got us here.
   void _konfirmasiKembalikan(Peminjaman p) {
+    final isOwner =
+        p.diampuOleh == null || p.diampuOleh == AuthService.currentUser?.id;
+    if (!isOwner && !AuthService.isAdmin) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Hanya pegawai yang meminjam dokumen ini atau admin yang '
+            'dapat memproses pengembalian.',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -632,6 +651,7 @@ class _ReturnPageState extends State<ReturnPage> {
   void _showDetail(Peminjaman p) {
     final isOwner =
         p.diampuOleh == null || p.diampuOleh == AuthService.currentUser?.id;
+    final canProsesKembali = isOwner || AuthService.isAdmin;
     Widget row(IconData icon, String label, String value) {
       return Padding(
         padding: const EdgeInsets.only(bottom: 14),
@@ -796,25 +816,31 @@ class _ReturnPageState extends State<ReturnPage> {
                   children: [
                     Expanded(
                       child: ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.pop(context);
-                          _konfirmasiKembalikan(p);
-                        },
-                        icon: const Icon(
-                          Icons.assignment_turned_in_outlined,
+                        onPressed: !canProsesKembali
+                            ? null
+                            : () {
+                                Navigator.pop(context);
+                                _konfirmasiKembalikan(p);
+                              },
+                        icon: Icon(
+                          canProsesKembali
+                              ? Icons.assignment_turned_in_outlined
+                              : Icons.lock_outline,
                           size: 18,
                           color: Colors.white,
                         ),
-                        label: const Text(
+                        label: Text(
                           'Proses Kembali',
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
                             color: Colors.white,
                           ),
                         ),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: _accentGreen,
+                          backgroundColor: canProsesKembali
+                              ? _accentGreen
+                              : Colors.black26,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 13),
                           shape: RoundedRectangleBorder(
@@ -907,9 +933,9 @@ class _ReturnPageState extends State<ReturnPage> {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.10),
+            color: Colors.white.withValues(alpha: 0.10),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withOpacity(0.15)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
           ),
           child: Column(
             children: [
@@ -989,7 +1015,7 @@ class _ReturnPageState extends State<ReturnPage> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 16,
             offset: const Offset(0, 6),
           ),
@@ -1303,10 +1329,13 @@ class _ReturnPageState extends State<ReturnPage> {
     // null) are treated as open, same as the service-layer check.
     final isOwner =
         p.diampuOleh == null || p.diampuOleh == AuthService.currentUser?.id;
-
-    return Material(
-      color: selected ? _accentGreen.withOpacity(0.06) : Colors.white,
-      borderRadius: BorderRadius.circular(18),
+    // BUG FIX: "Proses Kembali" had no equivalent gate — any pegawai
+    // could return any other pegawai's document from this card. Admins
+    // may still process a return on someone's behalf.
+    final canProsesKembali = isOwner || AuthService.isAdmin;
+    return Card(
+      color: selected ? _accentGreen.withValues(alpha: 0.06) : Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
         onTap: _selectionMode
@@ -1458,9 +1487,9 @@ class _ReturnPageState extends State<ReturnPage> {
                             // Brightened from flat #F5F5F5 to a soft
                             // green-tinted highlight — same reasoning as
                             // history_page.dart's identical box.
-                            color: _accentGreen.withOpacity(0.06),
+                            color: _accentGreen.withValues(alpha: 0.06),
                             border: Border.all(
-                              color: _accentGreen.withOpacity(0.15),
+                              color: _accentGreen.withValues(alpha: 0.15),
                             ),
                             borderRadius: BorderRadius.circular(14),
                           ),
@@ -1533,9 +1562,13 @@ class _ReturnPageState extends State<ReturnPage> {
                           children: [
                             Expanded(
                               child: ElevatedButton.icon(
-                                onPressed: () => _konfirmasiKembalikan(p),
-                                icon: const Icon(
-                                  Icons.assignment_turned_in_outlined,
+                                onPressed: !canProsesKembali
+                                    ? null
+                                    : () => _konfirmasiKembalikan(p),
+                                icon: Icon(
+                                  canProsesKembali
+                                      ? Icons.assignment_turned_in_outlined
+                                      : Icons.lock_outline,
                                   size: 18,
                                   color: Colors.white,
                                 ),
@@ -1548,7 +1581,9 @@ class _ReturnPageState extends State<ReturnPage> {
                                   ),
                                 ),
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: _accentGreen,
+                                  backgroundColor: canProsesKembali
+                                      ? _accentGreen
+                                      : Colors.black26,
                                   foregroundColor: Colors.white,
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 12,
@@ -1908,7 +1943,7 @@ class _ReturnPageState extends State<ReturnPage> {
                             decoration: BoxDecoration(
                               color: _selectionMode
                                   ? _accentGreen
-                                  : _accentGreen.withOpacity(0.1),
+                                  : _accentGreen.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: Text(

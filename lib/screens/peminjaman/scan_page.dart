@@ -318,14 +318,14 @@ class _ScanPageState extends State<ScanPage>
               borderRadius: BorderRadius.circular(4),
               gradient: LinearGradient(
                 colors: [
-                  _scanGreen.withOpacity(0),
+                  _scanGreen.withValues(alpha: 0),
                   _scanGreen,
-                  _scanGreen.withOpacity(0),
+                  _scanGreen.withValues(alpha: 0),
                 ],
               ),
               boxShadow: [
                 BoxShadow(
-                  color: _scanGreen.withOpacity(0.7),
+                  color: _scanGreen.withValues(alpha: 0.7),
                   blurRadius: 8,
                   spreadRadius: 1,
                 ),
@@ -369,9 +369,9 @@ class _ScanPageState extends State<ScanPage>
         child: Container(
           padding: padding,
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.32),
+            color: Colors.black.withValues(alpha: 0.32),
             borderRadius: BorderRadius.circular(radius),
-            border: Border.all(color: Colors.white.withOpacity(0.12)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
           ),
           child: child,
         ),
@@ -405,7 +405,7 @@ class _ScanPageState extends State<ScanPage>
                       boxShadow: _isScanning
                           ? [
                               BoxShadow(
-                                color: _scanGreen.withOpacity(0.8),
+                                color: _scanGreen.withValues(alpha: 0.8),
                                 blurRadius: 6,
                                 spreadRadius: 1,
                               ),
@@ -449,7 +449,9 @@ class _ScanPageState extends State<ScanPage>
         width: 38,
         height: 38,
         decoration: BoxDecoration(
-          color: highlighted ? _scanGreen : Colors.white.withOpacity(0.14),
+          color: highlighted
+              ? _scanGreen
+              : Colors.white.withValues(alpha: 0.14),
           shape: BoxShape.circle,
         ),
         child: Icon(icon, color: Colors.white, size: 19),
@@ -484,7 +486,7 @@ class _ScanPageState extends State<ScanPage>
                   child: Icon(
                     Icons.qr_code_scanner,
                     size: 90,
-                    color: _scanGreen.withOpacity(0.25),
+                    color: _scanGreen.withValues(alpha: 0.25),
                   ),
                 ),
               ),
@@ -492,7 +494,7 @@ class _ScanPageState extends State<ScanPage>
 
           Positioned.fill(
             child: IgnorePointer(
-              child: Container(color: Colors.black.withOpacity(0.15)),
+              child: Container(color: Colors.black.withValues(alpha: 0.15)),
             ),
           ),
 
@@ -519,7 +521,7 @@ class _ScanPageState extends State<ScanPage>
                       fontWeight: FontWeight.w600,
                       shadows: [
                         Shadow(
-                          color: Colors.black.withOpacity(0.5),
+                          color: Colors.black.withValues(alpha: 0.5),
                           blurRadius: 8,
                         ),
                       ],
@@ -552,7 +554,7 @@ class _ScanPageState extends State<ScanPage>
             Positioned.fill(
               child: IgnorePointer(
                 child: Container(
-                  color: Colors.black.withOpacity(0.35),
+                  color: Colors.black.withValues(alpha: 0.35),
                   child: Center(
                     child: _glassPanel(
                       radius: 16,
@@ -602,7 +604,7 @@ class _ScanPageState extends State<ScanPage>
                           vertical: 9,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.10),
+                          color: Colors.white.withValues(alpha: 0.10),
                           borderRadius: BorderRadius.circular(30),
                         ),
                         child: Row(
@@ -611,13 +613,13 @@ class _ScanPageState extends State<ScanPage>
                             Icon(
                               Icons.info_outline,
                               size: 14,
-                              color: Colors.white.withOpacity(0.75),
+                              color: Colors.white.withValues(alpha: 0.75),
                             ),
                             const SizedBox(width: 8),
                             Text(
                               'Mendukung QR Code & Barcode BPN',
                               style: TextStyle(
-                                color: Colors.white.withOpacity(0.75),
+                                color: Colors.white.withValues(alpha: 0.75),
                                 fontSize: 12,
                               ),
                             ),
