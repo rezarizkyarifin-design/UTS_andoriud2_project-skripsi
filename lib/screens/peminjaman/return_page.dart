@@ -690,215 +690,226 @@ class _ReturnPageState extends State<ReturnPage> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
-        return Container(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 16,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+        // Capped at half the screen height (was unbounded — a loan with
+        // every attribution/extension line filled in could push the
+        // sheet all the way to the top of the screen). SingleChildScrollView
+        // below already handles overflow, so this just gives it a
+        // ceiling to scroll within.
+        return ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.8,
           ),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    margin: const EdgeInsets.only(bottom: 18),
-                    decoration: BoxDecoration(
-                      color: Colors.black12,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                ),
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 22,
-                      backgroundColor: const Color(0xFFD8F3DC),
-                      child: Text(
-                        _initials(p.nama),
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: _primaryGreen,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            p.nama,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
-                            ),
-                          ),
-                          Text(
-                            p.seksi,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.black45,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
-                      ),
+          child: Container(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 16,
+              bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+            ),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 18),
                       decoration: BoxDecoration(
-                        color: p.isOverdue
-                            ? const Color(0xFFFDE2E1)
-                            : const Color(0xFFFFF3D9),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        p.isOverdue
-                            ? 'Terlambat ${p.hariTerlambat} hari'
-                            : 'Sedang Dipinjam',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: p.isOverdue
-                              ? _overdueRed
-                              : const Color(0xFFB07A00),
-                        ),
+                        color: Colors.black12,
+                        borderRadius: BorderRadius.circular(4),
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                const Divider(height: 1),
-                const SizedBox(height: 18),
-                row(Icons.category_outlined, 'Jenis Dokumen', p.jenisDokumen),
-                ..._detailRowsFor(p, row),
-                row(Icons.description_outlined, 'Keperluan', p.keperluan),
-                row(
-                  Icons.calendar_month_outlined,
-                  'Tanggal Pinjam',
-                  p.tanggalPinjamFormatted,
-                ),
-                row(
-                  Icons.event_available_outlined,
-                  'Batas Pengembalian',
-                  p.tanggalKembaliFormatted,
-                ),
-                if (p.approvedByMessage != null)
-                  row(
-                    Icons.how_to_reg_outlined,
-                    'Disetujui Oleh',
-                    p.disetujuiOlehNama!,
                   ),
-                // This is the page where extensions actually get
-                // requested/approved, so it's the most relevant place
-                // for this — not just History after the fact.
-                if (p.extensionApprovedByMessage != null)
-                  row(
-                    Icons.more_time_outlined,
-                    'Perpanjangan Disetujui Oleh',
-                    p.perpanjanganDisetujuiOlehNama!,
-                  ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: !canProsesKembali
-                            ? null
-                            : () {
-                                Navigator.pop(context);
-                                _konfirmasiKembalikan(p);
-                              },
-                        icon: Icon(
-                          canProsesKembali
-                              ? Icons.assignment_turned_in_outlined
-                              : Icons.lock_outline,
-                          size: 18,
-                          color: Colors.white,
-                        ),
-                        label: Text(
-                          'Proses Kembali',
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 22,
+                        backgroundColor: const Color(0xFFD8F3DC),
+                        child: Text(
+                          _initials(p.nama),
                           style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: _primaryGreen,
                           ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: canProsesKembali
-                              ? _accentGreen
-                              : Colors.black26,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 13),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(30),
-                          ),
-                          elevation: 0,
                         ),
                       ),
-                    ),
-                    if (p.isOverdue) ...[
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 12),
                       Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: (!isOwner || p.isExtensionPending)
-                              ? null
-                              : () {
-                                  Navigator.pop(context);
-                                  _perpanjangWaktu(p);
-                                },
-                          icon: Icon(
-                            !isOwner
-                                ? Icons.lock_outline
-                                : p.isExtensionPending
-                                ? Icons.hourglass_top_rounded
-                                : Icons.more_time,
-                            size: 18,
-                          ),
-                          label: Text(
-                            !isOwner
-                                ? 'Perpanjang'
-                                : p.isExtensionPending
-                                ? 'Menunggu Persetujuan'
-                                : 'Perpanjang',
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              p.nama,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
                             ),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: (!isOwner || p.isExtensionPending)
-                                ? Colors.black45
-                                : _overdueRed,
-                            side: BorderSide(
-                              color: (!isOwner || p.isExtensionPending)
-                                  ? Colors.black26
-                                  : _overdueRed,
+                            Text(
+                              p.seksi,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.black45,
+                              ),
                             ),
-                            padding: const EdgeInsets.symmetric(vertical: 13),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(30),
-                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: p.isOverdue
+                              ? const Color(0xFFFDE2E1)
+                              : const Color(0xFFFFF3D9),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          p.isOverdue
+                              ? 'Terlambat ${p.hariTerlambat} hari'
+                              : 'Sedang Dipinjam',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: p.isOverdue
+                                ? _overdueRed
+                                : const Color(0xFFB07A00),
                           ),
                         ),
                       ),
                     ],
-                  ],
-                ),
-              ],
+                  ),
+                  const SizedBox(height: 20),
+                  const Divider(height: 1),
+                  const SizedBox(height: 18),
+                  row(Icons.category_outlined, 'Jenis Dokumen', p.jenisDokumen),
+                  ..._detailRowsFor(p, row),
+                  row(Icons.description_outlined, 'Keperluan', p.keperluan),
+                  row(
+                    Icons.calendar_month_outlined,
+                    'Tanggal Pinjam',
+                    p.tanggalPinjamFormatted,
+                  ),
+                  row(
+                    Icons.event_available_outlined,
+                    'Batas Pengembalian',
+                    p.tanggalKembaliFormatted,
+                  ),
+                  if (p.approvedByMessage != null)
+                    row(
+                      Icons.how_to_reg_outlined,
+                      'Disetujui Oleh',
+                      p.disetujuiOlehNama!,
+                    ),
+                  // This is the page where extensions actually get
+                  // requested/approved, so it's the most relevant place
+                  // for this — not just History after the fact.
+                  if (p.extensionApprovedByMessage != null)
+                    row(
+                      Icons.more_time_outlined,
+                      'Perpanjangan Disetujui Oleh',
+                      p.perpanjanganDisetujuiOlehNama!,
+                    ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: !canProsesKembali
+                              ? null
+                              : () {
+                                  Navigator.pop(context);
+                                  _konfirmasiKembalikan(p);
+                                },
+                          icon: Icon(
+                            canProsesKembali
+                                ? Icons.assignment_turned_in_outlined
+                                : Icons.lock_outline,
+                            size: 18,
+                            color: Colors.white,
+                          ),
+                          label: Text(
+                            'Proses Kembali',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: canProsesKembali
+                                ? _accentGreen
+                                : Colors.black26,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(30),
+                            ),
+                            elevation: 0,
+                          ),
+                        ),
+                      ),
+                      if (p.isOverdue) ...[
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: (!isOwner || p.isExtensionPending)
+                                ? null
+                                : () {
+                                    Navigator.pop(context);
+                                    _perpanjangWaktu(p);
+                                  },
+                            icon: Icon(
+                              !isOwner
+                                  ? Icons.lock_outline
+                                  : p.isExtensionPending
+                                  ? Icons.hourglass_top_rounded
+                                  : Icons.more_time,
+                              size: 18,
+                            ),
+                            label: Text(
+                              !isOwner
+                                  ? 'Perpanjang'
+                                  : p.isExtensionPending
+                                  ? 'Menunggu Persetujuan'
+                                  : 'Perpanjang',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor:
+                                  (!isOwner || p.isExtensionPending)
+                                  ? Colors.black45
+                                  : _overdueRed,
+                              side: BorderSide(
+                                color: (!isOwner || p.isExtensionPending)
+                                    ? Colors.black26
+                                    : _overdueRed,
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 13),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(30),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         );

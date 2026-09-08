@@ -903,292 +903,308 @@ class _ArchivePageState extends State<ArchivePage> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
-        return Container(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 16,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+        // Capped at half the screen height (was unbounded — a document
+        // with every optional field filled in, plus the admin
+        // Edit/Hapus row, could push the sheet all the way to the top
+        // of the screen). SingleChildScrollView below already handles
+        // overflow, so this just gives it a ceiling to scroll within.
+        return ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.8,
           ),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    margin: const EdgeInsets.only(bottom: 18),
-                    decoration: BoxDecoration(
-                      color: Colors.black12,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                ),
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 22,
-                      backgroundColor: accent.withValues(alpha: 0.12),
-                      child: Icon(
-                        jenis == 'Buku Tanah'
-                            ? Icons.menu_book_outlined
-                            : jenis == 'Surat Ukur'
-                            ? Icons.straighten_outlined
-                            : Icons.folder_copy_outlined,
-                        color: accent,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            jenis,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
-                            ),
-                          ),
-                          Text(
-                            'ID: ${arsip['id'] ?? 'N/A'}',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.black45,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
-                      ),
+          child: Container(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 16,
+              bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+            ),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 18),
                       decoration: BoxDecoration(
-                        color: statusBg,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        statusLabel,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: statusColor,
-                        ),
+                        color: Colors.black12,
+                        borderRadius: BorderRadius.circular(4),
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                const Divider(height: 1),
-                const SizedBox(height: 18),
-
-                // Peminjaman info — only shown when the document isn't
-                // free, so an admin reviewing a new request can see at a
-                // glance who has it (or who else asked first) without
-                // leaving this sheet to go dig through History.
-                //
-                // Checked as `activeLoan != null` rather than
-                // `!isAvailable` here on purpose — the analyzer promotes
-                // activeLoan to non-null from a direct null check on
-                // itself, but not from a separate derived bool that
-                // merely happens to be equivalent.
-                if (activeLoan != null) ...[
-                  infoRow(
-                    Icons.person_outline,
-                    isPending ? 'Diajukan Oleh' : 'Dipinjam Oleh',
-                    activeLoan.nama,
                   ),
-                  infoRow(
-                    isPending
-                        ? Icons.pending_actions_outlined
-                        : Icons.event_outlined,
-                    isPending ? 'Tanggal Pengajuan' : 'Sejak Tanggal',
-                    activeLoan.tanggalPinjamFormatted,
-                  ),
-                  const SizedBox(height: 4),
-                ],
-
-                // Common fields
-                infoRow(Icons.category_outlined, 'Jenis Dokumen', jenis),
-
-                // Buku Tanah fields
-                if (jenis == 'Buku Tanah') ...[
-                  infoRow(
-                    Icons.description_outlined,
-                    'Jenis Hak',
-                    arsip['jenis_hak'],
-                  ),
-                  infoRow(Icons.numbers_outlined, 'Nomor Hak', arsip['no_hak']),
-                  infoRow(
-                    Icons.location_on_outlined,
-                    'Kecamatan',
-                    arsip['kecamatan'],
-                  ),
-                  infoRow(
-                    Icons.location_city_outlined,
-                    'Kelurahan',
-                    arsip['kelurahan'],
-                  ),
-                ] else if (jenis == 'Surat Ukur') ...[
-                  infoRow(
-                    Icons.description_outlined,
-                    'Jenis Surat Ukur',
-                    arsip['jenis_surat_ukur'],
-                  ),
-                  infoRow(
-                    Icons.numbers_outlined,
-                    'No. & Tahun',
-                    arsip['no_tahun_surat_ukur'],
-                  ),
-                  infoRow(
-                    Icons.description_outlined,
-                    'Jenis Hak',
-                    arsip['jenis_hak'],
-                  ),
-                  infoRow(Icons.description_outlined, 'SU', arsip['su']),
-                  infoRow(Icons.description_outlined, 'GS', arsip['gs']),
-                ] else if (jenis == 'Warkah') ...[
-                  infoRow(
-                    Icons.description_outlined,
-                    'Jenis Warkah',
-                    arsip['jenis_warkah'],
-                  ),
-                  infoRow(Icons.numbers_outlined, 'No. 208', arsip['no_208']),
-                  infoRow(
-                    Icons.calendar_today_outlined,
-                    'Tahun Warkah',
-                    arsip['tahun_warkah'],
-                  ),
-                  if (arsip['jenis_warkah'] == 'PBT')
-                    infoRow(
-                      Icons.location_on_outlined,
-                      'Kecamatan',
-                      arsip['kecamatan'],
-                    ),
-                ],
-
-                const SizedBox(height: 8),
-
-                // Admin buttons — was two full-width filled ElevatedButtons
-                // stacked vertically (Edit Arsip, then Hapus Arsip below
-                // it); every other admin edit/delete pair in the app
-                // (History's Edit/Hapus, shown above) is a side-by-side
-                // OutlinedButton Row instead, so this was the one detail
-                // sheet that looked like a different app. Same
-                // OutlinedButton.icon style, same red.shade400/red.shade200
-                // for delete (kept literal to match History's exact
-                // values rather than swapping in AppTheme.dangerRed,
-                // which reads slightly darker).
-                if (AuthService.isAdmin) ...[
                   Row(
                     children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            Navigator.pop(context);
-                            _showEditArchiveSheet(arsip);
-                          },
-                          icon: const Icon(Icons.edit_outlined, size: 18),
-                          label: const Text('Edit'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppTheme.primaryGreen,
-                            side: const BorderSide(
-                              color: AppTheme.primaryGreen,
-                            ),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(30),
-                            ),
-                          ),
+                      CircleAvatar(
+                        radius: 22,
+                        backgroundColor: accent.withValues(alpha: 0.12),
+                        child: Icon(
+                          jenis == 'Buku Tanah'
+                              ? Icons.menu_book_outlined
+                              : jenis == 'Surat Ukur'
+                              ? Icons.straighten_outlined
+                              : Icons.folder_copy_outlined,
+                          color: accent,
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 12),
                       Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () async {
-                            Navigator.pop(context);
-                            final confirm = await showDialog<bool>(
-                              context: context,
-                              builder: (context) => AlertDialog(
-                                title: const Text('Hapus Arsip'),
-                                content: const Text(
-                                  'Apakah Anda yakin ingin menghapus arsip ini? Tindakan ini tidak dapat dibatalkan.',
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () =>
-                                        Navigator.pop(context, false),
-                                    child: const Text('Batal'),
-                                  ),
-                                  TextButton(
-                                    onPressed: () =>
-                                        Navigator.pop(context, true),
-                                    child: const Text('Hapus'),
-                                  ),
-                                ],
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              jenis,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
                               ),
-                            );
-
-                            if (confirm == true && mounted) {
-                              try {
-                                await Supabase.instance.client
-                                    .from('master_arsip')
-                                    .delete()
-                                    .eq('id', arsip['id']);
-                                if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Arsip berhasil dihapus.'),
-                                      backgroundColor: AppTheme.accentGreen,
-                                    ),
-                                  );
-                                  await _fetchMasterArsip();
-                                }
-                              } catch (e) {
-                                if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        'Gagal menghapus arsip: $e',
-                                      ),
-                                      backgroundColor: AppTheme.dangerRed,
-                                    ),
-                                  );
-                                }
-                              }
-                            }
-                          },
-                          icon: Icon(
-                            Icons.delete_outline,
-                            size: 18,
-                            color: Colors.red.shade400,
-                          ),
-                          label: Text(
-                            'Hapus',
-                            style: TextStyle(color: Colors.red.shade400),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            side: BorderSide(color: Colors.red.shade200),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(30),
                             ),
+                            Text(
+                              'ID: ${arsip['id'] ?? 'N/A'}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.black45,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: statusBg,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          statusLabel,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: statusColor,
                           ),
                         ),
                       ),
                     ],
                   ),
+                  const SizedBox(height: 20),
+                  const Divider(height: 1),
+                  const SizedBox(height: 18),
+
+                  // Peminjaman info — only shown when the document isn't
+                  // free, so an admin reviewing a new request can see at a
+                  // glance who has it (or who else asked first) without
+                  // leaving this sheet to go dig through History.
+                  //
+                  // Checked as `activeLoan != null` rather than
+                  // `!isAvailable` here on purpose — the analyzer promotes
+                  // activeLoan to non-null from a direct null check on
+                  // itself, but not from a separate derived bool that
+                  // merely happens to be equivalent.
+                  if (activeLoan != null) ...[
+                    infoRow(
+                      Icons.person_outline,
+                      isPending ? 'Diajukan Oleh' : 'Dipinjam Oleh',
+                      activeLoan.nama,
+                    ),
+                    infoRow(
+                      isPending
+                          ? Icons.pending_actions_outlined
+                          : Icons.event_outlined,
+                      isPending ? 'Tanggal Pengajuan' : 'Sejak Tanggal',
+                      activeLoan.tanggalPinjamFormatted,
+                    ),
+                    const SizedBox(height: 4),
+                  ],
+
+                  // Common fields
+                  infoRow(Icons.category_outlined, 'Jenis Dokumen', jenis),
+
+                  // Buku Tanah fields
+                  if (jenis == 'Buku Tanah') ...[
+                    infoRow(
+                      Icons.description_outlined,
+                      'Jenis Hak',
+                      arsip['jenis_hak'],
+                    ),
+                    infoRow(
+                      Icons.numbers_outlined,
+                      'Nomor Hak',
+                      arsip['no_hak'],
+                    ),
+                    infoRow(
+                      Icons.location_on_outlined,
+                      'Kecamatan',
+                      arsip['kecamatan'],
+                    ),
+                    infoRow(
+                      Icons.location_city_outlined,
+                      'Kelurahan',
+                      arsip['kelurahan'],
+                    ),
+                  ] else if (jenis == 'Surat Ukur') ...[
+                    infoRow(
+                      Icons.description_outlined,
+                      'Jenis Surat Ukur',
+                      arsip['jenis_surat_ukur'],
+                    ),
+                    infoRow(
+                      Icons.numbers_outlined,
+                      'No. & Tahun',
+                      arsip['no_tahun_surat_ukur'],
+                    ),
+                    infoRow(
+                      Icons.description_outlined,
+                      'Jenis Hak',
+                      arsip['jenis_hak'],
+                    ),
+                    infoRow(Icons.description_outlined, 'SU', arsip['su']),
+                    infoRow(Icons.description_outlined, 'GS', arsip['gs']),
+                  ] else if (jenis == 'Warkah') ...[
+                    infoRow(
+                      Icons.description_outlined,
+                      'Jenis Warkah',
+                      arsip['jenis_warkah'],
+                    ),
+                    infoRow(Icons.numbers_outlined, 'No. 208', arsip['no_208']),
+                    infoRow(
+                      Icons.calendar_today_outlined,
+                      'Tahun Warkah',
+                      arsip['tahun_warkah'],
+                    ),
+                    if (arsip['jenis_warkah'] == 'PBT')
+                      infoRow(
+                        Icons.location_on_outlined,
+                        'Kecamatan',
+                        arsip['kecamatan'],
+                      ),
+                  ],
+
+                  const SizedBox(height: 8),
+
+                  // Admin buttons — was two full-width filled ElevatedButtons
+                  // stacked vertically (Edit Arsip, then Hapus Arsip below
+                  // it); every other admin edit/delete pair in the app
+                  // (History's Edit/Hapus, shown above) is a side-by-side
+                  // OutlinedButton Row instead, so this was the one detail
+                  // sheet that looked like a different app. Same
+                  // OutlinedButton.icon style, same red.shade400/red.shade200
+                  // for delete (kept literal to match History's exact
+                  // values rather than swapping in AppTheme.dangerRed,
+                  // which reads slightly darker).
+                  if (AuthService.isAdmin) ...[
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              _showEditArchiveSheet(arsip);
+                            },
+                            icon: const Icon(Icons.edit_outlined, size: 18),
+                            label: const Text('Edit'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppTheme.primaryGreen,
+                              side: const BorderSide(
+                                color: AppTheme.primaryGreen,
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(30),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () async {
+                              Navigator.pop(context);
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  title: const Text('Hapus Arsip'),
+                                  content: const Text(
+                                    'Apakah Anda yakin ingin menghapus arsip ini? Tindakan ini tidak dapat dibatalkan.',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(context, false),
+                                      child: const Text('Batal'),
+                                    ),
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(context, true),
+                                      child: const Text('Hapus'),
+                                    ),
+                                  ],
+                                ),
+                              );
+
+                              if (confirm == true && mounted) {
+                                try {
+                                  await Supabase.instance.client
+                                      .from('master_arsip')
+                                      .delete()
+                                      .eq('id', arsip['id']);
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Arsip berhasil dihapus.',
+                                        ),
+                                        backgroundColor: AppTheme.accentGreen,
+                                      ),
+                                    );
+                                    await _fetchMasterArsip();
+                                  }
+                                } catch (e) {
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Gagal menghapus arsip: $e',
+                                        ),
+                                        backgroundColor: AppTheme.dangerRed,
+                                      ),
+                                    );
+                                  }
+                                }
+                              }
+                            },
+                            icon: Icon(
+                              Icons.delete_outline,
+                              size: 18,
+                              color: Colors.red.shade400,
+                            ),
+                            label: Text(
+                              'Hapus',
+                              style: TextStyle(color: Colors.red.shade400),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(color: Colors.red.shade200),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(30),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         );

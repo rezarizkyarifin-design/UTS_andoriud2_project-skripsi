@@ -812,301 +812,315 @@ class _HistoryPageState extends State<HistoryPage> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
-        return Container(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 16,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+        // Capped at half the screen height (was unbounded — a loan with
+        // every attribution/extension line filled in could push the
+        // sheet all the way to the top of the screen). SingleChildScrollView
+        // below already handles overflow, so this just gives it a
+        // ceiling to scroll within.
+        return ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.8,
           ),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    margin: const EdgeInsets.only(bottom: 18),
-                    decoration: BoxDecoration(
-                      color: Colors.black12,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                ),
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 22,
-                      backgroundColor: const Color(0xFFD8F3DC),
-                      child: Text(
-                        _initials(p.nama),
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: _primaryGreen,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            p.nama,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
-                            ),
-                          ),
-                          Text(
-                            p.seksi,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.black45,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
-                      ),
+          child: Container(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 16,
+              bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+            ),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 18),
                       decoration: BoxDecoration(
-                        color: _statusBg(p),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        _statusLabel(p),
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: _statusColor(p),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                const Divider(height: 1),
-                const SizedBox(height: 18),
-                row(Icons.category_outlined, 'Jenis Dokumen', p.jenisDokumen),
-                ..._detailRowsFor(p, row),
-                row(Icons.description_outlined, 'Keperluan', p.keperluan),
-                row(
-                  Icons.calendar_month_outlined,
-                  'Tanggal Pinjam',
-                  p.tanggalPinjamFormatted,
-                ),
-                row(
-                  Icons.event_available_outlined,
-                  'Tanggal Kembali',
-                  p.tanggalKembaliFormatted,
-                ),
-                if (p.approvedByMessage != null)
-                  row(
-                    Icons.how_to_reg_outlined,
-                    'Disetujui Oleh',
-                    p.disetujuiOlehNama!,
-                  ),
-                if (p.rejectedByMessage != null) ...[
-                  row(Icons.block_outlined, 'Ditolak Oleh', p.ditolakOlehNama!),
-                  if (p.alasanPenolakan != null)
-                    row(
-                      Icons.notes_outlined,
-                      'Alasan Penolakan',
-                      p.alasanPenolakan!,
-                    ),
-                ],
-                if (p.extensionApprovedByMessage != null)
-                  row(
-                    Icons.more_time_outlined,
-                    'Perpanjangan Disetujui Oleh',
-                    p.perpanjanganDisetujuiOlehNama!,
-                  ),
-                if (p.returnedByMessage != null)
-                  row(
-                    Icons.verified_user_outlined,
-                    'Diproses Oleh',
-                    p.kembaliOlehNama!,
-                  ),
-                if (p.status == 'Dipinjam') ...[
-                  const SizedBox(height: 4),
-                  // ── Item 2: akses ulang QR/barcode selama dokumen masih
-                  // dipinjam (mis. label fisik hilang/rusak, perlu cetak lagi).
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        Navigator.pushNamed(
-                          context,
-                          AppRoutes.barcode,
-                          arguments: {
-                            'id': p.id ?? '',
-                            'noHak': p.noHak,
-                            'nama': p.nama,
-                            'seksi': p.seksi,
-                            'kelurahan': p.kelurahan,
-                            'jenisHak': p.jenisHak,
-                            'jenisDokumen': p.jenisDokumen,
-                            'tanggalPinjam': p.tanggalPinjamFormatted,
-                            'tanggalKembali': p.tanggalKembaliFormatted,
-                            // ── Surat Ukur–specific ──
-                            'jenisSuratUkur': p.jenisSuratUkur ?? '',
-                            'noTahunSuratUkur': p.noTahunSuratUkur ?? '',
-                            'su': p.su ?? '',
-                            'gs': p.gs ?? '',
-                            // ── Warkah–specific ──
-                            'jenisWarkah': p.jenisWarkah ?? '',
-                            'no208': p.no208 ?? '',
-                            'tahunWarkah': p.tahunWarkah ?? '',
-                          },
-                        );
-                      },
-                      icon: const Icon(Icons.qr_code_2_rounded, size: 18),
-                      label: const Text(
-                        'Lihat Barcode',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: _accentGreen,
-                        side: const BorderSide(color: _accentGreen),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
-                        ),
+                        color: Colors.black12,
+                        borderRadius: BorderRadius.circular(4),
                       ),
                     ),
                   ),
-                  // ── Item #1: pegawai adalah read-only, jadi tombol proses
-                  // kembali hanya untuk admin.
-                  if (AuthService.isAdmin) ...[
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () async {
-                          bool ok = false;
-                          String? errorMsg;
-                          try {
-                            ok = await PeminjamanService.kembalikan(p.id!);
-                          } catch (e) {
-                            errorMsg = e.toString();
-                          }
-                          if (!mounted) return;
-                          Navigator.pop(context);
-                          if (ok) _refresh();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                ok
-                                    ? 'Dokumen berhasil ditandai kembali.'
-                                    : 'Gagal menandai kembali'
-                                          '${errorMsg != null ? ': $errorMsg' : ' (data tidak ditemukan / akses ditolak).'}',
-                              ),
-                              backgroundColor: ok
-                                  ? _accentGreen
-                                  : Colors.red.shade400,
-                              behavior: SnackBarBehavior.floating,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                          );
-                        },
-                        icon: const Icon(
-                          Icons.assignment_turned_in_outlined,
-                          size: 18,
-                          color: Colors.white,
-                        ),
-                        label: const Text(
-                          'Tandai Telah Kembali',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _accentGreen,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(30),
-                          ),
-                          elevation: 0,
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-                // ── Item #1: Edit / Hapus — admin only, any status. This is
-                // the Update/Delete half of admin-only CRUD (Create lives in
-                // FormPage, the "Tandai Telah Kembali" above is the other
-                // Update path).
-                if (AuthService.isAdmin) ...[
-                  const SizedBox(height: 10),
                   Row(
                     children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            Navigator.pop(context);
-                            _editPeminjaman(p);
-                          },
-                          icon: const Icon(Icons.edit_outlined, size: 18),
-                          label: const Text('Edit'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: _primaryGreen,
-                            side: const BorderSide(color: _primaryGreen),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(30),
-                            ),
+                      CircleAvatar(
+                        radius: 22,
+                        backgroundColor: const Color(0xFFD8F3DC),
+                        child: Text(
+                          _initials(p.nama),
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: _primaryGreen,
                           ),
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 12),
                       Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            Navigator.pop(context);
-                            _hapusPeminjaman(p);
-                          },
-                          icon: Icon(
-                            Icons.delete_outline,
-                            size: 18,
-                            color: Colors.red.shade400,
-                          ),
-                          label: Text(
-                            'Hapus',
-                            style: TextStyle(color: Colors.red.shade400),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            side: BorderSide(color: Colors.red.shade200),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(30),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              p.nama,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
                             ),
+                            Text(
+                              p.seksi,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.black45,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _statusBg(p),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          _statusLabel(p),
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: _statusColor(p),
                           ),
                         ),
                       ),
                     ],
                   ),
+                  const SizedBox(height: 20),
+                  const Divider(height: 1),
+                  const SizedBox(height: 18),
+                  row(Icons.category_outlined, 'Jenis Dokumen', p.jenisDokumen),
+                  ..._detailRowsFor(p, row),
+                  row(Icons.description_outlined, 'Keperluan', p.keperluan),
+                  row(
+                    Icons.calendar_month_outlined,
+                    'Tanggal Pinjam',
+                    p.tanggalPinjamFormatted,
+                  ),
+                  row(
+                    Icons.event_available_outlined,
+                    'Tanggal Kembali',
+                    p.tanggalKembaliFormatted,
+                  ),
+                  if (p.approvedByMessage != null)
+                    row(
+                      Icons.how_to_reg_outlined,
+                      'Disetujui Oleh',
+                      p.disetujuiOlehNama!,
+                    ),
+                  if (p.rejectedByMessage != null) ...[
+                    row(
+                      Icons.block_outlined,
+                      'Ditolak Oleh',
+                      p.ditolakOlehNama!,
+                    ),
+                    if (p.alasanPenolakan != null)
+                      row(
+                        Icons.notes_outlined,
+                        'Alasan Penolakan',
+                        p.alasanPenolakan!,
+                      ),
+                  ],
+                  if (p.extensionApprovedByMessage != null)
+                    row(
+                      Icons.more_time_outlined,
+                      'Perpanjangan Disetujui Oleh',
+                      p.perpanjanganDisetujuiOlehNama!,
+                    ),
+                  if (p.returnedByMessage != null)
+                    row(
+                      Icons.verified_user_outlined,
+                      'Diproses Oleh',
+                      p.kembaliOlehNama!,
+                    ),
+                  if (p.status == 'Dipinjam') ...[
+                    const SizedBox(height: 4),
+                    // ── Item 2: akses ulang QR/barcode selama dokumen masih
+                    // dipinjam (mis. label fisik hilang/rusak, perlu cetak lagi).
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          Navigator.pushNamed(
+                            context,
+                            AppRoutes.barcode,
+                            arguments: {
+                              'id': p.id ?? '',
+                              'noHak': p.noHak,
+                              'nama': p.nama,
+                              'seksi': p.seksi,
+                              'kelurahan': p.kelurahan,
+                              'jenisHak': p.jenisHak,
+                              'jenisDokumen': p.jenisDokumen,
+                              'tanggalPinjam': p.tanggalPinjamFormatted,
+                              'tanggalKembali': p.tanggalKembaliFormatted,
+                              // ── Surat Ukur–specific ──
+                              'jenisSuratUkur': p.jenisSuratUkur ?? '',
+                              'noTahunSuratUkur': p.noTahunSuratUkur ?? '',
+                              'su': p.su ?? '',
+                              'gs': p.gs ?? '',
+                              // ── Warkah–specific ──
+                              'jenisWarkah': p.jenisWarkah ?? '',
+                              'no208': p.no208 ?? '',
+                              'tahunWarkah': p.tahunWarkah ?? '',
+                            },
+                          );
+                        },
+                        icon: const Icon(Icons.qr_code_2_rounded, size: 18),
+                        label: const Text(
+                          'Lihat Barcode',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: _accentGreen,
+                          side: const BorderSide(color: _accentGreen),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                        ),
+                      ),
+                    ),
+                    // ── Item #1: pegawai adalah read-only, jadi tombol proses
+                    // kembali hanya untuk admin.
+                    if (AuthService.isAdmin) ...[
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () async {
+                            bool ok = false;
+                            String? errorMsg;
+                            try {
+                              ok = await PeminjamanService.kembalikan(p.id!);
+                            } catch (e) {
+                              errorMsg = e.toString();
+                            }
+                            if (!mounted) return;
+                            Navigator.pop(context);
+                            if (ok) _refresh();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  ok
+                                      ? 'Dokumen berhasil ditandai kembali.'
+                                      : 'Gagal menandai kembali'
+                                            '${errorMsg != null ? ': $errorMsg' : ' (data tidak ditemukan / akses ditolak).'}',
+                                ),
+                                backgroundColor: ok
+                                    ? _accentGreen
+                                    : Colors.red.shade400,
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            );
+                          },
+                          icon: const Icon(
+                            Icons.assignment_turned_in_outlined,
+                            size: 18,
+                            color: Colors.white,
+                          ),
+                          label: const Text(
+                            'Tandai Telah Kembali',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _accentGreen,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(30),
+                            ),
+                            elevation: 0,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                  // ── Item #1: Edit / Hapus — admin only, any status. This is
+                  // the Update/Delete half of admin-only CRUD (Create lives in
+                  // FormPage, the "Tandai Telah Kembali" above is the other
+                  // Update path).
+                  if (AuthService.isAdmin) ...[
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              _editPeminjaman(p);
+                            },
+                            icon: const Icon(Icons.edit_outlined, size: 18),
+                            label: const Text('Edit'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: _primaryGreen,
+                              side: const BorderSide(color: _primaryGreen),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(30),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              _hapusPeminjaman(p);
+                            },
+                            icon: Icon(
+                              Icons.delete_outline,
+                              size: 18,
+                              color: Colors.red.shade400,
+                            ),
+                            label: Text(
+                              'Hapus',
+                              style: TextStyle(color: Colors.red.shade400),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(color: Colors.red.shade200),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(30),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         );
