@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../core/theme/app_theme.dart';
 import '../routes/app_routes.dart';
 import '../screens/services/auth_service.dart';
+import 'app_top_bar.dart';
 
 /// Which drawer item should render as "active" (highlighted) for the
 /// current page. One enum value per screen that has a drawer entry.
@@ -40,6 +41,43 @@ class AppDrawer extends StatelessWidget {
   /// navigate — `pushReplacementNamed` for Dashboard, `pushNamed` +
   /// refresh-on-return for everything else — so this widget stays pure UI.
   final ValueChanged<String> onNavigate;
+
+  Future<void> _confirmLogout(BuildContext context) async {
+    // Capture the navigator up front so post-logout navigation doesn't
+    // depend on a context that may be torn down once we close the drawer.
+    final navigator = Navigator.of(context, rootNavigator: true);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Keluar dari akun?'),
+        content: const Text(
+          'Kamu perlu login lagi untuk mengakses SIAP setelah keluar.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
+            child: const Text('Logout'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    // Only close the drawer once we know the user actually wants to log out.
+    if (context.mounted) Navigator.pop(context);
+
+    await AuthService.logout();
+
+    navigator.pushNamedAndRemoveUntil(AppRoutes.onboarding, (route) => false);
+  }
 
   void _go(BuildContext context, String route) {
     Navigator.pop(context);
@@ -140,26 +178,7 @@ class AppDrawer extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              onTap: () async {
-                // Sebelumnya cuma pindah ke halaman Login tanpa benar-benar
-                // logout — sesi Supabase & AuthService.currentUser tetap
-                // aktif di belakang layar. Ini yang dipakai di 4 halaman
-                // (Home/Form/History/Return), jadi ini jalur logout utama.
-                Navigator.pop(context);
-                try {
-                  await AuthService.logout();
-                } catch (_) {
-                  // Non-fatal: sesi lokal biasanya tetap terhapus walau
-                  // panggilan ke server gagal — tetap lanjut ke Login.
-                }
-                if (context.mounted) {
-                  Navigator.pushNamedAndRemoveUntil(
-                    context,
-                    AppRoutes.onboarding,
-                    (route) => false,
-                  );
-                }
-              },
+              onTap: () => _confirmLogout(context),
             ),
           ),
         ],

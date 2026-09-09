@@ -292,13 +292,14 @@ class _ProfilPageState extends State<ProfilPage> {
         Navigator.pushReplacementNamed(context, AppRoutes.home);
         break;
       case 1:
-        Navigator.pushNamed(context, AppRoutes.history);
+        Navigator.pushNamed(context, AppRoutes.archive);
         break;
       case 2:
-        Navigator.pushNamed(context, AppRoutes.returnPage);
+        Navigator.pushNamed(context, AppRoutes.history);
         break;
       case 3:
-        break; // sudah di Profil
+        Navigator.pushNamed(context, AppRoutes.returnPage);
+        break;
     }
   }
 

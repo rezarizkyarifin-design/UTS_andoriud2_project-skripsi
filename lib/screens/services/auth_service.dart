@@ -281,6 +281,15 @@ class AuthService {
     } on PostgrestException catch (e) {
       return e.message;
     } catch (e) {
+      // BUG FIX: this used to return e.toString() straight to the UI —
+      // for a plain connectivity failure that's a raw
+      // "ClientException with SocketException: Failed host lookup:
+      // '<project>.supabase.co' ..., uri=https://<project>.supabase.co/
+      // rest/v1/..." string, leaking the project's internal REST
+      // endpoint (and whatever id/filter was in the query) straight onto
+      // the screen instead of the friendly offline message this app uses
+      // everywhere else (see NetworkException / _isNetworkError above).
+      if (_isNetworkError(e)) return const NetworkException().message;
       return e.toString();
     }
   }
@@ -323,6 +332,15 @@ class AuthService {
       }
       return e.message;
     } catch (e) {
+      // BUG FIX: this used to return e.toString() straight to the UI —
+      // for a plain connectivity failure that's a raw
+      // "ClientException with SocketException: Failed host lookup:
+      // '<project>.supabase.co' ..., uri=https://<project>.supabase.co/
+      // rest/v1/..." string, leaking the project's internal REST
+      // endpoint (and whatever id/filter was in the query) straight onto
+      // the screen instead of the friendly offline message this app uses
+      // everywhere else (see NetworkException / _isNetworkError above).
+      if (_isNetworkError(e)) return const NetworkException().message;
       return e.toString();
     }
   }
@@ -361,16 +379,39 @@ class AuthService {
         return 'Username "$cleanUsername" sudah dipakai.';
       }
 
-      // Supabase Auth's email first — this is what login actually
-      // checks against. "Confirm email" is off for this project (see
-      // the note on _emailFor), so this takes effect immediately
-      // instead of waiting on a confirmation link nobody could open
-      // anyway (these addresses aren't real inboxes).
+      // BUG FIX: this used to update Supabase Auth's email first, then
+      // profiles.username second. If the second step failed (dropped
+      // connection, or the person the app just approved happens to
+      // collide with the new profiles_username_key UNIQUE constraint
+      // in a race), Auth's email had already changed but
+      // profiles.username hadn't — leaving the two permanently out of
+      // sync until someone fixed it by hand. Worse, the person would be
+      // locked out: the app still shows their old username, but Auth
+      // only accepts the new email now.
+      //
+      // Now: if the profiles write fails after the Auth email already
+      // changed, immediately revert Auth's email back to the old value
+      // so a failure leaves BOTH unchanged instead of half-changed, and
+      // report a clear "try again" error instead of a silent split.
       await _client.auth.updateUser(UserAttributes(email: newEmail));
-      await _client
-          .from('profiles')
-          .update({'username': newEmail})
-          .eq('id', user.id);
+      try {
+        await _client
+            .from('profiles')
+            .update({'username': newEmail})
+            .eq('id', user.id);
+      } catch (e) {
+        try {
+          await _client.auth.updateUser(UserAttributes(email: user.username));
+        } catch (_) {
+          // Best-effort revert — if even this fails, the account is left
+          // with Auth email == newEmail but profiles.username == old.
+          // Surface that clearly rather than pretending it's fine.
+          return 'Gagal mengubah username, dan gagal memulihkan email '
+              'login sebelumnya. Segera hubungi admin — jangan logout '
+              'sebelum ini diperbaiki.';
+        }
+        return 'Gagal mengubah username, silakan coba lagi.';
+      }
 
       _currentUser = user.copyWith(username: newEmail);
       await _cacheUserLocally(_currentUser!);
@@ -380,6 +421,15 @@ class AuthService {
     } on PostgrestException catch (e) {
       return e.message;
     } catch (e) {
+      // BUG FIX: this used to return e.toString() straight to the UI —
+      // for a plain connectivity failure that's a raw
+      // "ClientException with SocketException: Failed host lookup:
+      // '<project>.supabase.co' ..., uri=https://<project>.supabase.co/
+      // rest/v1/..." string, leaking the project's internal REST
+      // endpoint (and whatever id/filter was in the query) straight onto
+      // the screen instead of the friendly offline message this app uses
+      // everywhere else (see NetworkException / _isNetworkError above).
+      if (_isNetworkError(e)) return const NetworkException().message;
       return e.toString();
     }
   }
@@ -417,6 +467,15 @@ class AuthService {
       await _cacheUserLocally(_currentUser!);
       return null;
     } catch (e) {
+      // BUG FIX: this used to return e.toString() straight to the UI —
+      // for a plain connectivity failure that's a raw
+      // "ClientException with SocketException: Failed host lookup:
+      // '<project>.supabase.co' ..., uri=https://<project>.supabase.co/
+      // rest/v1/..." string, leaking the project's internal REST
+      // endpoint (and whatever id/filter was in the query) straight onto
+      // the screen instead of the friendly offline message this app uses
+      // everywhere else (see NetworkException / _isNetworkError above).
+      if (_isNetworkError(e)) return const NetworkException().message;
       return e.toString();
     }
   }
@@ -446,6 +505,15 @@ class AuthService {
       await _cacheUserLocally(_currentUser!);
       return null;
     } catch (e) {
+      // BUG FIX: this used to return e.toString() straight to the UI —
+      // for a plain connectivity failure that's a raw
+      // "ClientException with SocketException: Failed host lookup:
+      // '<project>.supabase.co' ..., uri=https://<project>.supabase.co/
+      // rest/v1/..." string, leaking the project's internal REST
+      // endpoint (and whatever id/filter was in the query) straight onto
+      // the screen instead of the friendly offline message this app uses
+      // everywhere else (see NetworkException / _isNetworkError above).
+      if (_isNetworkError(e)) return const NetworkException().message;
       return e.toString();
     }
   }

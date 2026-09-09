@@ -27,6 +27,18 @@ class _ArchivePageState extends State<ArchivePage> {
   String? _loadError;
   List<Map<String, dynamic>> _arsipList = [];
   List<Map<String, dynamic>> _filteredList = [];
+
+  // BUG FIX: the header stat row (Total Dokumen/Buku Tanah/Surat
+  // Ukur/Warkah) reads straight off _arsipList, which used to start as
+  // an empty list every time this page was built — so on every visit
+  // the stats painted "0" for one frame before the Supabase fetch in
+  // _fetchMasterArsip() resolved and repainted with the real counts.
+  // History/Return don't have this flash because their data comes from
+  // PeminjamanService, a static cache seeded synchronously in initState
+  // before the first frame. This mirrors that: a static cache that
+  // survives across visits to this page within the app session, seeded
+  // into _arsipList before anything is built, then kept fresh below.
+  static List<Map<String, dynamic>> _cachedArsipList = [];
   final TextEditingController _searchController = TextEditingController();
 
   // Persistent filter chips (Semua/Buku Tanah/Surat Ukur/Warkah) — every
@@ -43,6 +55,13 @@ class _ArchivePageState extends State<ArchivePage> {
   @override
   void initState() {
     super.initState();
+    // Show whatever's cached immediately so the stats/list aren't blank
+    // (or briefly "0") while the network fetch below is in flight.
+    // (Assigned directly rather than via _filterSearch() — search text
+    // and the jenis filter both start empty, so this is equivalent, and
+    // it avoids calling setState() ahead of the first build.)
+    _arsipList = List<Map<String, dynamic>>.from(_cachedArsipList);
+    _filteredList = List<Map<String, dynamic>>.from(_arsipList);
     _fetchMasterArsip();
     _searchController.addListener(_filterSearch);
     // Archive previously never touched PeminjamanService at all, so
@@ -84,6 +103,7 @@ class _ArchivePageState extends State<ArchivePage> {
           .order('created_at', ascending: false);
 
       if (!mounted) return;
+      _cachedArsipList = List<Map<String, dynamic>>.from(data);
       setState(() {
         _arsipList = List<Map<String, dynamic>>.from(data);
         _isLoading = false;
@@ -2014,30 +2034,29 @@ class _ArchivePageState extends State<ArchivePage> {
   }) {
     return Expanded(
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 4),
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.12),
+          color: Colors.white.withValues(alpha: 0.10),
           borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
         ),
         child: Column(
           children: [
-            Icon(icon, color: Colors.white70, size: 18),
+            Icon(icon, size: 16, color: Colors.white70),
             const SizedBox(height: 6),
             Text(
               '$count',
               style: TextStyle(
-                color: valueColor ?? Colors.white,
-                fontSize: 20,
+                fontSize: 16,
                 fontWeight: FontWeight.bold,
+                color: valueColor ?? Colors.white,
               ),
             ),
             const SizedBox(height: 2),
             Text(
               label,
               textAlign: TextAlign.center,
-              maxLines: 2,
-              style: const TextStyle(color: Colors.white70, fontSize: 10.5),
+              style: const TextStyle(fontSize: 10, color: Colors.white70),
             ),
           ],
         ),
@@ -2157,7 +2176,6 @@ class _ArchivePageState extends State<ArchivePage> {
               children: [
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
                   decoration: const BoxDecoration(
                     gradient: AppTheme.brandGradient,
                     borderRadius: BorderRadius.vertical(
@@ -2166,60 +2184,66 @@ class _ArchivePageState extends State<ArchivePage> {
                   ),
                   child: SafeArea(
                     bottom: false,
-                    child: Column(
-                      children: [
-                        // "Tambah arsip" used to live here as a lone
-                        // IconButton bolted onto AppTopBar's row — the
-                        // only page in the whole app where AppTopBar
-                        // wasn't the full width of its row, and the
-                        // only add/create action anywhere that lived in
-                        // a top bar instead of its own control. It's
-                        // now a floating pill button (see
-                        // _buildAddArchiveButton) docked bottom-right,
-                        // same idea as the reference screenshot but
-                        // labeled so its purpose doesn't rely on the
-                        // user already knowing what a bare "+" does.
-                        const AppTopBar(title: 'Inventaris Arsip'),
-                        const SizedBox(height: 18),
-                        // Stats row — Archive had no overview summary
-                        // at all before, unlike every comparable list
-                        // page (History's Total Berkas/Sedang
-                        // Dipinjam/... row).
-                        Row(
-                          children: [
-                            _statBox(
-                              icon: Icons.inventory_2_outlined,
-                              count: _totalDokumen,
-                              label: 'Total\nDokumen',
-                            ),
-                            _statBox(
-                              icon: Icons.menu_book_outlined,
-                              count: _countJenis('Buku Tanah'),
-                              label: 'Buku\nTanah',
-                            ),
-                            _statBox(
-                              icon: Icons.straighten_outlined,
-                              count: _countJenis('Surat Ukur'),
-                              label: 'Surat\nUkur',
-                            ),
-                            _statBox(
-                              icon: Icons.folder_copy_outlined,
-                              count: _countJenis('Warkah'),
-                              label: 'Warkah',
-                            ),
-                          ],
-                        ),
-                      ],
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
+                      child: Column(
+                        children: [
+                          // "Tambah arsip" used to live here as a lone
+                          // IconButton bolted onto AppTopBar's row — the
+                          // only page in the whole app where AppTopBar
+                          // wasn't the full width of its row, and the
+                          // only add/create action anywhere that lived in
+                          // a top bar instead of its own control. It's
+                          // now a floating pill button (see
+                          // _buildAddArchiveButton) docked bottom-right,
+                          // same idea as the reference screenshot but
+                          // labeled so its purpose doesn't rely on the
+                          // user already knowing what a bare "+" does.
+                          const AppTopBar(title: 'Inventaris Arsip'),
+                          const SizedBox(height: 14),
+                          // Stats row — Archive had no overview summary
+                          // at all before, unlike every comparable list
+                          // page (History's Total Berkas/Sedang
+                          // Dipinjam/... row).
+                          Row(
+                            children: [
+                              _statBox(
+                                icon: Icons.inventory_2_outlined,
+                                count: _totalDokumen,
+                                label: 'Total\nDokumen',
+                              ),
+                              const SizedBox(width: 10),
+                              _statBox(
+                                icon: Icons.menu_book_outlined,
+                                count: _countJenis('Buku Tanah'),
+                                label: 'Buku\nTanah',
+                              ),
+                              const SizedBox(width: 10),
+                              _statBox(
+                                icon: Icons.straighten_outlined,
+                                count: _countJenis('Surat Ukur'),
+                                label: 'Surat\nUkur',
+                              ),
+                              const SizedBox(width: 10),
+                              _statBox(
+                                icon: Icons.folder_copy_outlined,
+                                count: _countJenis('Warkah'),
+                                label: 'Warkah',
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 60),
+                const SizedBox(height: 40),
               ],
             ),
             Positioned(
               left: 20,
               right: 20,
-              bottom: 14,
+              bottom: 16,
               child: Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
@@ -2235,16 +2259,17 @@ class _ArchivePageState extends State<ArchivePage> {
                 ),
                 child: TextField(
                   controller: _searchController,
+                  style: const TextStyle(fontSize: 14),
                   decoration: const InputDecoration(
                     hintText: 'Cari nomor hak, warkah, kelurahan...',
-                    hintStyle: TextStyle(fontSize: 13, color: Colors.black38),
+                    hintStyle: TextStyle(color: Colors.black38, fontSize: 13.5),
                     prefixIcon: Icon(
                       Icons.search,
                       color: Colors.black38,
                       size: 20,
                     ),
                     border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(vertical: 14),
+                    contentPadding: EdgeInsets.symmetric(vertical: 12),
                   ),
                 ),
               ),
@@ -2262,7 +2287,7 @@ class _ArchivePageState extends State<ArchivePage> {
         ),
         const SizedBox(height: 12),
         Expanded(
-          child: _isLoading
+          child: _isLoading && _arsipList.isEmpty
               ? const Center(child: CircularProgressIndicator())
               : _loadError != null
               ? Center(
