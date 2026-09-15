@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/app_user.dart';
+import '../../models/user_roles.dart';
 
 /// Thrown by [AuthService.login] specifically when the request never
 /// reached Supabase at all (no internet / DNS lookup failed), so callers
@@ -210,14 +211,29 @@ class AuthService {
   // an existing admin (Supabase dashboard, or a future admin-only
   // "create user" screen) — never by public sign-up, since that would
   // let anyone grant themselves admin by just filling a form.
+  //
+  // ADMIN ROLE REQUEST (14.09.2026) — this still holds: picking "Admin"
+  // on the sign-up form never sets profiles.role to 'admin' directly.
+  // It only files a row in `admin_requests` (status 'pending') for an
+  // existing admin to review later. See the promote_user_to_admin RPC
+  // discussed separately for the actual, server-side-verified promotion
+  // — approving a request should call that RPC, not just flip this
+  // row's status.
   // ══════════════════════════════════════════════════════════════════
 
   /// Returns null on success, or a user-facing error message on failure.
+  /// [requestedRole] defaults to [UserRole.pegawai]. Passing
+  /// [UserRole.admin] does not grant admin — see the comment above.
+  /// [alasan] is the requester's stated reason for wanting Admin access;
+  /// only used (and only required by the UI — see SignUpPage) when
+  /// [requestedRole] is [UserRole.admin].
   static Future<String?> signUp({
     required String nama,
     required String username,
     required String jabatan,
     required String password,
+    UserRole requestedRole = UserRole.pegawai,
+    String? alasan,
   }) async {
     final cleanUsername = username.trim().toLowerCase();
     if (cleanUsername.isEmpty) return 'Username tidak boleh kosong.';
@@ -263,6 +279,34 @@ class AuthService {
         'jabatan': jabatan.trim(),
         'role': 'pegawai',
       });
+
+      // ── Admin role request — see the class-level comment above. This
+      // is intentionally best-effort: the account itself already exists
+      // at this point, so a failure here (e.g. offline right after
+      // signup, or admin_requests not migrated in yet) shouldn't turn a
+      // successful signup into a reported failure. The person can still
+      // ask an admin directly, or a future "request admin access" button
+      // on their profile can retry this.
+      if (requestedRole == UserRole.admin) {
+        try {
+          final firstAdmin = await _client
+              .from('profiles')
+              .select('id')
+              .eq('role', 'admin')
+              .order('created_at')
+              .limit(1)
+              .maybeSingle();
+
+          await _client.from('admin_requests').insert({
+            'user_id': authUser.id,
+            'target_admin_id': firstAdmin?['id'],
+            'alasan': alasan?.trim().isNotEmpty == true ? alasan!.trim() : null,
+            'status': 'pending',
+          });
+        } catch (_) {
+          // Non-fatal — see comment above.
+        }
+      }
 
       if (_client.auth.currentSession != null) {
         final profile = await _client
@@ -513,6 +557,112 @@ class AuthService {
       // endpoint (and whatever id/filter was in the query) straight onto
       // the screen instead of the friendly offline message this app uses
       // everywhere else (see NetworkException / _isNetworkError above).
+      if (_isNetworkError(e)) return const NetworkException().message;
+      return e.toString();
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // JABATAN (item 4a, 14.09.2026) — plain profiles column, no format
+  // constraint beyond non-empty. Same pattern as updateNama above:
+  // never touches Supabase Auth, purely a display/profile field.
+  // ══════════════════════════════════════════════════════════════════
+
+  /// Returns null on success, or a user-facing error message on failure.
+  static Future<String?> updateJabatan(String newJabatan) async {
+    final user = _currentUser;
+    if (user == null) return 'Sesi tidak ditemukan, silakan login kembali.';
+
+    final trimmed = newJabatan.trim();
+    if (trimmed.isEmpty) return 'Jabatan tidak boleh kosong.';
+    if (trimmed == user.jabatan) return null; // no-op, unchanged
+
+    try {
+      await _client
+          .from('profiles')
+          .update({'jabatan': trimmed})
+          .eq('id', user.id);
+      _currentUser = user.copyWith(jabatan: trimmed);
+      await _cacheUserLocally(_currentUser!);
+      return null;
+    } catch (e) {
+      // BUG FIX pattern matches the rest of this file — see updateNama
+      // above for why the network case is special-cased before the raw
+      // e.toString() fallback.
+      if (_isNetworkError(e)) return const NetworkException().message;
+      return e.toString();
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // ADMIN ROLE REQUEST FROM PROFILE (item 4b/4c, 14.09.2026) — lets an
+  // already-registered Pegawai ask to become Admin later, not just on
+  // the sign-up form (see signUp's requestedRole/alasan above). This
+  // NEVER writes profiles.role directly from the client — that would be
+  // a plain self-promotion bug. It only ever inserts a pending row into
+  // admin_requests, same table/flow the sign-up form uses; the actual
+  // role flip only ever happens server-side via the promote_user_to_admin
+  // RPC when an existing admin approves the request through
+  // AdminRequestService.approve(). Until then profiles.role stays
+  // 'pegawai', which is exactly what ProfilPage's UI relies on to show
+  // "menunggu persetujuan" instead of the new role.
+  // ══════════════════════════════════════════════════════════════════
+
+  /// True if the current user already has a 'pending' admin_requests
+  /// row — lets ProfilPage show a pending note instead of the plain
+  /// role value, and stops a duplicate request from being filed.
+  static Future<bool> hasPendingAdminRequest() async {
+    final user = _currentUser;
+    if (user == null) return false;
+    try {
+      final row = await _client
+          .from('admin_requests')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('status', 'pending')
+          .maybeSingle();
+      return row != null;
+    } catch (_) {
+      // Offline / table unreachable — fail closed on "no pending request
+      // known" rather than blocking the Peran UI entirely; worst case is
+      // the person can just retry once back online.
+      return false;
+    }
+  }
+
+  /// Files a pending admin_requests row for the current user, targeting
+  /// the first admin in the system — same targeting logic as signUp's
+  /// inline version above. Returns null on success (a row was filed;
+  /// the user's role is still 'pegawai' until an admin approves it), or
+  /// a user-facing error message.
+  static Future<String?> requestAdminRole({String? alasan}) async {
+    final user = _currentUser;
+    if (user == null) return 'Sesi tidak ditemukan, silakan login kembali.';
+    if (user.isAdmin) return null; // already admin, nothing to request
+
+    try {
+      if (await hasPendingAdminRequest()) {
+        return 'Permintaan sebelumnya masih menunggu persetujuan admin.';
+      }
+
+      final firstAdmin = await _client
+          .from('profiles')
+          .select('id')
+          .eq('role', 'admin')
+          .order('created_at')
+          .limit(1)
+          .maybeSingle();
+
+      await _client.from('admin_requests').insert({
+        'user_id': user.id,
+        'target_admin_id': firstAdmin?['id'],
+        'alasan': alasan?.trim().isNotEmpty == true ? alasan!.trim() : null,
+        'status': 'pending',
+      });
+      return null;
+    } on PostgrestException catch (e) {
+      return e.message;
+    } catch (e) {
       if (_isNetworkError(e)) return const NetworkException().message;
       return e.toString();
     }

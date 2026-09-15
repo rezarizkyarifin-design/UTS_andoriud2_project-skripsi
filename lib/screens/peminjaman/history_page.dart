@@ -1376,6 +1376,12 @@ class _HistoryPageState extends State<HistoryPage> {
                     horizontal: 8,
                     vertical: 4,
                   ),
+                  // Caps the popup menu height and makes it scrollable
+                  // instead of letting it grow with the item count —
+                  // Seksi/Unit Kerja now has 11 entries (6 seksi + Bidang
+                  // 1-5), which without this can end up covering most of
+                  // a small-screen phone when opened.
+                  menuMaxHeight: 300,
                 ),
               ),
             );

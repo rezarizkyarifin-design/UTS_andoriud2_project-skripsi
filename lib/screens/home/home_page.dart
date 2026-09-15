@@ -4,13 +4,41 @@ import 'package:flutter/material.dart';
 import '../../routes/app_routes.dart';
 import '../services/peminjaman_service.dart';
 import '../services/auth_service.dart';
+import '../services/admin_request_service.dart';
 import '../../models/peminjaman.dart';
+import '../../models/admin_request.dart';
 import '../../core/theme/app_theme.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/app_scan_fab.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/jenis_dokumen_breakdown.dart';
+
+// ─── NOTIF PANEL DATA MODEL (14.09.2026) ───────────────────────────
+// Plain data holder for one row inside the collapsible admin
+// notifications panel below. Keeping this as a tiny class (instead of
+// building the Widgets directly inside _collectAdminNotifItems) means
+// the "how many are there / is any of them urgent" logic in
+// _buildAdminNotificationsPanel can inspect the list before deciding
+// how to render the header, without needing to already have built
+// Row/Container trees just to count them.
+class _NotifItem {
+  final IconData icon;
+  final Color color;
+  final Color bg;
+  final String message;
+  final VoidCallback onTap;
+  final bool urgent;
+
+  _NotifItem({
+    required this.icon,
+    required this.color,
+    required this.bg,
+    required this.message,
+    required this.onTap,
+    this.urgent = false,
+  });
+}
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -68,6 +96,14 @@ class _HomePageState extends State<HomePage> {
 
   Timer? _autoSlideTimer;
 
+  // ─── ADMIN NOTIFICATIONS PANEL (14.09.2026) ───────────────────────
+  // Whether the collapsible admin notifications panel (see
+  // _buildAdminNotificationsPanel) is currently expanded. Starts
+  // collapsed so an admin with several pending items sees one compact
+  // summary row instead of the homepage being immediately filled with
+  // banners before they've even reached the quick-access grid.
+  bool _notificationsExpanded = false;
+
   // (Re)starts the countdown to the next auto-advance. Called once on
   // init, and again every time the page changes (manual swipe or
   // auto-advance) so a manual swipe always gets a full fresh interval
@@ -99,7 +135,30 @@ class _HomePageState extends State<HomePage> {
           Navigator.pushReplacementNamed(context, AppRoutes.login);
         }
       });
+    } else {
+      // BUG FIX (14.09.2026): AdminRequestService's cache is only ever
+      // populated by an explicit refresh() call — main.dart only makes
+      // that call on a cold start with a *restored* session, so a fresh
+      // login (or just navigating back to HomePage mid-session) never
+      // triggered it. The Admin notifications panel would then show
+      // stale/empty data until the user knew to pull-to-refresh
+      // manually. Firing a refresh every time HomePage is entered means
+      // it's correct immediately instead of requiring that extra step.
+      _refreshHomeDataSilently();
     }
+  }
+
+  // Same non-fatal error handling as main.dart's startup refresh: if
+  // this fails (offline, dropped connection), HomePage just keeps
+  // showing whatever was already cached instead of throwing mid-initState.
+  Future<void> _refreshHomeDataSilently() async {
+    try {
+      await PeminjamanService.refresh();
+      await AdminRequestService.refresh();
+    } catch (_) {
+      // Non-fatal — see comment above.
+    }
+    if (mounted) setState(() {});
   }
 
   @override
@@ -124,6 +183,7 @@ class _HomePageState extends State<HomePage> {
   Future<void> _onRefresh() async {
     try {
       await PeminjamanService.refresh();
+      await AdminRequestService.refresh();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -912,145 +972,287 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // ─── BUG FIX (missing notification): Admin had no on-homepage alert
-  // for overdue documents at all — only Pegawai got one
-  // (_buildPegawaiOverdueBanner below), scoped to their own loans. An
-  // admin needs the same alert but scoped to every officer's overdue
-  // documents (mirrors the broad-oversight scope used elsewhere for
-  // Admin, e.g. getOverdueForNotifikasi). Placed first among the
-  // homepage banners since a late return is more urgent than a pending
-  // approval.
-  Widget _buildAdminOverdueBanner() {
-    if (!AuthService.isAdmin) return const SizedBox.shrink();
+  // ─── SHARED NOTIFICATION ROW ────────────────────────────────────
+  // One notification row's visuals — white card, soft shadow, icon in
+  // a rounded color chip, chevron in a muted circle. No outer margin
+  // of its own: callers decide spacing, because this is now used both
+  // stand-alone (Pegawai's overdue banner) and stacked inside the
+  // collapsible admin panel below, which need different surrounding
+  // padding.
+  //
+  // [urgent] is for the one notification that should visually outrank
+  // the rest at a glance (the Admin role request) — a thin colored
+  // ring plus a solid-filled icon chip (white icon on accentColor)
+  // instead of the soft tint the others use.
+  Widget _buildNotifCard({
+    required IconData icon,
+    required Color accentColor,
+    required Color accentBg,
+    required String message,
+    required VoidCallback onTap,
+    bool urgent = false,
+  }) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: urgent
+                ? Border.all(
+                    color: accentColor.withValues(alpha: 0.35),
+                    width: 1.3,
+                  )
+                : null,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.06),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: urgent ? accentColor : accentBg,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  icon,
+                  color: urgent ? Colors.white : accentColor,
+                  size: 21,
+                ),
+              ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Text(
+                  message,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.3,
+                    fontWeight: FontWeight.w600,
+                    color: urgent ? accentColor : AppTheme.textPrimary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.all(5),
+                decoration: const BoxDecoration(
+                  color: AppTheme.surfaceMuted,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.chevron_right_rounded,
+                  color: AppTheme.textMuted,
+                  size: 16,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ─── ADMIN NOTIFICATIONS: DATA COLLECTION (14.09.2026 redesign) ───
+  // Gathers every pending admin notification (role requests, overdue
+  // documents, loan requests, extension requests) into one flat list
+  // instead of each having its own always-visible banner. The Admin
+  // role request is always first and always [urgent] — it's a
+  // standing-access decision, not a per-document one, so it should
+  // never get buried the way it did visually in the previous revision.
+  List<_NotifItem> _collectAdminNotifItems() {
+    final items = <_NotifItem>[];
+
+    final adminRequests = AdminRequestService.getPending();
+    if (adminRequests.isNotEmpty) {
+      items.add(
+        _NotifItem(
+          icon: Icons.admin_panel_settings_rounded,
+          color: AppTheme.dangerRed,
+          bg: AppTheme.dangerBg,
+          message: adminRequests.length == 1
+              ? '1 permintaan menjadi Admin menunggu persetujuan Anda.'
+              : '${adminRequests.length} permintaan menjadi Admin menunggu persetujuan Anda.',
+          onTap: _showAdminRoleRequestSheet,
+          urgent: true,
+        ),
+      );
+    }
 
     final overdue = PeminjamanService.getTerlambat();
-    if (overdue == 0) return const SizedBox.shrink();
+    if (overdue > 0) {
+      items.add(
+        _NotifItem(
+          icon: Icons.warning_amber_rounded,
+          color: AppTheme.dangerRed,
+          bg: AppTheme.dangerBg,
+          message: '$overdue dokumen sudah lewat batas waktu pengembalian.',
+          onTap: _showOverdueSheet,
+        ),
+      );
+    }
+
+    final loanRequests = PeminjamanService.getPengajuanPeminjaman();
+    if (loanRequests.isNotEmpty) {
+      items.add(
+        _NotifItem(
+          icon: Icons.note_add_rounded,
+          color: AppTheme.successGreen,
+          bg: AppTheme.successBg,
+          message:
+              '${loanRequests.length} pengajuan peminjaman baru menunggu persetujuan Anda.',
+          onTap: _showLoanApprovalSheet,
+        ),
+      );
+    }
+
+    final extensions = PeminjamanService.getPengajuanPerpanjangan();
+    if (extensions.isNotEmpty) {
+      items.add(
+        _NotifItem(
+          icon: Icons.pending_actions_rounded,
+          color: AppTheme.warningAmber,
+          bg: AppTheme.warningBg,
+          message:
+              '${extensions.length} pengajuan perpanjangan menunggu persetujuan Anda.',
+          onTap: _showExtensionApprovalSheet,
+        ),
+      );
+    }
+
+    return items;
+  }
+
+  // ─── ADMIN NOTIFICATIONS: COLLAPSIBLE PANEL (14.09.2026 redesign) ──
+  // Previously each of the four admin notifications was its own
+  // always-visible banner, so an admin with several pending items had
+  // the homepage filled with stacked cards before ever reaching the
+  // quick-access grid. This collapses them into one summary row —
+  // "N hal butuh perhatian Anda" — that expands in place on tap
+  // instead of pushing to a separate screen, so the full list is one
+  // tap away without permanently eating vertical space.
+  Widget _buildAdminNotificationsPanel() {
+    if (!AuthService.isAdmin) return const SizedBox.shrink();
+
+    final items = _collectAdminNotifItems();
+    if (items.isEmpty) return const SizedBox.shrink();
+
+    final hasUrgent = items.any((i) => i.urgent);
+    final headerColor = hasUrgent ? AppTheme.dangerRed : AppTheme.primaryGreen;
+    final headerBg = hasUrgent ? AppTheme.dangerBg : AppTheme.successBg;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-      child: GestureDetector(
-        onTap: _showOverdueSheet,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: AppTheme.dangerBg,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Row(
-            children: [
-              const Icon(
-                Icons.warning_amber_rounded,
-                color: AppTheme.dangerRed,
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        child: Column(
+          children: [
+            InkWell(
+              borderRadius: BorderRadius.circular(18),
+              onTap: () => setState(
+                () => _notificationsExpanded = !_notificationsExpanded,
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  '$overdue dokumen sudah lewat batas waktu pengembalian.',
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.dangerRed,
-                  ),
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  border: hasUrgent
+                      ? Border.all(
+                          color: headerColor.withValues(alpha: 0.35),
+                          width: 1.3,
+                        )
+                      : null,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.06),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: headerBg,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.notifications_active_rounded,
+                        color: headerColor,
+                        size: 21,
+                      ),
+                    ),
+                    const SizedBox(width: 13),
+                    Expanded(
+                      child: Text(
+                        '${items.length} hal butuh perhatian Anda',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.textPrimary,
+                        ),
+                      ),
+                    ),
+                    AnimatedRotation(
+                      turns: _notificationsExpanded ? 0.5 : 0,
+                      duration: const Duration(milliseconds: 200),
+                      child: Container(
+                        padding: const EdgeInsets.all(5),
+                        decoration: const BoxDecoration(
+                          color: AppTheme.surfaceMuted,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          color: AppTheme.textMuted,
+                          size: 18,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const Icon(
-                Icons.chevron_right,
-                color: AppTheme.dangerRed,
-                size: 20,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ─── Approval pengajuan peminjaman baru (11.08.2026), khusus Admin —
-  // mirror persis _buildAdminExtensionBanner di bawah, warna hijau biar
-  // kebedain dari perpanjangan (gold) sekilas pandang.
-  Widget _buildAdminLoanRequestBanner() {
-    if (!AuthService.isAdmin) return const SizedBox.shrink();
-
-    final pending = PeminjamanService.getPengajuanPeminjaman();
-    if (pending.isEmpty) return const SizedBox.shrink();
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-      child: GestureDetector(
-        onTap: _showLoanApprovalSheet,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: AppTheme.successBg,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.note_add, color: AppTheme.successGreen),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  '${pending.length} pengajuan peminjaman baru menunggu persetujuan Anda.',
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.successGreen,
-                  ),
-                ),
-              ),
-              const Icon(
-                Icons.chevron_right,
-                color: AppTheme.successGreen,
-                size: 20,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ─── Item 3 lanjutan (approval flow, khusus Admin): banner kecil kalau
-  // ada pengajuan perpanjangan yang menunggu keputusan. Layar approval-nya
-  // sendiri belum dibangun, jadi tap-nya masih placeholder — sama seperti
-  // pola "belum tersedia" yang sudah dipakai di tempat lain.
-  Widget _buildAdminExtensionBanner() {
-    if (!AuthService.isAdmin) return const SizedBox.shrink();
-
-    final pending = PeminjamanService.getPengajuanPerpanjangan();
-    if (pending.isEmpty) return const SizedBox.shrink();
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: GestureDetector(
-        onTap: _showExtensionApprovalSheet,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: AppTheme.warningBg,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.pending_actions, color: AppTheme.warningAmber),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  '${pending.length} pengajuan perpanjangan menunggu persetujuan Anda.',
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.warningAmber,
-                  ),
-                ),
-              ),
-              const Icon(
-                Icons.chevron_right,
-                color: AppTheme.warningAmber,
-                size: 20,
-              ),
-            ],
-          ),
+            ),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeInOut,
+              alignment: Alignment.topCenter,
+              child: _notificationsExpanded
+                  ? Padding(
+                      padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+                      child: Column(
+                        children: items.map((item) {
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: _buildNotifCard(
+                              icon: item.icon,
+                              accentColor: item.color,
+                              accentBg: item.bg,
+                              message: item.message,
+                              onTap: item.onTap,
+                              urgent: item.urgent,
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    )
+                  : const SizedBox(width: double.infinity, height: 0),
+            ),
+          ],
         ),
       ),
     );
@@ -1059,7 +1261,9 @@ class _HomePageState extends State<HomePage> {
   // ─── Item 1 (banner), khusus Pegawai: alert kalau ada dokumen milik
   // sendiri yang sudah lewat batas — mirror visual banner Admin di atas,
   // supaya Pegawai juga dapat "alert di atas layar", bukan cuma angka di
-  // ringkasan pribadi.
+  // ringkasan pribadi. Pegawai only ever has this one notification, so
+  // it stays a plain always-visible card rather than going through the
+  // collapsible panel (which is Admin-only, see above).
   Widget _buildPegawaiOverdueBanner() {
     if (!AuthService.isPegawai) return const SizedBox.shrink();
 
@@ -1068,39 +1272,13 @@ class _HomePageState extends State<HomePage> {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-      child: GestureDetector(
+      child: _buildNotifCard(
+        icon: Icons.warning_amber_rounded,
+        accentColor: AppTheme.dangerRed,
+        accentBg: AppTheme.dangerBg,
+        message:
+            '$belumKembali dokumen Anda sudah lewat batas waktu pengembalian.',
         onTap: () => _navigateAndRefresh(AppRoutes.returnPage),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: AppTheme.dangerBg,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Row(
-            children: [
-              const Icon(
-                Icons.warning_amber_rounded,
-                color: AppTheme.dangerRed,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  '$belumKembali dokumen Anda sudah lewat batas waktu pengembalian.',
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.dangerRed,
-                  ),
-                ),
-              ),
-              const Icon(
-                Icons.chevron_right,
-                color: AppTheme.dangerRed,
-                size: 20,
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -1124,6 +1302,296 @@ class _HomePageState extends State<HomePage> {
   // actually asked for the checklist/reason instead of it being silently
   // hardcoded to true / a canned string, which would defeat the entire
   // point of the service-side gate.
+  // ─── ADMIN ROLE REQUEST sheet — mirrors _showLoanApprovalSheet's
+  // shape (StatefulBuilder, try/catch around the service call, SnackBar
+  // feedback, auto-close when the last item resolves) but simpler: no
+  // physical-document checklist gate, since granting Admin isn't tied to
+  // a physical object like a loan approval is.
+  void _showAdminRoleRequestSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        // Persists across setSheetState rebuilds (created once when the
+        // sheet opens, not per-rebuild) — tracks which request ids are
+        // mid-network-call so their buttons can show a spinner and
+        // reject double-taps instead of silently looking unresponsive.
+        final processingIds = <String>{};
+
+        return StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            final pending = AdminRequestService.getPending();
+
+            Future<void> decide(AdminRequest request, bool approve) async {
+              // Ignore a second tap while the first is still in flight.
+              if (processingIds.contains(request.id)) return;
+              setSheetState(() => processingIds.add(request.id));
+
+              String? error;
+              try {
+                error = approve
+                    ? await AdminRequestService.approve(request)
+                    : await AdminRequestService.reject(request);
+              } catch (e) {
+                // Defensive belt-and-suspenders: AdminRequestService
+                // already catches internally and returns a message
+                // string, but if anything unexpected slips through
+                // uncaught, surface it instead of leaving the button
+                // stuck spinning forever with no explanation.
+                error = 'Terjadi kesalahan tak terduga: $e';
+              }
+
+              if (!mounted) return;
+              setSheetState(() => processingIds.remove(request.id));
+
+              if (error != null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(error),
+                    backgroundColor: AppTheme.dangerRed,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+                return;
+              }
+
+              setSheetState(() {});
+              setState(() {}); // refresh badge + banner di HomePage
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    approve
+                        ? '${request.nama} disetujui menjadi Admin.'
+                        : 'Permintaan ${request.nama} ditolak.',
+                  ),
+                  backgroundColor: approve
+                      ? AppTheme.accentGreen
+                      : AppTheme.dangerRed,
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              );
+              if (pending.length <= 1) Navigator.pop(sheetContext);
+            }
+
+            Future<void> confirmReject(AdminRequest request) async {
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (dialogContext) => AlertDialog(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  title: const Text('Tolak permintaan Admin?'),
+                  content: Text(
+                    '${request.nama} tidak akan menjadi Admin. Mereka bisa '
+                    'mengajukan lagi nanti.',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(dialogContext, false),
+                      child: const Text('Batal'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(dialogContext, true),
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppTheme.dangerRed,
+                      ),
+                      child: const Text('Tolak'),
+                    ),
+                  ],
+                ),
+              );
+              if (confirmed == true) await decide(request, false);
+            }
+
+            // ─── RESTYLE (14.09.2026): dropped the solid dangerBg fill +
+            // icon-header layout this sheet used to have — it read as a
+            // different design language from every other approval sheet
+            // (Pengajuan Peminjaman / Pengajuan Perpanjangan), which use
+            // a plain white background, bold title + gray subtitle line,
+            // and untinted list rows separated by a Divider. Mirrors that
+            // exact structure now so all three approval sheets feel like
+            // the same app instead of one standing out as "the red one".
+            return Container(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 16,
+                bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 24,
+              ),
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(sheetContext).size.height * 0.75,
+              ),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.black12,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ),
+                  const Text(
+                    'Permintaan Admin',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${pending.length} permintaan menunggu keputusan.',
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      color: Colors.black45,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  if (pending.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(
+                        child: Text(
+                          'Tidak ada permintaan yang menunggu.',
+                          style: TextStyle(color: Colors.black45),
+                        ),
+                      ),
+                    )
+                  else
+                    Flexible(
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: pending.length,
+                        separatorBuilder: (_, __) => const Divider(height: 24),
+                        itemBuilder: (context, index) {
+                          final request = pending[index];
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${request.nama} — ${request.jabatan}',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Alasan:',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black54,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                (request.alasan == null ||
+                                        request.alasan!.isEmpty)
+                                    ? 'Tidak ada alasan yang dicantumkan.'
+                                    : request.alasan!,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontStyle: FontStyle.italic,
+                                  color: Colors.black45,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Builder(
+                                builder: (context) {
+                                  final isProcessing = processingIds.contains(
+                                    request.id,
+                                  );
+                                  const spinner = SizedBox(
+                                    height: 16,
+                                    width: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  );
+                                  return Row(
+                                    children: [
+                                      Expanded(
+                                        child: OutlinedButton(
+                                          onPressed: isProcessing
+                                              ? null
+                                              : () => confirmReject(request),
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: AppTheme.dangerRed,
+                                            side: const BorderSide(
+                                              color: AppTheme.dangerRed,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(30),
+                                            ),
+                                          ),
+                                          child: isProcessing
+                                              ? spinner
+                                              : const Text('Tolak'),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: ElevatedButton(
+                                          onPressed: isProcessing
+                                              ? null
+                                              : () => decide(request, true),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor:
+                                                AppTheme.accentGreen,
+                                            elevation: 0,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(30),
+                                            ),
+                                          ),
+                                          child: isProcessing
+                                              ? const SizedBox(
+                                                  height: 16,
+                                                  width: 16,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                        color: Colors.white,
+                                                      ),
+                                                )
+                                              : const Text(
+                                                  'Setujui',
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                  ),
+                                                ),
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   void _showLoanApprovalSheet() {
     showModalBottomSheet(
       context: context,
@@ -1894,9 +2362,7 @@ class _HomePageState extends State<HomePage> {
             children: [
               _buildHeader(),
               const SizedBox(height: 18),
-              _buildAdminOverdueBanner(),
-              _buildAdminLoanRequestBanner(),
-              _buildAdminExtensionBanner(),
+              _buildAdminNotificationsPanel(),
               _buildPegawaiOverdueBanner(),
               _buildPersonalSummary(),
               const SizedBox(height: 10),

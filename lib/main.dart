@@ -7,6 +7,7 @@ import 'core/theme/app_theme.dart';
 import 'routes/app_routes.dart';
 import '../screens/services/auth_service.dart';
 import '../screens/services/peminjaman_service.dart';
+import '../screens/services/admin_request_service.dart';
 import 'screens/splash/splash_page.dart';
 
 Future<void> main() async {
@@ -59,6 +60,10 @@ Future<void> main() async {
     // open) instead of the latest data.
     try {
       await PeminjamanService.refresh();
+      // Non-fatal for the same reason as above — if this fails, the
+      // Admin homepage just won't show the urgent-request banner until
+      // the next successful refresh (pull-to-refresh, or next app open).
+      await AdminRequestService.refresh();
     } catch (_) {
       // Non-fatal — see comment above.
     }

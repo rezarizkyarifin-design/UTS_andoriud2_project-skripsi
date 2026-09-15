@@ -63,7 +63,7 @@ class AppTheme {
   static const Color forestDark = Color(0xFF0F2A1E);
   static const Color sage = Color(0xFF3D8361);
   static const Color gold = Color(0xFFC08A3E);
-  static const Color parchment = Color(0xFFFAF6EE);
+  static const Color parchment = Color.fromARGB(255, 252, 252, 252);
   static const Color ink = Color(0xFF1E2A22);
 
   static const LinearGradient brandGradient = LinearGradient(

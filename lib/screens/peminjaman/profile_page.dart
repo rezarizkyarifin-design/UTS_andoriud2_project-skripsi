@@ -17,7 +17,29 @@ class ProfilPage extends StatefulWidget {
 class _ProfilPageState extends State<ProfilPage> {
   bool _isLoggingOut = false;
 
+  // ── Peran / admin-role-request state (item 4b/4c, 14.09.2026) ──
+  // Whether the current user already has a pending admin_requests row
+  // — drives the italic "menunggu persetujuan" note under Peran and
+  // stops a duplicate request from being filed via _editRole.
+  bool _checkingPendingAdminRequest = true;
+  bool _hasPendingAdminRequest = false;
+
   static const int _selectedNavIndex = 3;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPendingAdminRequestStatus();
+  }
+
+  Future<void> _loadPendingAdminRequestStatus() async {
+    final pending = await AuthService.hasPendingAdminRequest();
+    if (!mounted) return;
+    setState(() {
+      _hasPendingAdminRequest = pending;
+      _checkingPendingAdminRequest = false;
+    });
+  }
 
   String _initials(String nama) {
     final parts = nama.trim().split(RegExp(r'\s+'));
@@ -385,6 +407,242 @@ class _ProfilPageState extends State<ProfilPage> {
     );
   }
 
+  // ── EDIT JABATAN ───────────────────────────────────────────────
+  // Item 4a (14.09.2026): Jabatan used to be a read-only info row.
+  // Same dialog pattern as _editNama above — see AuthService.updateJabatan.
+  Future<void> _editJabatan() async {
+    final currentJabatan = AuthService.currentUser?.jabatan ?? '';
+    final controller = TextEditingController(text: currentJabatan);
+
+    Future<void> safePop(BuildContext dialogContext, [String? value]) async {
+      // Same fix as the other dialogs on this page — see _editContactEmail.
+      FocusManager.instance.primaryFocus?.unfocus();
+      await Future.delayed(const Duration(milliseconds: 50));
+      if (!dialogContext.mounted) return;
+      Navigator.pop(dialogContext, value);
+    }
+
+    final result = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text('Ubah Jabatan'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          contextMenuBuilder: (context, editableTextState) =>
+              const SizedBox.shrink(),
+          decoration: const InputDecoration(
+            hintText: 'Jabatan',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => safePop(dialogContext),
+            child: const Text('Batal', style: TextStyle(color: Colors.black54)),
+          ),
+          ElevatedButton(
+            onPressed: () => safePop(dialogContext, controller.text),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryGreen,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Text('Simpan', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (result == null || result.trim() == currentJabatan) return;
+
+    final error = await AuthService.updateJabatan(result.trim());
+    if (!mounted) return;
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error),
+          backgroundColor: Colors.red.shade400,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
+      return;
+    }
+    setState(() {});
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Jabatan berhasil diubah.'),
+        backgroundColor: AppTheme.accentGreen,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  // ── UBAH PERAN / REQUEST ADMIN (item 4b/4c, 14.09.2026) ─────────
+  // Peran used to be a read-only info row. A Pegawai can now pick
+  // "Admin" here, which never flips profiles.role directly (see
+  // AuthService.requestAdminRole's doc comment) — it files a pending
+  // admin_requests row instead, and _infoRow's italic note below Peran
+  // reflects that until an admin approves it.
+  Future<void> _editRole() async {
+    final user = AuthService.currentUser;
+    if (user == null) return;
+
+    if (user.isAdmin) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Akun ini sudah menjadi Admin.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    if (_hasPendingAdminRequest) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Permintaan untuk menjadi Admin masih menunggu persetujuan.',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    UserRole selectedRole = user.role;
+    final alasanController = TextEditingController();
+
+    Future<void> safePop(
+      BuildContext dialogContext, [
+      bool confirmed = false,
+    ]) async {
+      FocusManager.instance.primaryFocus?.unfocus();
+      await Future.delayed(const Duration(milliseconds: 50));
+      if (!dialogContext.mounted) return;
+      Navigator.pop(dialogContext, confirmed);
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+            ),
+            title: const Text('Ubah Peran'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final role in UserRole.values)
+                    RadioListTile<UserRole>(
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      title: Text(role.label),
+                      value: role,
+                      groupValue: selectedRole,
+                      onChanged: (value) =>
+                          setDialogState(() => selectedRole = value!),
+                    ),
+                  if (selectedRole == UserRole.admin) ...[
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Memilih Admin akan mengirim permintaan ke admin '
+                      'pertama di sistem — peran kamu tetap Pegawai '
+                      'sampai permintaan disetujui.',
+                      style: TextStyle(fontSize: 12.5, color: Colors.black54),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: alasanController,
+                      maxLines: 3,
+                      contextMenuBuilder: (context, editableTextState) =>
+                          const SizedBox.shrink(),
+                      decoration: const InputDecoration(
+                        labelText: 'Alasan (opsional)',
+                        hintText: 'Kenapa kamu perlu akses Admin?',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => safePop(dialogContext),
+                child: const Text(
+                  'Batal',
+                  style: TextStyle(color: Colors.black54),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: selectedRole == user.role
+                    ? null
+                    : () => safePop(dialogContext, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryGreen,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  'Kirim Permintaan',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    if (confirmed != true || selectedRole != UserRole.admin) {
+      alasanController.dispose();
+      return;
+    }
+
+    final error = await AuthService.requestAdminRole(
+      alasan: alasanController.text,
+    );
+    alasanController.dispose();
+    if (!mounted) return;
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error),
+          backgroundColor: Colors.red.shade400,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
+      return;
+    }
+    setState(() => _hasPendingAdminRequest = true);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Permintaan untuk menjadi Admin telah dikirim.'),
+        backgroundColor: AppTheme.accentGreen,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
   // ── EDIT EMAIL KONTAK ──────────────────────────────────────────
   // A genuinely separate, real inbox — used only for notifications
   // (see AuthService.updateContactEmail). Completely unrelated to login;
@@ -484,6 +742,10 @@ class _ProfilPageState extends State<ProfilPage> {
     required String label,
     required String value,
     Widget? trailing,
+    // Item 4b (14.09.2026): italic note shown below the value — used by
+    // the Peran row to say "menunggu persetujuan" while an admin_requests
+    // row is pending, without touching every other _infoRow caller.
+    String? subtitle,
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -509,6 +771,17 @@ class _ProfilPageState extends State<ProfilPage> {
                     color: Colors.black87,
                   ),
                 ),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      fontStyle: FontStyle.italic,
+                      color: Colors.black45,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -684,12 +957,43 @@ class _ProfilPageState extends State<ProfilPage> {
                         icon: Icons.apartment_outlined,
                         label: 'Jabatan',
                         value: user?.jabatan ?? '-',
+                        trailing: IconButton(
+                          icon: const Icon(
+                            Icons.edit_outlined,
+                            size: 18,
+                            color: Colors.black45,
+                          ),
+                          tooltip: 'Ubah jabatan',
+                          onPressed: _editJabatan,
+                        ),
                       ),
                       const Divider(height: 1),
                       _infoRow(
                         icon: Icons.shield_outlined,
                         label: 'Peran',
                         value: user?.role.label ?? '-',
+                        // Item 4b: while a promotion request is pending,
+                        // Peran itself still reads "Pegawai" (profiles.role
+                        // never changes until an admin approves — see
+                        // AuthService.requestAdminRole) — this note is what
+                        // actually tells the user something is in flight.
+                        subtitle: _checkingPendingAdminRequest
+                            ? null
+                            : (_hasPendingAdminRequest
+                                  ? 'Permintaan untuk menjadi Admin sedang '
+                                        'menunggu persetujuan'
+                                  : null),
+                        trailing: (user?.isAdmin ?? true)
+                            ? null
+                            : IconButton(
+                                icon: const Icon(
+                                  Icons.edit_outlined,
+                                  size: 18,
+                                  color: Colors.black45,
+                                ),
+                                tooltip: 'Ubah peran',
+                                onPressed: _editRole,
+                              ),
                       ),
                     ],
                   ),

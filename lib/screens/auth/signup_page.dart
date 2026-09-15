@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme/app_theme.dart';
 import '../../routes/app_routes.dart';
+import '../../models/user_roles.dart';
 import '../services/auth_service.dart';
 import '../services/peminjaman_service.dart';
 import '../../widgets/animated_terrain_bg.dart';
@@ -21,6 +22,7 @@ class _SignUpPageState extends State<SignUpPage> {
   final _namaController = TextEditingController();
   final _usernameController = TextEditingController();
   final _jabatanController = TextEditingController();
+  final _alasanController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
 
@@ -28,14 +30,38 @@ class _SignUpPageState extends State<SignUpPage> {
   bool _hidePassword = true;
   bool _hideConfirm = true;
 
+  // ─── ADMIN ROLE REQUEST (14.09.2026) ───
+  // Every self-registered account is still created as 'pegawai' — see
+  // AuthService.signUp's doc comment for why nobody can grant themselves
+  // admin through this form. Picking "Admin" here doesn't change that;
+  // it just tells signUp to also file a pending request (visible to the
+  // first admin in the system) for a real admin to approve later.
+  UserRole _selectedRole = UserRole.pegawai;
+
   @override
   void dispose() {
     _namaController.dispose();
     _usernameController.dispose();
     _jabatanController.dispose();
+    _alasanController.dispose();
     _passwordController.dispose();
     _confirmController.dispose();
     super.dispose();
+  }
+
+  String _successMessage() {
+    final base = AuthService.isLoggedIn
+        ? 'Akun Anda sudah aktif sebagai Pegawai.'
+        : 'Akun Anda berhasil dibuat sebagai Pegawai. Silakan login untuk melanjutkan.';
+    if (_selectedRole != UserRole.admin) {
+      return AuthService.isLoggedIn
+          ? '$base Anda akan diarahkan ke Beranda.'
+          : base;
+    }
+    // Requested Admin: account is still Pegawai until an existing admin
+    // approves the request that was just filed.
+    return '$base Permintaan untuk menjadi Admin telah dikirim dan sedang '
+        'menunggu persetujuan.';
   }
 
   Future<void> _showSuccessDialog() {
@@ -75,9 +101,7 @@ class _SignUpPageState extends State<SignUpPage> {
             ],
           ),
           content: Text(
-            AuthService.isLoggedIn
-                ? 'Akun Anda sudah aktif. Anda akan diarahkan ke Beranda.'
-                : 'Akun Anda berhasil dibuat. Silakan login untuk melanjutkan.',
+            _successMessage(),
             style: GoogleFonts.plusJakartaSans(
               fontSize: 13,
               color: Colors.black54,
@@ -134,6 +158,8 @@ class _SignUpPageState extends State<SignUpPage> {
       username: _usernameController.text,
       jabatan: _jabatanController.text,
       password: _passwordController.text,
+      requestedRole: _selectedRole,
+      alasan: _selectedRole == UserRole.admin ? _alasanController.text : null,
     );
     if (!mounted) return;
     setState(() => _isSubmitting = false);
@@ -175,6 +201,93 @@ class _SignUpPageState extends State<SignUpPage> {
       if (!mounted) return;
       Navigator.pushReplacementNamed(context, AppRoutes.login);
     }
+  }
+
+  // ─── ROLE SELECTOR ───
+  // Two-way toggle, not a dropdown: only two options, both need to be
+  // visible at a glance since the "Admin" choice comes with a caveat
+  // (see helper text below) that's easy to miss inside a closed menu.
+  Widget _roleSelector() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _roleOption(
+                role: UserRole.pegawai,
+                label: 'Pegawai',
+                icon: Icons.badge_outlined,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _roleOption(
+                role: UserRole.admin,
+                label: 'Admin',
+                icon: Icons.admin_panel_settings_outlined,
+              ),
+            ),
+          ],
+        ),
+        if (_selectedRole == UserRole.admin) ...[
+          const SizedBox(height: 8),
+          Text(
+            'Akun tetap dibuat sebagai Pegawai. Permintaan untuk menjadi '
+            'Admin akan dikirim ke admin yang sudah ada untuk disetujui.',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 11.5,
+              fontStyle: FontStyle.italic,
+              color: Colors.black45,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _roleOption({
+    required UserRole role,
+    required String label,
+    required IconData icon,
+  }) {
+    final isSelected = _selectedRole == role;
+    return GestureDetector(
+      onTap: _isSubmitting ? null : () => setState(() => _selectedRole = role),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppTheme.primaryGreen.withValues(alpha: 0.10)
+              : const Color(0xFFF5F5F5),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? AppTheme.primaryGreen : Colors.transparent,
+            width: 1.2,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 18,
+              color: isSelected ? AppTheme.primaryGreen : Colors.black45,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w600,
+                color: isSelected ? AppTheme.primaryGreen : Colors.black54,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   InputDecoration _decoration(String label, IconData icon) {
@@ -273,6 +386,25 @@ class _SignUpPageState extends State<SignUpPage> {
                             ? 'Wajib diisi'
                             : null,
                       ),
+                      const SizedBox(height: 14),
+                      _roleSelector(),
+                      if (_selectedRole == UserRole.admin) ...[
+                        const SizedBox(height: 14),
+                        TextFormField(
+                          controller: _alasanController,
+                          maxLines: 3,
+                          decoration: _decoration(
+                            'Alasan mengajukan Admin',
+                            Icons.notes_outlined,
+                          ),
+                          validator: (v) {
+                            if (_selectedRole != UserRole.admin) return null;
+                            return (v == null || v.trim().isEmpty)
+                                ? 'Wajib diisi untuk permintaan Admin'
+                                : null;
+                          },
+                        ),
+                      ],
                       const SizedBox(height: 14),
                       TextFormField(
                         controller: _passwordController,

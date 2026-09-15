@@ -72,5 +72,10 @@ class Data {
     'Penataan & Pemberdayaan',
     'Pengadaan Tanah & Pengembangan',
     'Pengendalian & Penanganan Sengketa',
+    'Bidang 1',
+    'Bidang 2',
+    'Bidang 3',
+    'Bidang 4',
+    'Bidang 5',
   ];
 }
