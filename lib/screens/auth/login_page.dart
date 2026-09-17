@@ -5,7 +5,6 @@ import '../services/auth_service.dart'; // exposes AuthService + NetworkExceptio
 import '../services/peminjaman_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../widgets/double_back_to_exit.dart';
-import '../../widgets/animated_terrain_bg.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -141,12 +140,6 @@ class _LoginPageState extends State<LoginPage> {
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                               ),
-                            ),
-                          ),
-                          const Positioned.fill(
-                            child: AnimatedTerrainBackground(
-                              mode: BackgroundMode.header,
-                              blobColors: [_gold, _sage],
                             ),
                           ),
                         ],

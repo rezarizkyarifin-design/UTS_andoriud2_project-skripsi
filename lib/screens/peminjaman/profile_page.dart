@@ -243,33 +243,31 @@ class _ProfilPageState extends State<ProfilPage> {
     });
   }
 
-  Future<void> _confirmLogout() async {
+  Future<void> _confirmLogout(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: const Text('Konfirmasi Logout'),
-        content: const Text('Apakah Anda yakin ingin keluar dari akun ini?'),
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Keluar dari akun?'),
+        content: const Text(
+          'Kamu perlu login lagi untuk mengakses SIAP setelah keluar.',
+        ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Batal', style: TextStyle(color: Colors.black54)),
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Batal'),
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.dangerRed,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: const Text('Logout', style: TextStyle(color: Colors.white)),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
+            child: const Text('Logout'),
           ),
         ],
       ),
     );
 
     if (confirmed != true) return;
+    if (!context.mounted) return;
 
     setState(() => _isLoggingOut = true);
     try {
@@ -1043,7 +1041,9 @@ class _ProfilPageState extends State<ProfilPage> {
                 child: SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
-                    onPressed: _isLoggingOut ? null : _confirmLogout,
+                    onPressed: _isLoggingOut
+                        ? null
+                        : () => _confirmLogout(context),
                     icon: _isLoggingOut
                         ? const SizedBox(
                             width: 16,
