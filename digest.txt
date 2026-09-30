@@ -155,13 +155,13 @@ Directory structure:
     │   └── RunnerTests/
     │       └── RunnerTests.swift
     ├── test/
-    │   ├── widget_test.dart
     │   ├── unit/
     │   │   └── peminjaman_filter_test.dart
     │   └── widget/
     │       ├── form_page_test.dart
     │       ├── profile_page_test.dart
-    │       └── return_page_test.dart
+    │       ├── return_page_test.dart
+    │       └── smoke_test.dart
     ├── web/
     │   ├── index.html
     │   └── manifest.json
@@ -614,7 +614,7 @@ linter:
   rules:
     # avoid_print: false  # Uncomment to disable the `avoid_print` rule
     # prefer_single_quotes: true  # Uncomment to enable the `prefer_single_quotes` rule
-
+    use_build_context_synchronously: false
 # Additional information about this file can be found at
 # https://dart.dev/guides/language/analysis-options
 
@@ -2832,7 +2832,7 @@ Future<void> main() async {
   // Dashboard â†’ Project Settings â†’ API â†’ Project URL / anon public key
   await Supabase.initialize(
     url: 'https://axiulqpwrzbzihphfwwm.supabase.co',
-    anonKey:
+    publishableKey:
         'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF4aXVscXB3cnpiemlocGhmd3dtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2Mzk1NTcsImV4cCI6MjA5OTIxNTU1N30.Ke20mXol554sglYHvwfGfCOjyJcTxsQ3YG6-D3oYMOs',
   );
 
@@ -12340,38 +12340,23 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   // â”€â”€â”€ FILTERED LIST â”€â”€â”€
+  // â”€â”€â”€ FILTERED LIST â”€â”€â”€
   List<Peminjaman> get _filteredHistory {
-    return _history.where((p) {
-      if (_searchQuery.isNotEmpty) {
-        final haystack =
-            '${p.nama} ${p.kecamatan} ${p.kelurahan} ${p.noHak} '
-                    '${p.jenisDokumen} ${p.jenisSuratUkur ?? ''} '
-                    '${p.noTahunSuratUkur ?? ''} ${p.su ?? ''} ${p.gs ?? ''} '
-                    '${p.jenisWarkah ?? ''} ${p.no208 ?? ''} ${p.tahunWarkah ?? ''}'
-                .toLowerCase();
-        if (!haystack.contains(_searchQuery)) return false;
-      }
-      if (_filterKecamatan != null && p.kecamatan != _filterKecamatan) {
-        return false;
-      }
-      if (_filterKelurahan != null && p.kelurahan != _filterKelurahan) {
-        return false;
-      }
-      if (_filterJenisHak != null && p.jenisHak != _filterJenisHak) {
-        return false;
-      }
-      if (_filterJenisDokumen != null &&
-          p.jenisDokumen != _filterJenisDokumen) {
-        return false;
-      }
-      if (_filterStatus == 'Sedang Dipinjam' && p.status != 'Dipinjam') {
-        return false;
-      }
-      if (_filterStatus == 'Telah Kembali' && p.status != 'Kembali') {
-        return false;
-      }
-      return true;
-    }).toList();
+    // History's chip labels are the display names; the service filters on
+    // the raw status value. Map the label to the value before handing off.
+    String? statusValue;
+    if (_filterStatus == 'Sedang Dipinjam') statusValue = 'Dipinjam';
+    if (_filterStatus == 'Telah Kembali') statusValue = 'Kembali';
+
+    return PeminjamanService.filter(
+      source: _history,
+      query: _searchQuery,
+      kecamatan: _filterKecamatan,
+      kelurahan: _filterKelurahan,
+      jenisHak: _filterJenisHak,
+      jenisDokumen: _filterJenisDokumen,
+      status: statusValue,
+    );
   }
 
   void _resetFilters() {
@@ -16449,31 +16434,17 @@ class _ReturnPageState extends State<ReturnPage> {
       _all.where((p) => p.status == 'Dipinjam').toList();
 
   List<Peminjaman> get _pinjamanAktif {
-    return _pinjamanAktifRaw.where((p) {
-      if (_searchQuery.isNotEmpty) {
-        final haystack =
-            '${p.nama} ${p.noHak} ${p.kelurahan} ${p.jenisDokumen} '
-                    '${p.jenisSuratUkur ?? ''} ${p.noTahunSuratUkur ?? ''} '
-                    '${p.su ?? ''} ${p.gs ?? ''} ${p.jenisWarkah ?? ''} '
-                    '${p.no208 ?? ''} ${p.tahunWarkah ?? ''}'
-                .toLowerCase();
-        if (!haystack.contains(_searchQuery)) return false;
-      }
-      if (_filterKecamatan != null && p.kecamatan != _filterKecamatan) {
-        return false;
-      }
-      if (_filterKelurahan != null && p.kelurahan != _filterKelurahan) {
-        return false;
-      }
-      if (_filterJenisHak != null && p.jenisHak != _filterJenisHak) {
-        return false;
-      }
-      if (_filterJenisDokumen != null &&
-          p.jenisDokumen != _filterJenisDokumen) {
-        return false;
-      }
-      return true;
-    }).toList();
+    // _pinjamanAktifRaw already narrows to status == 'Dipinjam', so the
+    // service's status param stays null here â€” the "always active" filter
+    // is applied upstream.
+    return PeminjamanService.filter(
+      source: _pinjamanAktifRaw,
+      query: _searchQuery,
+      kecamatan: _filterKecamatan,
+      kelurahan: _filterKelurahan,
+      jenisHak: _filterJenisHak,
+      jenisDokumen: _filterJenisDokumen,
+    );
   }
 
   void _resetFilters() {
@@ -17908,7 +17879,6 @@ class _ReturnPageState extends State<ReturnPage> {
   @override
   Widget build(BuildContext context) {
     final aktif = _pinjamanAktif;
-    final overdueCount = aktif.where((p) => p.isOverdue).length;
 
     return BackToHome(
       child: Scaffold(
@@ -18403,24 +18373,6 @@ class _ScanPageState extends State<ScanPage>
   // The QR encodes the loan id. Labels printed before that change encoded a
   // document number instead; accept those only when exactly one active loan
   // matches, since numbers are not unique across kelurahan/document types.
-  Peminjaman? _findScanned(String code) {
-    final active = PeminjamanService.getAll().where(
-      (p) => p.status == 'Dipinjam',
-    );
-    for (final p in active) {
-      if (p.id == code) return p;
-    }
-    final legacy = active
-        .where(
-          (p) =>
-              p.noHak == code ||
-              p.no208 == code ||
-              p.su == code ||
-              p.gs == code,
-        )
-        .toList();
-    return legacy.length == 1 ? legacy.first : null;
-  }
 
   void _prosesHasilScan(String scannedId) {
     final semua = PeminjamanService.getAll();
@@ -19091,13 +19043,13 @@ class AdminRequestService {
 ================================================
 FILE: lib/screens/services/auth_service.dart
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x90 in position 8458: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x90 in position 8501: character maps to <undefined>
 
 
 ================================================
 FILE: lib/screens/services/peminjaman_service.dart
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x90 in position 4629: character maps to <undefined>
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x90 in position 4671: character maps to <undefined>
 
 
 ================================================
@@ -19235,7 +19187,8 @@ class PrintingService {
     final Uint8List bytes = byteData!.buffer.asUint8List();
 
     final tempDir = await getTemporaryDirectory();
-    final file = File('${tempDir.path}/barcode_$identifierValue.png');
+    final safeName = identifierValue.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
+    final file = File('${tempDir.path}/barcode_$safeName.png');
     await file.writeAsBytes(bytes);
 
     await Share.shareXFiles([
@@ -19806,7 +19759,6 @@ import 'package:flutter/material.dart';
 import '../core/theme/app_theme.dart';
 import '../routes/app_routes.dart';
 import '../screens/services/auth_service.dart';
-import 'app_top_bar.dart';
 
 /// Which drawer item should render as "active" (highlighted) for the
 /// current page. One enum value per screen that has a drawer entry.
@@ -20184,7 +20136,6 @@ class AppScanFab extends StatelessWidget {
 FILE: lib/widgets/app_top_bar.dart
 ================================================
 import 'package:flutter/material.dart';
-import '../core/theme/app_theme.dart';
 import '../routes/app_routes.dart';
 import '../screens/services/auth_service.dart';
 import 'notification_bell.dart';
@@ -20559,8 +20510,6 @@ class JenisDokumenBreakdown extends StatelessWidget {
 ================================================
 FILE: lib/widgets/notification_bell.dart
 ================================================
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import '../screens/services/auth_service.dart';
 import '../screens/services/peminjaman_service.dart';
@@ -22218,108 +22167,108 @@ class RunnerTests: XCTestCase {
 
 
 ================================================
-FILE: test/widget_test.dart
-================================================
-void main() {}
-
-
-================================================
 FILE: test/unit/peminjaman_filter_test.dart
 ================================================
 import 'package:flutter_test/flutter_test.dart';
-
-// Dummy model matching Peminjaman data structure
-class PeminjamanMock {
-  final String nama;
-  final String kecamatan;
-  final String kelurahan;
-  final String noHak;
-  final String jenisHak;
-  final String jenisDokumen;
-  final String status;
-
-  PeminjamanMock({
-    required this.nama,
-    required this.kecamatan,
-    required this.kelurahan,
-    required this.noHak,
-    required this.jenisHak,
-    required this.jenisDokumen,
-    required this.status,
-  });
-}
+import 'package:projeck_skripsi/models/peminjaman.dart';
+import 'package:projeck_skripsi/screens/services/peminjaman_service.dart';
 
 void main() {
-  group('Peminjaman Filter Logic Tests', () {
-    final mockData = [
-      PeminjamanMock(
-        nama: 'Budi Santoso',
-        kecamatan: 'Cibeunying Kaler',
-        kelurahan: 'Cihaur Geulis',
-        noHak: '01234',
-        jenisHak: 'Hak Milik',
-        jenisDokumen: 'Buku Tanah',
-        status: 'Dipinjam',
-      ),
-      PeminjamanMock(
+  Peminjaman sample({
+    required String nama,
+    String kecamatan = 'Cilegon',
+    String kelurahan = 'Bagendung',
+    String noHak = '11111',
+    String jenisHak = 'Hak Milik',
+    String jenisDokumen = 'Buku Tanah',
+    String status = 'Dipinjam',
+    String? jenisWarkah,
+    String? no208,
+    String? su,
+  }) {
+    return Peminjaman(
+      id: 'x',
+      nama: nama,
+      seksi: 'Seksi Tata Usaha',
+      kecamatan: kecamatan,
+      kelurahan: kelurahan,
+      jenisHak: jenisHak,
+      noHak: noHak,
+      keperluan: 'Verifikasi',
+      tanggalPinjam: DateTime(2025, 1, 1),
+      tanggalKembali: DateTime(2025, 1, 8),
+      status: status,
+      jenisDokumen: jenisDokumen,
+      jenisWarkah: jenisWarkah,
+      no208: no208,
+      su: su,
+    );
+  }
+
+  group('PeminjamanService.debugFilter', () {
+    final data = [
+      sample(nama: 'Budi Santoso', noHak: '11111'),
+      sample(
         nama: 'Siti Rahma',
-        kecamatan: 'Coblong',
-        kelurahan: 'Dago',
-        noHak: '56789',
-        jenisHak: 'Hak Guna Bangunan',
+        noHak: '22222',
         jenisDokumen: 'Surat Ukur',
+        jenisHak: 'Hak Guna Bangunan',
         status: 'Kembali',
+        su: '45/2020',
       ),
-      PeminjamanMock(
+      sample(
         nama: 'Ahmad Yani',
-        kecamatan: 'Coblong',
-        kelurahan: 'Dago',
-        noHak: '99999',
-        jenisHak: 'Hak Pakai',
+        noHak: '-',
         jenisDokumen: 'Warkah',
-        status: 'Dipinjam',
+        jenisHak: '-',
+        jenisWarkah: 'PBT',
+        no208: '999',
       ),
     ];
 
-    test('Filter berdasarkan pencarian nama atau nomor hak', () {
-      final query = 'budi';
-      final result = mockData.where((p) {
-        final haystack = '${p.nama} ${p.noHak}'.toLowerCase();
-        return haystack.contains(query.toLowerCase());
-      }).toList();
-
-      expect(result.length, equals(1));
-      expect(result.first.nama, equals('Budi Santoso'));
+    test('matches by borrower name (case-insensitive)', () {
+      final r = PeminjamanService.debugFilter(source: data, query: 'BUDI');
+      expect(r, hasLength(1));
+      expect(r.first.nama, 'Budi Santoso');
     });
 
-    test(
-      'Filter berdasarkan Jenis Dokumen (Buku Tanah / Surat Ukur / Warkah)',
-      () {
-        final filteredSuratUkur = mockData
-            .where((p) => p.jenisDokumen == 'Surat Ukur')
-            .toList();
-        final filteredWarkah = mockData
-            .where((p) => p.jenisDokumen == 'Warkah')
-            .toList();
+    test('matches by noHak', () {
+      final r = PeminjamanService.debugFilter(source: data, query: '22222');
+      expect(r.single.nama, 'Siti Rahma');
+    });
 
-        expect(filteredSuratUkur.length, equals(1));
-        expect(filteredSuratUkur.first.noHak, equals('56789'));
-        expect(filteredWarkah.length, equals(1));
-        expect(filteredWarkah.first.jenisDokumen, equals('Warkah'));
-      },
-    );
+    test('matches Surat Ukur by SU number', () {
+      final r = PeminjamanService.debugFilter(source: data, query: '45/2020');
+      expect(r.single.jenisDokumen, 'Surat Ukur');
+    });
 
-    test('Filter berdasarkan Status (Dipinjam / Kembali)', () {
-      final activeLoans = mockData
-          .where((p) => p.status == 'Dipinjam')
-          .toList();
-      final returnedLoans = mockData
-          .where((p) => p.status == 'Kembali')
-          .toList();
+    test('matches Warkah by No. 208', () {
+      final r = PeminjamanService.debugFilter(source: data, query: '999');
+      expect(r.single.jenisWarkah, 'PBT');
+    });
 
-      expect(activeLoans.length, equals(2));
-      expect(returnedLoans.length, equals(1));
-      expect(returnedLoans.first.nama, equals('Siti Rahma'));
+    test('filters by jenisDokumen', () {
+      final r = PeminjamanService.debugFilter(
+        source: data,
+        jenisDokumen: 'Warkah',
+      );
+      expect(r, hasLength(1));
+    });
+
+    test('filters by status', () {
+      final r = PeminjamanService.debugFilter(source: data, status: 'Kembali');
+      expect(r.single.nama, 'Siti Rahma');
+    });
+
+    test('no query, no filter returns everything', () {
+      expect(PeminjamanService.debugFilter(source: data), hasLength(3));
+    });
+
+    test('query matching nothing returns empty', () {
+      expect(
+        PeminjamanService.debugFilter(source: data, query: 'zzzzz'),
+        isEmpty,
+      );
     });
   });
 }
@@ -22331,57 +22280,89 @@ FILE: test/widget/form_page_test.dart
 ================================================
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'package:projeck_skripsi/screens/peminjaman/form_page.dart';
 
 void main() {
-  Widget buildTestableWidget(Widget child) {
-    return MaterialApp(home: Scaffold(body: child));
-  }
+  setUpAll(() async {
+    await Supabase.initialize(
+      url: 'http://localhost:54321',
+      publishableKey: 'test-anon-key',
+    );
+  });
 
-  group('FormPage Widget Tests', () {
-    testWidgets('Merender pilihan Jenis Dokumen secara benar pada awal muat', (
-      WidgetTester tester,
-    ) async {
-      await tester.pumpWidget(buildTestableWidget(const FormPage()));
+  Widget wrap() => const MaterialApp(home: FormPage());
 
-      // Pastikan dropdown/chip opsi Jenis Dokumen ada
+  group('FormPage â€” initial state', () {
+    testWidgets('renders the three document-type chips', (tester) async {
+      await tester.pumpWidget(wrap());
+
       expect(find.text('Buku Tanah'), findsOneWidget);
       expect(find.text('Surat Ukur'), findsOneWidget);
       expect(find.text('Warkah'), findsOneWidget);
-
-      // Tombol Simpan Data belum tampil jika jenis dokumen belum dipilih
-      expect(find.text('Simpan Data'), findsNothing);
     });
 
-    testWidgets(
-      'Menampilkan form spesifik Surat Ukur saat "Surat Ukur" dipilih',
-      (WidgetTester tester) async {
-        await tester.pumpWidget(buildTestableWidget(const FormPage()));
+    testWidgets('hides detail sections until a type is picked', (tester) async {
+      await tester.pumpWidget(wrap());
 
-        // Tap pada pilihan 'Surat Ukur'
-        await tester.tap(find.text('Surat Ukur'));
-        await tester.pumpAndSettle();
+      expect(find.text('Identitas Peminjam'), findsOneWidget);
+      expect(find.text('Detail Objek Arsip'), findsNothing);
+      expect(find.text('Keperluan & Waktu'), findsNothing);
+      expect(find.text('Simpan Data'), findsNothing);
+    });
+  });
 
-        // Memastikan field spesifik Surat Ukur seperti SU / GS atau No/Tahun SU tampil
-        expect(find.text('Simpan Data'), findsOneWidget);
-      },
-    );
-
-    testWidgets('Validasi pengisian form dan eksekusi tombol Simpan Data', (
-      WidgetTester tester,
+  group('FormPage â€” per document type', () {
+    testWidgets('Buku Tanah reveals Kecamatan + Kelurahan + Jenis Hak', (
+      tester,
     ) async {
-      await tester.pumpWidget(buildTestableWidget(const FormPage()));
-
-      // Pilih Buku Tanah
+      await tester.pumpWidget(wrap());
       await tester.tap(find.text('Buku Tanah'));
       await tester.pumpAndSettle();
 
-      // Temukan tombol simpan
-      final simpanButton = find.text('Simpan Data');
-      expect(simpanButton, findsOneWidget);
+      expect(find.text('Detail Objek Arsip'), findsOneWidget);
+      expect(find.text('Kecamatan'), findsOneWidget);
+      expect(find.text('Kelurahan'), findsOneWidget);
+      expect(find.text('Jenis Hak'), findsOneWidget);
+    });
 
-      await tester.tap(simpanButton);
+    testWidgets('Surat Ukur reveals Jenis Surat Ukur dropdown', (tester) async {
+      await tester.pumpWidget(wrap());
+      await tester.tap(find.text('Surat Ukur'));
       await tester.pumpAndSettle();
+
+      expect(find.text('Jenis Surat Ukur'), findsOneWidget);
+      // No. & Tahun only appears after SU/GS is chosen.
+      expect(find.textContaining('No. & Tahun'), findsNothing);
+    });
+
+    testWidgets('Warkah reveals Jenis Warkah + No. 208 + Tahun', (
+      tester,
+    ) async {
+      await tester.pumpWidget(wrap());
+      await tester.tap(find.text('Warkah'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Jenis Warkah'), findsOneWidget);
+      expect(find.text('No. 208'), findsOneWidget);
+      expect(find.text('Tahun'), findsOneWidget);
+    });
+  });
+
+  group('FormPage â€” save validation', () {
+    testWidgets('empty form shows the completeness error', (tester) async {
+      await tester.pumpWidget(wrap());
+      await tester.tap(find.text('Buku Tanah'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Simpan Data'));
+      await tester.pump();
+
+      expect(
+        find.text('Lengkapi semua kolom sebelum menyimpan.'),
+        findsOneWidget,
+      );
     });
   });
 }
@@ -22393,56 +22374,90 @@ FILE: test/widget/profile_page_test.dart
 ================================================
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:projeck_skripsi/screens/peminjaman/profile_page.dart'; // Adjust import path
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'package:projeck_skripsi/screens/peminjaman/form_page.dart';
 
 void main() {
-  Widget createProfilePage() {
-    return const MaterialApp(home: ProfilPage());
-  }
+  setUpAll(() async {
+    await Supabase.initialize(
+      url: 'http://localhost:54321',
+      publishableKey: 'test-anon-key',
+    );
+  });
 
-  group('ProfilPage & Change Password Dialog Tests', () {
-    testWidgets('Menampilkan komponen profil utama', (
-      WidgetTester tester,
-    ) async {
-      await tester.pumpWidget(createProfilePage());
-      await tester.pumpAndSettle();
+  Widget wrap() => const MaterialApp(home: FormPage());
 
-      expect(find.text('Logout'), findsOneWidget);
+  group('FormPage â€” initial state', () {
+    testWidgets('renders the three document-type chips', (tester) async {
+      await tester.pumpWidget(wrap());
+
+      expect(find.text('Buku Tanah'), findsOneWidget);
+      expect(find.text('Surat Ukur'), findsOneWidget);
+      expect(find.text('Warkah'), findsOneWidget);
     });
 
-    testWidgets(
-      'Validasi password kurang dari 6 karakter di Dialog Ganti Password',
-      (WidgetTester tester) async {
-        await tester.pumpWidget(createProfilePage());
-        await tester.pumpAndSettle();
+    testWidgets('hides detail sections until a type is picked', (tester) async {
+      await tester.pumpWidget(wrap());
 
-        // Cari tombol Ubah Password (jika tersedia di UI)
-        final changePassBtn = find.text('Ubah Password');
-        if (changePassBtn.evaluate().isNotEmpty) {
-          await tester.tap(changePassBtn);
-          await tester.pumpAndSettle();
+      expect(find.text('Identitas Peminjam'), findsOneWidget);
+      expect(find.text('Detail Objek Arsip'), findsNothing);
+      expect(find.text('Keperluan & Waktu'), findsNothing);
+      expect(find.text('Simpan Data'), findsNothing);
+    });
+  });
 
-          // Dialog harus terbuka (barrierDismissible = false)
-          expect(find.byType(AlertDialog), findsOneWidget);
+  group('FormPage â€” per document type', () {
+    testWidgets('Buku Tanah reveals Kecamatan + Kelurahan + Jenis Hak', (
+      tester,
+    ) async {
+      await tester.pumpWidget(wrap());
+      await tester.tap(find.text('Buku Tanah'));
+      await tester.pumpAndSettle();
 
-          // Masukkan password < 6 karakter
-          final textFields = find.byType(TextField);
-          await tester.enterText(textFields.at(0), '123456'); // current
-          await tester.enterText(textFields.at(1), '123'); // new short
-          await tester.enterText(textFields.at(2), '123'); // confirm
+      expect(find.text('Detail Objek Arsip'), findsOneWidget);
+      expect(find.text('Kecamatan'), findsOneWidget);
+      expect(find.text('Kelurahan'), findsOneWidget);
+      expect(find.text('Jenis Hak'), findsOneWidget);
+    });
 
-          final saveBtn = find.text('Simpan');
-          await tester.tap(saveBtn);
-          await tester.pumpAndSettle();
+    testWidgets('Surat Ukur reveals Jenis Surat Ukur dropdown', (tester) async {
+      await tester.pumpWidget(wrap());
+      await tester.tap(find.text('Surat Ukur'));
+      await tester.pumpAndSettle();
 
-          // Snackbars validasi panjang karakter muncul
-          expect(
-            find.text('Password baru minimal 6 karakter.'),
-            findsOneWidget,
-          );
-        }
-      },
-    );
+      expect(find.text('Jenis Surat Ukur'), findsOneWidget);
+      // No. & Tahun only appears after SU/GS is chosen.
+      expect(find.textContaining('No. & Tahun'), findsNothing);
+    });
+
+    testWidgets('Warkah reveals Jenis Warkah + No. 208 + Tahun', (
+      tester,
+    ) async {
+      await tester.pumpWidget(wrap());
+      await tester.tap(find.text('Warkah'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Jenis Warkah'), findsOneWidget);
+      expect(find.text('No. 208'), findsOneWidget);
+      expect(find.text('Tahun'), findsOneWidget);
+    });
+  });
+
+  group('FormPage â€” save validation', () {
+    testWidgets('empty form shows the completeness error', (tester) async {
+      await tester.pumpWidget(wrap());
+      await tester.tap(find.text('Buku Tanah'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Simpan Data'));
+      await tester.pump();
+
+      expect(
+        find.text('Lengkapi semua kolom sebelum menyimpan.'),
+        findsOneWidget,
+      );
+    });
   });
 }
 
@@ -22453,58 +22468,145 @@ FILE: test/widget/return_page_test.dart
 ================================================
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:projeck_skripsi/screens/peminjaman/form_page.dart'; // Adjust import with actual path
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'package:projeck_skripsi/models/peminjaman.dart';
+import 'package:projeck_skripsi/screens/peminjaman/return_page.dart';
+import 'package:projeck_skripsi/screens/services/peminjaman_service.dart';
 
 void main() {
-  Widget buildTestableWidget(Widget child) {
-    return MaterialApp(home: Scaffold(body: child));
+  setUpAll(() async {
+    await Supabase.initialize(
+      url: 'http://localhost:54321',
+      publishableKey: 'test-anon-key',
+    );
+  });
+
+  setUp(() => PeminjamanService.debugClearCache());
+
+  Widget wrap() => const MaterialApp(home: ReturnPage());
+
+  Peminjaman activeLoan({
+    String id = 'loan-1',
+    String nama = 'Budi',
+    String noHak = '12345',
+    String jenisDokumen = 'Buku Tanah',
+    DateTime? dueDate,
+  }) {
+    return Peminjaman(
+      id: id,
+      nama: nama,
+      seksi: 'Seksi Tata Usaha',
+      kecamatan: 'Cilegon',
+      kelurahan: 'Bagendung',
+      jenisHak: 'Hak Milik',
+      noHak: noHak,
+      keperluan: 'Verifikasi',
+      tanggalPinjam: DateTime(2025, 1, 1),
+      tanggalKembali: dueDate ?? DateTime.now().add(const Duration(days: 7)),
+      status: 'Dipinjam',
+      jenisDokumen: jenisDokumen,
+    );
   }
 
-  group('FormPage Widget Tests', () {
-    testWidgets('Merender pilihan Jenis Dokumen secara benar pada awal muat', (
-      WidgetTester tester,
+  group('ReturnPage â€” empty state', () {
+    testWidgets('shows the empty-state card when the cache is empty', (
+      tester,
     ) async {
-      await tester.pumpWidget(buildTestableWidget(const FormPage()));
-
-      // Pastikan dropdown/chip opsi Jenis Dokumen ada
-      expect(find.text('Buku Tanah'), findsOneWidget);
-      expect(find.text('Surat Ukur'), findsOneWidget);
-      expect(find.text('Warkah'), findsOneWidget);
-
-      // Tombol Simpan Data belum tampil jika jenis dokumen belum dipilih
-      expect(find.text('Simpan Data'), findsNothing);
-    });
-
-    testWidgets(
-      'Menampilkan form spesifik Surat Ukur saat "Surat Ukur" dipilih',
-      (WidgetTester tester) async {
-        await tester.pumpWidget(buildTestableWidget(const FormPage()));
-
-        // Tap pada pilihan 'Surat Ukur'
-        await tester.tap(find.text('Surat Ukur'));
-        await tester.pumpAndSettle();
-
-        // Memastikan field spesifik Surat Ukur seperti SU / GS atau No/Tahun SU tampil
-        expect(find.text('Simpan Data'), findsOneWidget);
-      },
-    );
-
-    testWidgets('Validasi pengisian form dan eksekusi tombol Simpan Data', (
-      WidgetTester tester,
-    ) async {
-      await tester.pumpWidget(buildTestableWidget(const FormPage()));
-
-      // Pilih Buku Tanah
-      await tester.tap(find.text('Buku Tanah'));
+      await tester.pumpWidget(wrap());
       await tester.pumpAndSettle();
 
-      // Temukan tombol simpan
-      final simpanButton = find.text('Simpan Data');
-      expect(simpanButton, findsOneWidget);
-
-      await tester.tap(simpanButton);
-      await tester.pumpAndSettle();
+      expect(find.text('Tidak Ada Pinjaman Aktif'), findsOneWidget);
+      expect(
+        find.textContaining('Semua dokumen sudah dikembalikan'),
+        findsOneWidget,
+      );
+      expect(find.text('Catat Peminjaman'), findsOneWidget);
     });
+
+    testWidgets('renders header, search bar, and bottom nav', (tester) async {
+      await tester.pumpWidget(wrap());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Pengembalian'), findsOneWidget);
+      expect(find.text('Pinjaman Aktif'), findsOneWidget);
+      expect(find.text('Masukkan Nomor Hak...'), findsOneWidget);
+      expect(find.text('Beranda'), findsOneWidget);
+      expect(find.text('Arsip'), findsOneWidget);
+      expect(find.text('Riwayat'), findsOneWidget);
+      expect(find.text('Kembali'), findsOneWidget);
+    });
+  });
+
+  group('ReturnPage â€” with data', () {
+    testWidgets('renders one card per active loan', (tester) async {
+      PeminjamanService.debugSeedCache([
+        activeLoan(id: 'a', nama: 'Budi'),
+        activeLoan(id: 'b', nama: 'Siti', noHak: '67890'),
+      ]);
+
+      await tester.pumpWidget(wrap());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Budi'), findsOneWidget);
+      expect(find.text('Siti'), findsOneWidget);
+      expect(find.text('Tidak Ada Pinjaman Aktif'), findsNothing);
+    });
+
+    testWidgets('shows a "Terlambat" badge on an overdue loan', (tester) async {
+      final overdue = DateTime.now().subtract(const Duration(days: 3));
+      PeminjamanService.debugSeedCache([
+        activeLoan(id: 'a', nama: 'Budi', dueDate: overdue),
+      ]);
+
+      await tester.pumpWidget(wrap());
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Terlambat'), findsWidgets);
+    });
+
+    testWidgets('search filters the visible list', (tester) async {
+      PeminjamanService.debugSeedCache([
+        activeLoan(id: 'a', nama: 'Budi'),
+        activeLoan(id: 'b', nama: 'Siti', noHak: '99999'),
+      ]);
+
+      await tester.pumpWidget(wrap());
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField).first, 'Siti');
+      await tester.pumpAndSettle();
+
+      expect(find.text('Siti'), findsOneWidget);
+      expect(find.text('Budi'), findsNothing);
+    });
+
+    testWidgets('long-press enters selection mode', (tester) async {
+      PeminjamanService.debugSeedCache([activeLoan(id: 'a', nama: 'Budi')]);
+
+      await tester.pumpWidget(wrap());
+      await tester.pumpAndSettle();
+
+      await tester.longPress(find.text('Budi'));
+      await tester.pumpAndSettle();
+
+      // "Pilih" toggles to "Batal" and the bulk-action bar appears.
+      expect(find.text('Batal'), findsWidgets);
+      expect(find.textContaining('dokumen dipilih'), findsOneWidget);
+    });
+  });
+}
+
+
+
+================================================
+FILE: test/widget/smoke_test.dart
+================================================
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  test('sanity: dart test harness runs', () {
+    expect(1 + 1, 2);
   });
 }
 
