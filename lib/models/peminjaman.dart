@@ -200,11 +200,25 @@ class Peminjaman {
 
   // ─── OVERDUE HELPER ───
   bool get isOverdue =>
-      status == 'Dipinjam' && DateTime.now().isAfter(tanggalKembali);
+      status == 'Dipinjam' &&
+      DateTime.now().isAfter(
+        DateTime(
+          tanggalKembali.year,
+          tanggalKembali.month,
+          tanggalKembali.day,
+        ).add(const Duration(days: 1)),
+      );
 
   int get hariTerlambat {
     if (!isOverdue) return 0;
-    return DateTime.now().difference(tanggalKembali).inDays;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final due = DateTime(
+      tanggalKembali.year,
+      tanggalKembali.month,
+      tanggalKembali.day,
+    );
+    return today.difference(due).inDays;
   }
 
   // ─── ATRIBUSI PROSES KEMBALI ───

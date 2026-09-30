@@ -1,97 +1,103 @@
 import 'package:flutter_test/flutter_test.dart';
-
-// Dummy model matching Peminjaman data structure
-class PeminjamanMock {
-  final String nama;
-  final String kecamatan;
-  final String kelurahan;
-  final String noHak;
-  final String jenisHak;
-  final String jenisDokumen;
-  final String status;
-
-  PeminjamanMock({
-    required this.nama,
-    required this.kecamatan,
-    required this.kelurahan,
-    required this.noHak,
-    required this.jenisHak,
-    required this.jenisDokumen,
-    required this.status,
-  });
-}
+import 'package:projeck_skripsi/models/peminjaman.dart';
+import 'package:projeck_skripsi/screens/services/peminjaman_service.dart';
 
 void main() {
-  group('Peminjaman Filter Logic Tests', () {
-    final mockData = [
-      PeminjamanMock(
-        nama: 'Budi Santoso',
-        kecamatan: 'Cibeunying Kaler',
-        kelurahan: 'Cihaur Geulis',
-        noHak: '01234',
-        jenisHak: 'Hak Milik',
-        jenisDokumen: 'Buku Tanah',
-        status: 'Dipinjam',
-      ),
-      PeminjamanMock(
+  Peminjaman sample({
+    required String nama,
+    String kecamatan = 'Cilegon',
+    String kelurahan = 'Bagendung',
+    String noHak = '11111',
+    String jenisHak = 'Hak Milik',
+    String jenisDokumen = 'Buku Tanah',
+    String status = 'Dipinjam',
+    String? jenisWarkah,
+    String? no208,
+    String? su,
+  }) {
+    return Peminjaman(
+      id: 'x',
+      nama: nama,
+      seksi: 'Seksi Tata Usaha',
+      kecamatan: kecamatan,
+      kelurahan: kelurahan,
+      jenisHak: jenisHak,
+      noHak: noHak,
+      keperluan: 'Verifikasi',
+      tanggalPinjam: DateTime(2025, 1, 1),
+      tanggalKembali: DateTime(2025, 1, 8),
+      status: status,
+      jenisDokumen: jenisDokumen,
+      jenisWarkah: jenisWarkah,
+      no208: no208,
+      su: su,
+    );
+  }
+
+  group('PeminjamanService.debugFilter', () {
+    final data = [
+      sample(nama: 'Budi Santoso', noHak: '11111'),
+      sample(
         nama: 'Siti Rahma',
-        kecamatan: 'Coblong',
-        kelurahan: 'Dago',
-        noHak: '56789',
-        jenisHak: 'Hak Guna Bangunan',
+        noHak: '22222',
         jenisDokumen: 'Surat Ukur',
+        jenisHak: 'Hak Guna Bangunan',
         status: 'Kembali',
+        su: '45/2020',
       ),
-      PeminjamanMock(
+      sample(
         nama: 'Ahmad Yani',
-        kecamatan: 'Coblong',
-        kelurahan: 'Dago',
-        noHak: '99999',
-        jenisHak: 'Hak Pakai',
+        noHak: '-',
         jenisDokumen: 'Warkah',
-        status: 'Dipinjam',
+        jenisHak: '-',
+        jenisWarkah: 'PBT',
+        no208: '999',
       ),
     ];
 
-    test('Filter berdasarkan pencarian nama atau nomor hak', () {
-      final query = 'budi';
-      final result = mockData.where((p) {
-        final haystack = '${p.nama} ${p.noHak}'.toLowerCase();
-        return haystack.contains(query.toLowerCase());
-      }).toList();
-
-      expect(result.length, equals(1));
-      expect(result.first.nama, equals('Budi Santoso'));
+    test('matches by borrower name (case-insensitive)', () {
+      final r = PeminjamanService.debugFilter(source: data, query: 'BUDI');
+      expect(r, hasLength(1));
+      expect(r.first.nama, 'Budi Santoso');
     });
 
-    test(
-      'Filter berdasarkan Jenis Dokumen (Buku Tanah / Surat Ukur / Warkah)',
-      () {
-        final filteredSuratUkur = mockData
-            .where((p) => p.jenisDokumen == 'Surat Ukur')
-            .toList();
-        final filteredWarkah = mockData
-            .where((p) => p.jenisDokumen == 'Warkah')
-            .toList();
+    test('matches by noHak', () {
+      final r = PeminjamanService.debugFilter(source: data, query: '22222');
+      expect(r.single.nama, 'Siti Rahma');
+    });
 
-        expect(filteredSuratUkur.length, equals(1));
-        expect(filteredSuratUkur.first.noHak, equals('56789'));
-        expect(filteredWarkah.length, equals(1));
-        expect(filteredWarkah.first.jenisDokumen, equals('Warkah'));
-      },
-    );
+    test('matches Surat Ukur by SU number', () {
+      final r = PeminjamanService.debugFilter(source: data, query: '45/2020');
+      expect(r.single.jenisDokumen, 'Surat Ukur');
+    });
 
-    test('Filter berdasarkan Status (Dipinjam / Kembali)', () {
-      final activeLoans = mockData
-          .where((p) => p.status == 'Dipinjam')
-          .toList();
-      final returnedLoans = mockData
-          .where((p) => p.status == 'Kembali')
-          .toList();
+    test('matches Warkah by No. 208', () {
+      final r = PeminjamanService.debugFilter(source: data, query: '999');
+      expect(r.single.jenisWarkah, 'PBT');
+    });
 
-      expect(activeLoans.length, equals(2));
-      expect(returnedLoans.length, equals(1));
-      expect(returnedLoans.first.nama, equals('Siti Rahma'));
+    test('filters by jenisDokumen', () {
+      final r = PeminjamanService.debugFilter(
+        source: data,
+        jenisDokumen: 'Warkah',
+      );
+      expect(r, hasLength(1));
+    });
+
+    test('filters by status', () {
+      final r = PeminjamanService.debugFilter(source: data, status: 'Kembali');
+      expect(r.single.nama, 'Siti Rahma');
+    });
+
+    test('no query, no filter returns everything', () {
+      expect(PeminjamanService.debugFilter(source: data), hasLength(3));
+    });
+
+    test('query matching nothing returns empty', () {
+      expect(
+        PeminjamanService.debugFilter(source: data, query: 'zzzzz'),
+        isEmpty,
+      );
     });
   });
 }

@@ -659,6 +659,31 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Color _homeStatusColor(Peminjaman p) {
+    if (p.status == 'Diajukan') return AppTheme.pendingAmber;
+    if (p.status == 'Ditolak') return AppTheme.dangerRed;
+    if (p.status == 'Dipinjam') {
+      return p.isOverdue ? AppTheme.dangerRed : AppTheme.warningAmber;
+    }
+    return AppTheme.successGreen;
+  }
+
+  Color _homeStatusBg(Peminjaman p) {
+    if (p.status == 'Diajukan') return AppTheme.warningBg;
+    if (p.status == 'Ditolak') return AppTheme.dangerBg;
+    if (p.status == 'Dipinjam') {
+      return p.isOverdue ? AppTheme.dangerBg : AppTheme.warningBg;
+    }
+    return AppTheme.successBg;
+  }
+
+  String _homeStatusLabel(Peminjaman p) {
+    if (p.status == 'Diajukan') return 'Menunggu';
+    if (p.status == 'Ditolak') return 'Ditolak';
+    if (p.status == 'Dipinjam') return p.isOverdue ? 'Terlambat' : 'Dipinjam';
+    return 'Kembali';
+  }
+
   /// The identifying reference number line — which fields make sense
   /// here differs by type (a Warkah has no no_hak/kelurahan at all).
   String _dokumenIdentifier(Peminjaman p) {
@@ -802,27 +827,15 @@ class _HomePageState extends State<HomePage> {
                                 vertical: 3,
                               ),
                               decoration: BoxDecoration(
-                                color: overdue
-                                    ? AppTheme.dangerBg
-                                    : p.status == 'Dipinjam'
-                                    ? AppTheme.warningBg
-                                    : AppTheme.successBg,
+                                color: _homeStatusBg(p),
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
-                                overdue
-                                    ? 'Terlambat'
-                                    : (p.status == 'Dipinjam'
-                                          ? 'Dipinjam'
-                                          : 'Kembali'),
+                                _homeStatusLabel(p),
                                 style: TextStyle(
                                   fontSize: 10,
                                   fontWeight: FontWeight.w600,
-                                  color: overdue
-                                      ? AppTheme.dangerRed
-                                      : p.status == 'Dipinjam'
-                                      ? AppTheme.warningAmber
-                                      : AppTheme.successGreen,
+                                  color: _homeStatusColor(p),
                                 ),
                               ),
                             ),

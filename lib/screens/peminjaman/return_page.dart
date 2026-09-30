@@ -328,31 +328,17 @@ class _ReturnPageState extends State<ReturnPage> {
       _all.where((p) => p.status == 'Dipinjam').toList();
 
   List<Peminjaman> get _pinjamanAktif {
-    return _pinjamanAktifRaw.where((p) {
-      if (_searchQuery.isNotEmpty) {
-        final haystack =
-            '${p.nama} ${p.noHak} ${p.kelurahan} ${p.jenisDokumen} '
-                    '${p.jenisSuratUkur ?? ''} ${p.noTahunSuratUkur ?? ''} '
-                    '${p.su ?? ''} ${p.gs ?? ''} ${p.jenisWarkah ?? ''} '
-                    '${p.no208 ?? ''} ${p.tahunWarkah ?? ''}'
-                .toLowerCase();
-        if (!haystack.contains(_searchQuery)) return false;
-      }
-      if (_filterKecamatan != null && p.kecamatan != _filterKecamatan) {
-        return false;
-      }
-      if (_filterKelurahan != null && p.kelurahan != _filterKelurahan) {
-        return false;
-      }
-      if (_filterJenisHak != null && p.jenisHak != _filterJenisHak) {
-        return false;
-      }
-      if (_filterJenisDokumen != null &&
-          p.jenisDokumen != _filterJenisDokumen) {
-        return false;
-      }
-      return true;
-    }).toList();
+    // _pinjamanAktifRaw already narrows to status == 'Dipinjam', so the
+    // service's status param stays null here — the "always active" filter
+    // is applied upstream.
+    return PeminjamanService.filter(
+      source: _pinjamanAktifRaw,
+      query: _searchQuery,
+      kecamatan: _filterKecamatan,
+      kelurahan: _filterKelurahan,
+      jenisHak: _filterJenisHak,
+      jenisDokumen: _filterJenisDokumen,
+    );
   }
 
   void _resetFilters() {
@@ -730,7 +716,7 @@ class _ReturnPageState extends State<ReturnPage> {
                     children: [
                       CircleAvatar(
                         radius: 22,
-                        backgroundColor: const Color(0xFFD8F3DC),
+                        backgroundColor: AppTheme.successBg,
                         child: Text(
                           _initials(p.nama),
                           style: const TextStyle(
@@ -770,8 +756,8 @@ class _ReturnPageState extends State<ReturnPage> {
                         ),
                         decoration: BoxDecoration(
                           color: p.isOverdue
-                              ? const Color(0xFFFDE2E1)
-                              : const Color(0xFFFFF3D9),
+                              ? AppTheme.dangerBg
+                              : AppTheme.warningBg,
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
@@ -783,7 +769,7 @@ class _ReturnPageState extends State<ReturnPage> {
                             fontWeight: FontWeight.w600,
                             color: p.isOverdue
                                 ? _overdueRed
-                                : const Color(0xFFB07A00),
+                                : AppTheme.warningAmber,
                           ),
                         ),
                       ),
@@ -1053,7 +1039,7 @@ class _ReturnPageState extends State<ReturnPage> {
               width: 42,
               height: 42,
               decoration: BoxDecoration(
-                color: _isFiltering ? _accentGreen : const Color(0xFFF5F5F5),
+                color: _isFiltering ? _accentGreen : AppTheme.surfaceMuted,
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Stack(
@@ -1115,7 +1101,7 @@ class _ReturnPageState extends State<ReturnPage> {
                 decoration: BoxDecoration(
                   color: isDisabled
                       ? const Color(0xFFEEEEEE)
-                      : const Color(0xFFF5F5F5),
+                      : AppTheme.surfaceMuted,
                   borderRadius: BorderRadius.circular(14),
                 ),
                 padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -1161,7 +1147,7 @@ class _ReturnPageState extends State<ReturnPage> {
                     margin: const EdgeInsets.symmetric(horizontal: 4),
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     decoration: BoxDecoration(
-                      color: selected ? _accentGreen : const Color(0xFFF5F5F5),
+                      color: selected ? _accentGreen : AppTheme.surfaceMuted,
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
@@ -1331,7 +1317,7 @@ class _ReturnPageState extends State<ReturnPage> {
 
   // ─── CARD ITEM ───
   Widget _item(Peminjaman p) {
-    final accent = p.isOverdue ? _overdueRed : const Color(0xFFB07A00);
+    final accent = p.isOverdue ? _overdueRed : AppTheme.warningAmber;
     final selected = _selectedIds.contains(p.id);
     // Item #1 fix: the "Perpanjang" button is only meaningful for the
     // pegawai who actually borrowed this document — see the ownership
@@ -1418,7 +1404,7 @@ class _ReturnPageState extends State<ReturnPage> {
                                   children: [
                                     CircleAvatar(
                                       radius: 18,
-                                      backgroundColor: const Color(0xFFD8F3DC),
+                                      backgroundColor: AppTheme.successBg,
                                       child: Text(
                                         _initials(p.nama),
                                         style: const TextStyle(
@@ -1470,8 +1456,8 @@ class _ReturnPageState extends State<ReturnPage> {
                               ),
                               decoration: BoxDecoration(
                                 color: p.isOverdue
-                                    ? const Color(0xFFFDE2E1)
-                                    : const Color(0xFFFFF3D9),
+                                    ? AppTheme.dangerBg
+                                    : AppTheme.warningBg,
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
@@ -1723,7 +1709,7 @@ class _ReturnPageState extends State<ReturnPage> {
             ),
             CircleAvatar(
               radius: 40,
-              backgroundColor: const Color(0xFFD8F3DC),
+              backgroundColor: AppTheme.successBg,
               child: Text(
                 _initials(p.nama),
                 style: const TextStyle(
@@ -1746,7 +1732,7 @@ class _ReturnPageState extends State<ReturnPage> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: const Color(0xFFF5F5F5),
+                color: AppTheme.surfaceMuted,
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
@@ -1787,7 +1773,6 @@ class _ReturnPageState extends State<ReturnPage> {
   @override
   Widget build(BuildContext context) {
     final aktif = _pinjamanAktif;
-    final overdueCount = aktif.where((p) => p.isOverdue).length;
 
     return BackToHome(
       child: Scaffold(
@@ -1930,7 +1915,7 @@ class _ReturnPageState extends State<ReturnPage> {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFD8F3DC),
+                          color: AppTheme.successBg,
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
@@ -1986,7 +1971,7 @@ class _ReturnPageState extends State<ReturnPage> {
                     vertical: 10,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFDE2E1),
+                    color: AppTheme.dangerBg,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(

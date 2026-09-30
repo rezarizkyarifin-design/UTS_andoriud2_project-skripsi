@@ -33,7 +33,8 @@ class AdminRequestService {
           'id, user_id, alasan, status, created_at, profiles!user_id(nama, jabatan)',
         )
         .eq('status', 'pending')
-        .order('created_at');
+        .order('created_at')
+        .limit(5000);
 
     _cache
       ..clear()

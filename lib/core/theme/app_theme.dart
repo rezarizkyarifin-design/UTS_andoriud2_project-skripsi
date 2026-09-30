@@ -29,6 +29,11 @@ class AppTheme {
   static const Color warningAmber = Color(0xFFB07A00); // "Dipinjam" text
   static const Color warningBg = Color(0xFFFFF3D9); // "Dipinjam" chip bg
 
+  /// "Diajukan" / pending — darker than warningAmber so it reads as
+  /// distinct from "Dipinjam" when both chips are visible on the same
+  /// screen.
+  static const Color pendingAmber = Color(0xFF8A6D00);
+
   static const Color dangerRed = Color(0xFFC0392B); // "Terlambat" text
   static const Color dangerBg = Color(0xFFFDE2E1); // "Terlambat" chip bg
 

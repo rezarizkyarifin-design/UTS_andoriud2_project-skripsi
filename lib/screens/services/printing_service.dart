@@ -15,6 +15,9 @@ class PrintingService {
   PrintingService._();
 
   static Future<void> printBarcodeLabel({
+    // What the QR actually encodes (the loan id). identifierValue is only
+    // the human-readable document number printed under the QR.
+    required String qrData,
     // BUG FIX (.08.2026 notes): jenisHak/noHak only ever mean something
     // for Buku Tanah (and, incidentally, Surat Ukur, which also carries
     // a noHak) — Warkah always has noHak == '-', so the printed label
@@ -53,7 +56,7 @@ class PrintingService {
               pw.Center(
                 child: pw.BarcodeWidget(
                   barcode: bc.Barcode.qrCode(),
-                  data: identifierValue,
+                  data: qrData,
                   width: 150,
                   height: 150,
                 ),
@@ -127,7 +130,8 @@ class PrintingService {
     final Uint8List bytes = byteData!.buffer.asUint8List();
 
     final tempDir = await getTemporaryDirectory();
-    final file = File('${tempDir.path}/barcode_$identifierValue.png');
+    final safeName = identifierValue.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
+    final file = File('${tempDir.path}/barcode_$safeName.png');
     await file.writeAsBytes(bytes);
 
     await Share.shareXFiles([

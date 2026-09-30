@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../core/theme/app_theme.dart';
 import '../routes/app_routes.dart';
 import '../screens/services/auth_service.dart';
 import 'notification_bell.dart';
@@ -99,14 +98,9 @@ class AppTopBar extends StatelessWidget {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(6),
-            child: Image.network(
-              'https://pbs.twimg.com/profile_images/1525051472873783296/zBL0VecH_400x400.jpg',
+            child: Image.asset(
+              'assets/kantahcilegonlogo.jpg',
               fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => const Icon(
-                Icons.account_balance,
-                color: AppTheme.primaryGreen,
-                size: 17,
-              ),
             ),
           ),
         ),

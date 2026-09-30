@@ -42,7 +42,6 @@ dependencies:
   share_plus: ^10.0.0
   google_fonts: ^8.1.0
   shared_preferences: ^2.3.2
-  flutter_launcher_icons: ^0.13.1
   flutter_native_splash: ^2.4.1
 
   supabase_flutter: ^2.8.0
@@ -57,6 +56,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.13.1
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -75,6 +75,7 @@ flutter:
   - assets/bpn1.jpg
   - assets/bpn2.jpg
   - assets/bpn3.jpg
+  - assets/kantahcilegonlogo.jpg
   #   - images/a_dot_burr.jpeg
   #   - images/a_dot_ham.jpeg
 

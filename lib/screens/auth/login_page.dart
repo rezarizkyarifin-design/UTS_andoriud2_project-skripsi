@@ -207,16 +207,9 @@ class _LoginPageState extends State<LoginPage> {
                                     ],
                                   ),
                                   child: ClipOval(
-                                    child: Image.network(
-                                      'https://pbs.twimg.com/profile_images/1525051472873783296/zBL0VecH_400x400.jpg',
+                                    child: Image.asset(
+                                      'assets/kantahcilegonlogo.jpg',
                                       fit: BoxFit.cover,
-                                      errorBuilder:
-                                          (context, error, stackTrace) =>
-                                              const Icon(
-                                                Icons.account_balance,
-                                                color: AppTheme.primaryGreen,
-                                                size: 24,
-                                              ),
                                     ),
                                   ),
                                 ),

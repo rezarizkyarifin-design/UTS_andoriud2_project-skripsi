@@ -260,7 +260,7 @@ class _SignUpPageState extends State<SignUpPage> {
         decoration: BoxDecoration(
           color: isSelected
               ? AppTheme.primaryGreen.withValues(alpha: 0.10)
-              : const Color(0xFFF5F5F5),
+              : AppTheme.surfaceMuted,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected ? AppTheme.primaryGreen : Colors.transparent,

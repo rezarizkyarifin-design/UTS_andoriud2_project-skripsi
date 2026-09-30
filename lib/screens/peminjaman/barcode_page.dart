@@ -31,6 +31,7 @@ class _BarcodePageState extends State<BarcodePage> {
   }
 
   Future<void> _cetak({
+    required String qrData,
     required String identifierLabel,
     required String identifierValue,
     String? secondaryDetail,
@@ -43,6 +44,7 @@ class _BarcodePageState extends State<BarcodePage> {
     setState(() => _isPrinting = true);
     try {
       await PrintingService.printBarcodeLabel(
+        qrData: qrData,
         identifierLabel: identifierLabel,
         identifierValue: identifierValue,
         secondaryDetail: secondaryDetail,
@@ -162,7 +164,6 @@ class _BarcodePageState extends State<BarcodePage> {
     //                secondary = "Tahun $tahunWarkah"
     final String identifierLabel;
     final String identifierValue; // shown big on the card + in QR
-    final String qrData; // encoded into the QR code
     final String? secondaryDetail;
 
     switch (jenisDokumen) {
@@ -173,7 +174,6 @@ class _BarcodePageState extends State<BarcodePage> {
             '${jenisSuratUkur.isNotEmpty ? jenisSuratUkur : 'Surat Ukur'}'
             '${noTahunSuratUkur.isNotEmpty ? ' – $noTahunSuratUkur' : ''}';
         identifierValue = suNumber.isNotEmpty ? suNumber : noHak;
-        qrData = suNumber.isNotEmpty ? suNumber : noHak;
         secondaryDetail = [
           if (su.isNotEmpty) 'No. SU: $su',
           if (gs.isNotEmpty) 'GS: $gs',
@@ -185,15 +185,25 @@ class _BarcodePageState extends State<BarcodePage> {
             '${jenisWarkah.isNotEmpty ? jenisWarkah : 'Warkah'}'
             '${tahunWarkah.isNotEmpty ? ' Tahun $tahunWarkah' : ''}';
         identifierValue = no208.isNotEmpty ? no208 : '-';
-        qrData = no208.isNotEmpty ? no208 : '-';
         secondaryDetail = tahunWarkah.isNotEmpty ? 'Tahun $tahunWarkah' : null;
         break;
 
       default: // 'Buku Tanah'
         identifierLabel = jenisHak;
         identifierValue = noHak;
-        qrData = noHak;
         secondaryDetail = null;
+    }
+
+    // The QR encodes the loan id, which is unique. Document numbers (noHak,
+    // no208, ...) are not unique across kelurahan/types, so they are shown
+    // as text only. Falls back to the number if the id is missing.
+    final loanId = args['id'] ?? '';
+    final qrData = loanId.isNotEmpty ? loanId : identifierValue;
+
+    if (qrData.isEmpty) {
+      return Scaffold(
+        body: Center(child: Text('ID peminjaman tidak tersedia.')),
+      );
     }
 
     // Subtitle line shown below the big identifier on the card:
@@ -429,6 +439,7 @@ class _BarcodePageState extends State<BarcodePage> {
                   onPressed: _isPrinting
                       ? null
                       : () => _cetak(
+                          qrData: qrData,
                           identifierLabel: identifierLabel,
                           identifierValue: identifierValue,
                           secondaryDetail: secondaryDetail,

@@ -372,7 +372,7 @@ class _FormPageState extends State<FormPage> {
             'Pengajuan terkirim — menunggu persetujuan Admin. Barcode akan '
             'tersedia setelah disetujui.',
           ),
-          backgroundColor: const Color(0xFFB07A00),
+          backgroundColor: AppTheme.warningAmber,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -470,15 +470,9 @@ class _FormPageState extends State<FormPage> {
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(6),
-                      child: Image.network(
-                        'https://pbs.twimg.com/profile_images/1525051472873783296/zBL0VecH_400x400.jpg',
+                      child: Image.asset(
+                        'assets/kantahcilegonlogo.jpg',
                         fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) =>
-                            const Icon(
-                              Icons.account_balance,
-                              color: AppTheme.primaryGreen,
-                              size: 18,
-                            ),
                       ),
                     ),
                   ),
@@ -669,7 +663,7 @@ class _FormPageState extends State<FormPage> {
                 decoration: BoxDecoration(
                   color: isSelected
                       ? _accentGreen.withValues(alpha: 0.10)
-                      : const Color(0xFFF5F5F5),
+                      : AppTheme.surfaceMuted,
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
                     color: isSelected ? _accentGreen : Colors.transparent,
@@ -984,7 +978,7 @@ class _FormPageState extends State<FormPage> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: isDisabled ? const Color(0xFFEEEEEE) : const Color(0xFFF5F5F5),
+        color: isDisabled ? const Color(0xFFEEEEEE) : AppTheme.surfaceMuted,
         borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -1217,7 +1211,7 @@ class _FormPageState extends State<FormPage> {
                         _label('Keperluan Peminjaman'),
                         Container(
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF5F5F5),
+                            color: AppTheme.surfaceMuted,
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: TextField(

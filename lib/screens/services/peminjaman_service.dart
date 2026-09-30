@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/peminjaman.dart';
@@ -98,7 +99,8 @@ class PeminjamanService {
       final rows = await _client
           .from('peminjaman')
           .select('*, master_arsip(*)')
-          .order('created_at', ascending: false);
+          .order('created_at', ascending: false)
+          .limit(5000);
 
       _cache
         ..clear()
@@ -791,4 +793,68 @@ class PeminjamanService {
       throw Exception(_friendlyError(e));
     }
   }
+
+  /// Test-only: seed the cache so widget tests can exercise list views
+  /// without a live Supabase connection.
+  @visibleForTesting
+  static void debugSeedCache(List<Peminjaman> items) {
+    _cache
+      ..clear()
+      ..addAll(items);
+  }
+
+  /// Test-only: empty the cache between tests so state doesn't leak.
+  @visibleForTesting
+  static void debugClearCache() => _cache.clear();
+
+  /// Unified search + filter used by History and Return. Kept here (rather
+  /// than duplicated in each page) so both views behave identically and
+  /// there's one place to test.
+  static List<Peminjaman> filter({
+    required List<Peminjaman> source,
+    String query = '',
+    String? kecamatan,
+    String? kelurahan,
+    String? jenisHak,
+    String? jenisDokumen,
+    String? status,
+  }) {
+    final q = query.trim().toLowerCase();
+    return source.where((p) {
+      if (q.isNotEmpty) {
+        final haystack =
+            '${p.nama} ${p.kecamatan} ${p.kelurahan} ${p.noHak} '
+                    '${p.jenisDokumen} ${p.jenisSuratUkur ?? ''} '
+                    '${p.noTahunSuratUkur ?? ''} ${p.su ?? ''} ${p.gs ?? ''} '
+                    '${p.jenisWarkah ?? ''} ${p.no208 ?? ''} ${p.tahunWarkah ?? ''}'
+                .toLowerCase();
+        if (!haystack.contains(q)) return false;
+      }
+      if (kecamatan != null && p.kecamatan != kecamatan) return false;
+      if (kelurahan != null && p.kelurahan != kelurahan) return false;
+      if (jenisHak != null && p.jenisHak != jenisHak) return false;
+      if (jenisDokumen != null && p.jenisDokumen != jenisDokumen) return false;
+      if (status != null && p.status != status) return false;
+      return true;
+    }).toList();
+  }
+
+  @visibleForTesting
+  static List<Peminjaman> debugFilter({
+    required List<Peminjaman> source,
+    String query = '',
+    String? kecamatan,
+    String? kelurahan,
+    String? jenisHak,
+    String? jenisDokumen,
+    String? status,
+  }) => filter(
+    source: source,
+    query: query,
+    kecamatan: kecamatan,
+    kelurahan: kelurahan,
+    jenisHak: jenisHak,
+    jenisDokumen: jenisDokumen,
+    status: status,
+  );
 }

@@ -1,54 +1,88 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:projeck_skripsi/screens/peminjaman/profile_page.dart'; // Adjust import path
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'package:projeck_skripsi/screens/peminjaman/form_page.dart';
 
 void main() {
-  Widget createProfilePage() {
-    return const MaterialApp(home: ProfilPage());
-  }
+  setUpAll(() async {
+    await Supabase.initialize(
+      url: 'http://localhost:54321',
+      publishableKey: 'test-anon-key',
+    );
+  });
 
-  group('ProfilPage & Change Password Dialog Tests', () {
-    testWidgets('Menampilkan komponen profil utama', (
-      WidgetTester tester,
-    ) async {
-      await tester.pumpWidget(createProfilePage());
-      await tester.pumpAndSettle();
+  Widget wrap() => const MaterialApp(home: FormPage());
 
-      expect(find.text('Logout'), findsOneWidget);
+  group('FormPage — initial state', () {
+    testWidgets('renders the three document-type chips', (tester) async {
+      await tester.pumpWidget(wrap());
+
+      expect(find.text('Buku Tanah'), findsOneWidget);
+      expect(find.text('Surat Ukur'), findsOneWidget);
+      expect(find.text('Warkah'), findsOneWidget);
     });
 
-    testWidgets(
-      'Validasi password kurang dari 6 karakter di Dialog Ganti Password',
-      (WidgetTester tester) async {
-        await tester.pumpWidget(createProfilePage());
-        await tester.pumpAndSettle();
+    testWidgets('hides detail sections until a type is picked', (tester) async {
+      await tester.pumpWidget(wrap());
 
-        // Cari tombol Ubah Password (jika tersedia di UI)
-        final changePassBtn = find.text('Ubah Password');
-        if (changePassBtn.evaluate().isNotEmpty) {
-          await tester.tap(changePassBtn);
-          await tester.pumpAndSettle();
+      expect(find.text('Identitas Peminjam'), findsOneWidget);
+      expect(find.text('Detail Objek Arsip'), findsNothing);
+      expect(find.text('Keperluan & Waktu'), findsNothing);
+      expect(find.text('Simpan Data'), findsNothing);
+    });
+  });
 
-          // Dialog harus terbuka (barrierDismissible = false)
-          expect(find.byType(AlertDialog), findsOneWidget);
+  group('FormPage — per document type', () {
+    testWidgets('Buku Tanah reveals Kecamatan + Kelurahan + Jenis Hak', (
+      tester,
+    ) async {
+      await tester.pumpWidget(wrap());
+      await tester.tap(find.text('Buku Tanah'));
+      await tester.pumpAndSettle();
 
-          // Masukkan password < 6 karakter
-          final textFields = find.byType(TextField);
-          await tester.enterText(textFields.at(0), '123456'); // current
-          await tester.enterText(textFields.at(1), '123'); // new short
-          await tester.enterText(textFields.at(2), '123'); // confirm
+      expect(find.text('Detail Objek Arsip'), findsOneWidget);
+      expect(find.text('Kecamatan'), findsOneWidget);
+      expect(find.text('Kelurahan'), findsOneWidget);
+      expect(find.text('Jenis Hak'), findsOneWidget);
+    });
 
-          final saveBtn = find.text('Simpan');
-          await tester.tap(saveBtn);
-          await tester.pumpAndSettle();
+    testWidgets('Surat Ukur reveals Jenis Surat Ukur dropdown', (tester) async {
+      await tester.pumpWidget(wrap());
+      await tester.tap(find.text('Surat Ukur'));
+      await tester.pumpAndSettle();
 
-          // Snackbars validasi panjang karakter muncul
-          expect(
-            find.text('Password baru minimal 6 karakter.'),
-            findsOneWidget,
-          );
-        }
-      },
-    );
+      expect(find.text('Jenis Surat Ukur'), findsOneWidget);
+      // No. & Tahun only appears after SU/GS is chosen.
+      expect(find.textContaining('No. & Tahun'), findsNothing);
+    });
+
+    testWidgets('Warkah reveals Jenis Warkah + No. 208 + Tahun', (
+      tester,
+    ) async {
+      await tester.pumpWidget(wrap());
+      await tester.tap(find.text('Warkah'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Jenis Warkah'), findsOneWidget);
+      expect(find.text('No. 208'), findsOneWidget);
+      expect(find.text('Tahun'), findsOneWidget);
+    });
+  });
+
+  group('FormPage — save validation', () {
+    testWidgets('empty form shows the completeness error', (tester) async {
+      await tester.pumpWidget(wrap());
+      await tester.tap(find.text('Buku Tanah'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Simpan Data'));
+      await tester.pump();
+
+      expect(
+        find.text('Lengkapi semua kolom sebelum menyimpan.'),
+        findsOneWidget,
+      );
+    });
   });
 }

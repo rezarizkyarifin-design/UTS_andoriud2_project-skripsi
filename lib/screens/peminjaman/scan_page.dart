@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../models/peminjaman.dart';
 import '../services/peminjaman_service.dart';
 import '../services/auth_service.dart';
 
@@ -66,7 +67,7 @@ class _ScanPageState extends State<ScanPage>
   // against the cache — the cache can be stale (someone else
   // returned/edited it from another device), which used to make the
   // scanner show the wrong "found/not found" result.
-  Future<void> _handleDetected(String noHak) async {
+  Future<void> _handleDetected(String code) async {
     if (!mounted) return;
     setState(() => _isVerifying = true);
     String? refreshError;
@@ -95,7 +96,7 @@ class _ScanPageState extends State<ScanPage>
     }
 
     if (!mounted) return;
-    _prosesHasilScan(noHak);
+    _prosesHasilScan(code);
   }
 
   // ─── PILIH DARI GALERI ───
@@ -124,24 +125,29 @@ class _ScanPageState extends State<ScanPage>
   }
 
   // ─── PROSES HASIL SCAN ───
-  void _prosesHasilScan(String noHak) {
+  // The QR encodes the loan id. Labels printed before that change encoded a
+  // document number instead; accept those only when exactly one active loan
+  // matches, since numbers are not unique across kelurahan/document types.
+
+  void _prosesHasilScan(String scannedId) {
     final semua = PeminjamanService.getAll();
-    final peminjaman = semua
-        .where((p) => p.noHak == noHak && p.status == 'Dipinjam')
+    final match = semua
+        .where((p) => p.id == scannedId && p.status == 'Dipinjam')
         .toList();
 
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) {
-        if (peminjaman.isEmpty) {
+        if (match.isEmpty) {
           return AlertDialog(
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(18),
             ),
             title: const Text('Tidak Ditemukan'),
-            content: Text(
-              'Tidak ada peminjaman aktif dengan No. Hak "$noHak".\n\nPastikan QR Code yang discan sesuai dengan database.',
+            content: const Text(
+              'QR ini tidak cocok dengan peminjaman aktif mana pun.\n\n'
+              'Pastikan QR yang dipindai berasal dari aplikasi ini.',
             ),
             actions: [
               TextButton(
@@ -163,8 +169,9 @@ class _ScanPageState extends State<ScanPage>
           );
         }
 
-        final p = peminjaman.first;
+        final p = match.first;
         final bool canManage = AuthService.isAdmin;
+
         return AlertDialog(
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
@@ -178,7 +185,7 @@ class _ScanPageState extends State<ScanPage>
               const SizedBox(height: 4),
               Text('Seksi: ${p.seksi}'),
               const SizedBox(height: 4),
-              Text('Jenis Hak: ${p.jenisHak}'),
+              Text('Jenis: ${p.jenisDokumen}'),
               const SizedBox(height: 4),
               Text('No. Hak: ${p.noHak}'),
               const SizedBox(height: 12),
@@ -217,7 +224,9 @@ class _ScanPageState extends State<ScanPage>
                   bool ok = false;
                   String? errorMsg;
                   try {
-                    ok = await PeminjamanService.kembalikan(noHak);
+                    // Service is id-keyed. The old code passed noHak,
+                    // which never matched and silently did nothing.
+                    ok = await PeminjamanService.kembalikan(p.id!);
                   } catch (e) {
                     errorMsg = e.toString();
                   }
@@ -227,16 +236,16 @@ class _ScanPageState extends State<ScanPage>
                     SnackBar(
                       content: Text(
                         ok
-                            ? 'Dokumen No. Hak $noHak berhasil dikembalikan.'
-                            : 'Gagal mengembalikan dokumen No. Hak $noHak'
-                                  '${errorMsg != null ? ': $errorMsg' : ' (data tidak ditemukan / akses ditolak).'}',
+                            ? '${p.nama} — ${p.jenisDokumen} berhasil dikembalikan.'
+                            : 'Gagal mengembalikan dokumen'
+                                  '${errorMsg != null ? ': $errorMsg' : '.'}',
                       ),
                       backgroundColor: ok ? _accentGreen : Colors.red.shade400,
                       behavior: SnackBarBehavior.floating,
                     ),
                   );
-                  if (ok) {
-                    Navigator.pop(context); // Return to previous page
+                  if (ok && mounted) {
+                    Navigator.pop(context);
                   }
                 },
                 child: const Text(

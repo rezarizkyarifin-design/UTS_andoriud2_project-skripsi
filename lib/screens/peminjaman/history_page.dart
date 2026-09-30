@@ -239,38 +239,23 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   // ─── FILTERED LIST ───
+  // ─── FILTERED LIST ───
   List<Peminjaman> get _filteredHistory {
-    return _history.where((p) {
-      if (_searchQuery.isNotEmpty) {
-        final haystack =
-            '${p.nama} ${p.kecamatan} ${p.kelurahan} ${p.noHak} '
-                    '${p.jenisDokumen} ${p.jenisSuratUkur ?? ''} '
-                    '${p.noTahunSuratUkur ?? ''} ${p.su ?? ''} ${p.gs ?? ''} '
-                    '${p.jenisWarkah ?? ''} ${p.no208 ?? ''} ${p.tahunWarkah ?? ''}'
-                .toLowerCase();
-        if (!haystack.contains(_searchQuery)) return false;
-      }
-      if (_filterKecamatan != null && p.kecamatan != _filterKecamatan) {
-        return false;
-      }
-      if (_filterKelurahan != null && p.kelurahan != _filterKelurahan) {
-        return false;
-      }
-      if (_filterJenisHak != null && p.jenisHak != _filterJenisHak) {
-        return false;
-      }
-      if (_filterJenisDokumen != null &&
-          p.jenisDokumen != _filterJenisDokumen) {
-        return false;
-      }
-      if (_filterStatus == 'Sedang Dipinjam' && p.status != 'Dipinjam') {
-        return false;
-      }
-      if (_filterStatus == 'Telah Kembali' && p.status != 'Kembali') {
-        return false;
-      }
-      return true;
-    }).toList();
+    // History's chip labels are the display names; the service filters on
+    // the raw status value. Map the label to the value before handing off.
+    String? statusValue;
+    if (_filterStatus == 'Sedang Dipinjam') statusValue = 'Dipinjam';
+    if (_filterStatus == 'Telah Kembali') statusValue = 'Kembali';
+
+    return PeminjamanService.filter(
+      source: _history,
+      query: _searchQuery,
+      kecamatan: _filterKecamatan,
+      kelurahan: _filterKelurahan,
+      jenisHak: _filterJenisHak,
+      jenisDokumen: _filterJenisDokumen,
+      status: statusValue,
+    );
   }
 
   void _resetFilters() {
@@ -311,21 +296,21 @@ class _HistoryPageState extends State<HistoryPage> {
   // request that had never actually been approved OR declined yet
   // showed up in History looking like it had already been returned.
   Color _statusColor(Peminjaman p) {
-    if (p.status == 'Diajukan') return const Color(0xFF8A6D00);
+    if (p.status == 'Diajukan') return AppTheme.pendingAmber;
     if (p.status == 'Ditolak') return _overdueRed;
     if (p.status == 'Dipinjam') {
-      return p.isOverdue ? _overdueRed : const Color(0xFFB07A00);
+      return p.isOverdue ? _overdueRed : AppTheme.warningAmber;
     }
     return _accentGreen; // 'Kembali'
   }
 
   Color _statusBg(Peminjaman p) {
-    if (p.status == 'Diajukan') return const Color(0xFFFFF3D9);
-    if (p.status == 'Ditolak') return const Color(0xFFFDE2E1);
+    if (p.status == 'Diajukan') return AppTheme.warningBg;
+    if (p.status == 'Ditolak') return AppTheme.dangerBg;
     if (p.status == 'Dipinjam') {
-      return p.isOverdue ? const Color(0xFFFDE2E1) : const Color(0xFFFFF3D9);
+      return p.isOverdue ? AppTheme.dangerBg : AppTheme.warningBg;
     }
-    return const Color(0xFFD8F3DC); // 'Kembali'
+    return AppTheme.successBg; // 'Kembali'
   }
 
   String _statusLabel(Peminjaman p) {
@@ -471,7 +456,7 @@ class _HistoryPageState extends State<HistoryPage> {
               width: 42,
               height: 42,
               decoration: BoxDecoration(
-                color: _isFiltering ? _accentGreen : const Color(0xFFF5F5F5),
+                color: _isFiltering ? _accentGreen : AppTheme.surfaceMuted,
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Stack(
@@ -538,7 +523,7 @@ class _HistoryPageState extends State<HistoryPage> {
                 decoration: BoxDecoration(
                   color: isDisabled
                       ? const Color(0xFFEEEEEE)
-                      : const Color(0xFFF5F5F5),
+                      : AppTheme.surfaceMuted,
                   borderRadius: BorderRadius.circular(14),
                 ),
                 padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -605,7 +590,7 @@ class _HistoryPageState extends State<HistoryPage> {
                     margin: const EdgeInsets.symmetric(horizontal: 4),
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     decoration: BoxDecoration(
-                      color: selected ? _accentGreen : const Color(0xFFF5F5F5),
+                      color: selected ? _accentGreen : AppTheme.surfaceMuted,
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
@@ -852,7 +837,7 @@ class _HistoryPageState extends State<HistoryPage> {
                     children: [
                       CircleAvatar(
                         radius: 22,
-                        backgroundColor: const Color(0xFFD8F3DC),
+                        backgroundColor: AppTheme.successBg,
                         child: Text(
                           _initials(p.nama),
                           style: const TextStyle(
@@ -1255,7 +1240,7 @@ class _HistoryPageState extends State<HistoryPage> {
           }) {
             return Container(
               decoration: BoxDecoration(
-                color: const Color(0xFFF5F5F5),
+                color: AppTheme.surfaceMuted,
                 borderRadius: BorderRadius.circular(maxLines > 1 ? 20 : 30),
               ),
               child: TextField(
@@ -1300,7 +1285,7 @@ class _HistoryPageState extends State<HistoryPage> {
               decoration: BoxDecoration(
                 color: isDisabled
                     ? const Color(0xFFEEEEEE)
-                    : const Color(0xFFF5F5F5),
+                    : AppTheme.surfaceMuted,
                 borderRadius: BorderRadius.circular(30),
               ),
               padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -1399,7 +1384,7 @@ class _HistoryPageState extends State<HistoryPage> {
                   vertical: 14,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF5F5F5),
+                  color: AppTheme.surfaceMuted,
                   borderRadius: BorderRadius.circular(30),
                 ),
                 child: Row(
@@ -1500,10 +1485,11 @@ class _HistoryPageState extends State<HistoryPage> {
                 return;
               }
             } else if (isSuratUkur) {
+              final hasSu = suController.text.trim().isNotEmpty;
+              final hasGs = gsController.text.trim().isNotEmpty;
               if (jenisSuratUkurController.text.trim().isEmpty ||
                   noTahunSuratUkurController.text.trim().isEmpty ||
-                  suController.text.trim().isEmpty ||
-                  gsController.text.trim().isEmpty ||
+                  (!hasSu && !hasGs) ||
                   jenisHak == null ||
                   noHakController.text.trim().isEmpty) {
                 ScaffoldMessenger.of(
@@ -1705,7 +1691,7 @@ class _HistoryPageState extends State<HistoryPage> {
                                     vertical: 12,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFF5F5F5),
+                                    color: AppTheme.surfaceMuted,
                                     borderRadius: BorderRadius.circular(14),
                                   ),
                                   child: Row(
@@ -1814,11 +1800,26 @@ class _HistoryPageState extends State<HistoryPage> {
                                   : isSuratUkur
                                   ? [
                                       label('Jenis Surat Ukur'),
-                                      textField(
-                                        controller: jenisSuratUkurController,
-                                        placeholder:
-                                            'Masukkan jenis surat ukur',
+                                      dropdownField(
+                                        placeholder: 'Pilih SU atau GS',
                                         icon: Icons.straighten_outlined,
+                                        items: const ['SU', 'GS'],
+                                        value:
+                                            ['SU', 'GS'].contains(
+                                              jenisSuratUkurController.text,
+                                            )
+                                            ? jenisSuratUkurController.text
+                                            : null,
+                                        onChanged: (v) {
+                                          if (v != null) {
+                                            setSheetState(
+                                              () =>
+                                                  jenisSuratUkurController
+                                                          .text =
+                                                      v,
+                                            );
+                                          }
+                                        },
                                       ),
                                       const SizedBox(height: 16),
                                       label('No. & Tahun Surat Ukur'),
@@ -2229,7 +2230,7 @@ class _HistoryPageState extends State<HistoryPage> {
                                   children: [
                                     CircleAvatar(
                                       radius: 18,
-                                      backgroundColor: const Color(0xFFD8F3DC),
+                                      backgroundColor: AppTheme.successBg,
                                       child: Text(
                                         _initials(peminjaman.nama),
                                         style: const TextStyle(
@@ -2559,7 +2560,7 @@ class _HistoryPageState extends State<HistoryPage> {
             ),
             CircleAvatar(
               radius: 40,
-              backgroundColor: const Color(0xFFD8F3DC),
+              backgroundColor: AppTheme.successBg,
               child: Text(
                 _initials(p.nama),
                 style: const TextStyle(
@@ -2582,7 +2583,7 @@ class _HistoryPageState extends State<HistoryPage> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: const Color(0xFFF5F5F5),
+                color: AppTheme.surfaceMuted,
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
@@ -2638,7 +2639,7 @@ class _HistoryPageState extends State<HistoryPage> {
             margin: const EdgeInsets.symmetric(horizontal: 4),
             padding: const EdgeInsets.symmetric(vertical: 10),
             decoration: BoxDecoration(
-              color: selected ? _accentGreen : const Color(0xFFF5F5F5),
+              color: selected ? _accentGreen : AppTheme.surfaceMuted,
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
@@ -2743,7 +2744,7 @@ class _HistoryPageState extends State<HistoryPage> {
                     vertical: 10,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFDE2E1),
+                    color: AppTheme.dangerBg,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(

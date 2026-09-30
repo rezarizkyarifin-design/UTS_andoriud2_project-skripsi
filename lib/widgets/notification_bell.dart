@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import '../screens/services/auth_service.dart';
 import '../screens/services/peminjaman_service.dart';
@@ -52,55 +50,6 @@ class _NotificationBellState extends State<NotificationBell> {
   OverlayEntry? _overlayEntry;
   bool _open = false;
 
-  // ─── Layer 1 (14.08.2026): auto-refresh ──────────────────────────
-  // PeminjamanService's cache is only ever repopulated on explicit
-  // refresh() calls (app start, pull-to-refresh, after certain actions)
-  // — there's no realtime subscription, so an Admin sitting on a page
-  // never found out about a new pengajuan from another device until
-  // they happened to navigate somewhere that re-triggers refresh(), or
-  // restarted the app. This bell is on every main page's header, so a
-  // single Timer here — rather than duplicating one per page — keeps
-  // the badge/dropdown reasonably live everywhere at once.
-  //
-  // This calls the SAME refresh() every other pull-to-refresh/page-load
-  // already uses (full cache replace), not a lighter "just check the
-  // count" query — kept deliberately simple so the badge count and the
-  // dropdown's actual list contents can never disagree with each other.
-  // Tradeoff: a background poll can reorder/refresh whatever list a
-  // Pegawai is actively scrolling on History/Return mid-poll. 25s is
-  // slow enough that this is rare, and refresh() is additive-looking
-  // (newest-first) rather than jarring, so this is an acceptable
-  // tradeoff for the simplicity — revisit with a narrower "just the
-  // pending/overdue counts" query if that ever becomes a real complaint.
-  static const _pollInterval = Duration(seconds: 25);
-  Timer? _pollTimer;
-  int _lastKnownCount = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _lastKnownCount = _buildNotifications().length;
-    _pollTimer = Timer.periodic(_pollInterval, (_) => _poll());
-  }
-
-  Future<void> _poll() async {
-    try {
-      await PeminjamanService.refresh();
-    } catch (_) {
-      // Offline or a transient error — just skip this tick silently.
-      // The existing error-banner pattern on History/Return already
-      // surfaces connectivity problems when the person is actually
-      // looking at a list; this background poll doesn't need to nag
-      // about it too.
-      return;
-    }
-    if (!mounted) return;
-    final newCount = _buildNotifications().length;
-    if (newCount != _lastKnownCount) {
-      setState(() => _lastKnownCount = newCount);
-    }
-  }
-
   List<_AppNotification> _buildNotifications() {
     final list = <_AppNotification>[];
     if (AuthService.isAdmin) {
@@ -130,13 +79,6 @@ class _NotificationBellState extends State<NotificationBell> {
       list.add(_AppNotification(type: _NotifType.overdue, peminjaman: p));
     }
     return list;
-  }
-
-  @override
-  void dispose() {
-    _pollTimer?.cancel();
-    _removeOverlay();
-    super.dispose();
   }
 
   void _removeOverlay() {
@@ -267,12 +209,6 @@ class _NotificationDropdownState extends State<_NotificationDropdown> {
   // a cap on the outer container, the ListView inside scrolls normally.
   static const double _approxItemHeight = 90;
   static const int _visibleBeforeScroll = 5;
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -422,7 +358,7 @@ class _NotificationTile extends StatelessWidget {
     final accentColor = isNewLoan
         ? AppTheme.primaryGreen
         : isExtension
-        ? const Color(0xFFB07A00)
+        ? AppTheme.warningAmber
         : AppTheme.dangerRed;
     final title = isNewLoan
         ? '${p.nama} mengajukan peminjaman'

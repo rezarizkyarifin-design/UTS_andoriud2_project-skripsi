@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/app_user.dart';
@@ -277,7 +278,8 @@ class AuthService {
         'nama': nama.trim(),
         'username': email,
         'jabatan': jabatan.trim(),
-        'role': 'pegawai',
+        // role omitted on purpose: DB default is 'pegawai', and the client
+        // has no column privilege to set it (see profiles GRANTs).
       });
 
       // ── Admin role request — see the class-level comment above. This
@@ -666,5 +668,10 @@ class AuthService {
       if (_isNetworkError(e)) return const NetworkException().message;
       return e.toString();
     }
+  }
+
+  @visibleForTesting
+  static void debugSetCurrentUser(AppUser? user) {
+    _currentUser = user;
   }
 }

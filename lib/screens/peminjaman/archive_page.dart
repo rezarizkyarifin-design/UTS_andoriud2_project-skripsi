@@ -100,7 +100,8 @@ class _ArchivePageState extends State<ArchivePage> {
       final data = await Supabase.instance.client
           .from('master_arsip')
           .select()
-          .order('created_at', ascending: false);
+          .order('created_at', ascending: false)
+          .limit(5000);
 
       if (!mounted) return;
       _cachedArsipList = List<Map<String, dynamic>>.from(data);
@@ -1173,20 +1174,28 @@ class _ArchivePageState extends State<ArchivePage> {
 
                               if (confirm == true && mounted) {
                                 try {
-                                  await Supabase.instance.client
+                                  final deleted = await Supabase.instance.client
                                       .from('master_arsip')
                                       .delete()
-                                      .eq('id', arsip['id']);
-                                  if (mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          'Arsip berhasil dihapus.',
+                                      .eq('id', arsip['id'])
+                                      .select(); // forces the row back so we can count affected
+
+                                  if (deleted.isEmpty) {
+                                    // RLS blocked it, or the row already vanished. Either way: don't
+                                    // show a success message.
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Arsip tidak terhapus — Anda mungkin tidak punya izin.',
+                                          ),
+                                          backgroundColor: AppTheme.dangerRed,
                                         ),
-                                        backgroundColor: AppTheme.accentGreen,
-                                      ),
-                                    );
-                                    await _fetchMasterArsip();
+                                      );
+                                    }
+                                    return;
                                   }
                                 } catch (e) {
                                   if (mounted) {
@@ -1978,7 +1987,7 @@ class _ArchivePageState extends State<ArchivePage> {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF5F5F5),
+                      color: AppTheme.surfaceMuted,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
@@ -2082,7 +2091,7 @@ class _ArchivePageState extends State<ArchivePage> {
             duration: const Duration(milliseconds: 150),
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
             decoration: BoxDecoration(
-              color: selected ? _accentGreen : const Color(0xFFF5F5F5),
+              color: selected ? _accentGreen : AppTheme.surfaceMuted,
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(

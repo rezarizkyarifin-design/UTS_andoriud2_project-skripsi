@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
@@ -27,7 +28,7 @@ Future<void> main() async {
   // Dashboard → Project Settings → API → Project URL / anon public key
   await Supabase.initialize(
     url: 'https://axiulqpwrzbzihphfwwm.supabase.co',
-    anonKey:
+    publishableKey:
         'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF4aXVscXB3cnpiemlocGhmd3dtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2Mzk1NTcsImV4cCI6MjA5OTIxNTU1N30.Ke20mXol554sglYHvwfGfCOjyJcTxsQ3YG6-D3oYMOs',
   );
 
@@ -68,6 +69,17 @@ Future<void> main() async {
       // Non-fatal — see comment above.
     }
   }
+
+  Timer.periodic(const Duration(seconds: 25), (_) async {
+    try {
+      await PeminjamanService.refresh();
+      if (AuthService.isAdmin) {
+        await AdminRequestService.refresh();
+      }
+    } catch (_) {
+      // Offline or transient — the next tick will retry.
+    }
+  });
 
   // Onboarding only ever shows once, on a fresh install / before first
   // login — never again after that, even after logout.
