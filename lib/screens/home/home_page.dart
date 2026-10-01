@@ -243,7 +243,10 @@ class _HomePageState extends State<HomePage> {
     return Container(
       decoration: const BoxDecoration(
         gradient: AppTheme.brandGradient,
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
+        borderRadius: BorderRadius.vertical(
+          bottom: Radius.circular(AppTheme.radiusHeader),
+        ),
+        boxShadow: AppTheme.headerShadow,
       ),
       child: SafeArea(
         bottom: false,
@@ -348,16 +351,9 @@ class _HomePageState extends State<HomePage> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 6),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppTheme.divider.withValues(alpha: 0.7)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 14,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          color: AppTheme.cardSurface,
+          borderRadius: BorderRadius.circular(AppTheme.radiusCard),
+          boxShadow: AppTheme.elevationSurface,
         ),
         child: Row(
           children: items.map((item) {
@@ -373,19 +369,14 @@ class _HomePageState extends State<HomePage> {
                       width: 48,
                       height: 48,
                       decoration: BoxDecoration(
-                        color: color,
+                        // Soft tint of the accent + accent-colored icon,
+                        // instead of a solid circle with a colored halo.
+                        color: color.withValues(alpha: 0.12),
                         shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: color.withValues(alpha: 0.35),
-                            blurRadius: 8,
-                            offset: const Offset(0, 3),
-                          ),
-                        ],
                       ),
                       child: Icon(
                         item['icon'] as IconData,
-                        color: Colors.white,
+                        color: color,
                         size: 24,
                       ),
                     ),
@@ -593,36 +584,31 @@ class _HomePageState extends State<HomePage> {
             padding: const EdgeInsets.symmetric(vertical: 14),
             margin: const EdgeInsets.symmetric(horizontal: 4),
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: AppTheme.divider.withValues(alpha: 0.7),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
-                ),
-              ],
+              color: AppTheme.cardSurface,
+              borderRadius: BorderRadius.circular(AppTheme.radiusCard),
+              boxShadow: AppTheme.elevationSurface,
             ),
             child: Column(
               children: [
-                Icon(icon, color: color, size: 20),
-                const SizedBox(height: 6),
                 Text(
                   value,
                   style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
                     color: color,
+                    height: 1.0,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 6),
                 Text(
                   label,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 10.5, color: Colors.black45),
+                  style: const TextStyle(
+                    fontSize: 10.5,
+                    color: AppTheme.textMuted,
+                    height: 1.25,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ],
             ),
@@ -817,18 +803,9 @@ class _HomePageState extends State<HomePage> {
                     width: 190,
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: AppTheme.divider.withValues(alpha: 0.7),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.04),
-                          blurRadius: 10,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
+                      color: AppTheme.cardSurface,
+                      borderRadius: BorderRadius.circular(AppTheme.radiusCard),
+                      boxShadow: AppTheme.elevationSurface,
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -837,14 +814,30 @@ class _HomePageState extends State<HomePage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Expanded(
-                              child: Text(
-                                _dokumenTypeLabel(p),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.black45,
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.primaryGreen.withValues(
+                                      alpha: 0.08,
+                                    ),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    _dokumenTypeLabel(p),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppTheme.primaryGreen,
+                                      letterSpacing: 0.2,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
@@ -984,16 +977,9 @@ class _HomePageState extends State<HomePage> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: AppTheme.divider.withValues(alpha: 0.7)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 10,
-              offset: const Offset(0, 3),
-            ),
-          ],
+          color: AppTheme.cardSurface,
+          borderRadius: BorderRadius.circular(AppTheme.radiusCard),
+          boxShadow: AppTheme.elevationSurface,
         ),
         child: Row(
           children: [
@@ -1228,22 +1214,15 @@ class _HomePageState extends State<HomePage> {
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
+          color: AppTheme.cardSurface,
+          borderRadius: BorderRadius.circular(AppTheme.radiusCard),
           // Was a full-strength red outline whenever anything was
           // urgent — which drew a second red rectangle directly
           // inside the urgent card's own red outline, and a third
-          // around the overdue row. The outer ring stays neutral now;
-          // urgency is carried by the header chip and the single
-          // urgent row, so there's one red accent instead of three.
-          border: Border.all(color: AppTheme.divider.withValues(alpha: 0.9)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
-            ),
-          ],
+          // around the overdue row. Urgency is carried by the header
+          // chip and the single urgent row, so there's one red accent
+          // instead of three; the panel itself is separated by elevation.
+          boxShadow: AppTheme.elevationRaised,
         ),
         // So the tinted body below respects the 18px corners instead
         // of squaring them off.
@@ -2456,10 +2435,10 @@ class _HomePageState extends State<HomePage> {
               const SizedBox(height: 22),
               _buildImageCarousel(),
               const SizedBox(height: 20),
-              _buildStatChips(),
-              const SizedBox(height: 14),
               _buildJenisDokumenBreakdown(),
               const SizedBox(height: 24),
+              _buildStatChips(),
+              const SizedBox(height: 14),
               _buildRecentActivity(),
               const SizedBox(height: 24),
             ],
