@@ -307,6 +307,9 @@ class _HomePageState extends State<HomePage> {
 
   // ─── QUICK ACCESS ICON GRID (ala grid Cari Berkas / Swapching dll) ───
   Widget _buildQuickAccessGrid() {
+    // Solid, distinct colour per action + white icon — the old 12%-tint
+    // circles blended into the white card (and the grey-green primary
+    // made them read as plain grey).
     final items = <Map<String, dynamic>>[
       {
         'icon': Icons.edit_document,
@@ -315,19 +318,25 @@ class _HomePageState extends State<HomePage> {
         'route': AppRoutes.form,
       },
       {
-        'icon': Icons.list_alt,
+        'icon': Icons.inventory_2_rounded,
+        'label': 'Inventaris\nArsip',
+        'color': AppTheme.infoBlue,
+        'route': AppRoutes.archive,
+      },
+      {
+        'icon': Icons.list_alt_rounded,
         'label': 'Daftar\nPeminjaman',
-        'color': AppTheme.primaryGreen,
+        'color': AppTheme.accentGreen,
         'route': AppRoutes.history,
       },
       {
-        'icon': Icons.assignment_return,
+        'icon': Icons.assignment_return_rounded,
         'label': 'Pengem-\nbalian',
-        'color': AppTheme.primaryGreen,
+        'color': AppTheme.actionOrange,
         'route': AppRoutes.returnPage,
       },
       {
-        'icon': Icons.qr_code_scanner,
+        'icon': Icons.qr_code_scanner_rounded,
         'label': 'Scan QR\nCode',
         'color': AppTheme.infoPurple,
         'route': AppRoutes.scan,
@@ -337,51 +346,65 @@ class _HomePageState extends State<HomePage> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 8),
+        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 6),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppTheme.divider.withValues(alpha: 0.7)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 12,
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 14,
               offset: const Offset(0, 4),
             ),
           ],
         ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: items.map((item) {
-            return GestureDetector(
-              onTap: () => _navigateAndRefresh(item['route'] as String),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 52,
-                    height: 52,
-                    decoration: BoxDecoration(
-                      color: (item['color'] as Color).withValues(alpha: 0.12),
-                      shape: BoxShape.circle,
+            final color = item['color'] as Color;
+            return Expanded(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => _navigateAndRefresh(item['route'] as String),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: color,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: color.withValues(alpha: 0.35),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        item['icon'] as IconData,
+                        color: Colors.white,
+                        size: 24,
+                      ),
                     ),
-                    child: Icon(
-                      item['icon'] as IconData,
-                      color: item['color'] as Color,
-                      size: 24,
+                    const SizedBox(height: 8),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        item['label'] as String,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                          height: 1.2,
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    item['label'] as String,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
-                      height: 1.2,
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             );
           }).toList(),
@@ -572,6 +595,9 @@ class _HomePageState extends State<HomePage> {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: AppTheme.divider.withValues(alpha: 0.7),
+              ),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.04),
@@ -793,6 +819,9 @@ class _HomePageState extends State<HomePage> {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: AppTheme.divider.withValues(alpha: 0.7),
+                      ),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withValues(alpha: 0.04),
@@ -957,6 +986,7 @@ class _HomePageState extends State<HomePage> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: AppTheme.divider.withValues(alpha: 0.7)),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
@@ -996,6 +1026,26 @@ class _HomePageState extends State<HomePage> {
   // the rest at a glance (the Admin role request) — a thin colored
   // ring plus a solid-filled icon chip (white icon on accentColor)
   // instead of the soft tint the others use.
+  // ─── SHARED NOTIFICATION ROW ────────────────────────────────────
+  // One notification row's visuals — soft shadow, icon in a rounded
+  // color chip, chevron on the right. No outer margin of its own:
+  // callers decide spacing, because this is used both stand-alone
+  // (Pegawai's overdue banner) and stacked inside the collapsible
+  // admin panel, which need different surrounding padding.
+  //
+  // [flat] switches between the two contexts:
+  //   - false (default): standalone card sitting on the page
+  //     background. Keeps the tinted fill + shadow, because that's
+  //     what lifts it off AppTheme.background.
+  //   - true: a row nested inside the admin panel. Plain white fill,
+  //     no shadow — the panel's tinted body provides the contrast,
+  //     and four stacked blurred cards would otherwise just paint a
+  //     grey halo over each other.
+  //
+  // [urgent] is for the one notification that should outrank the rest
+  // at a glance (the Admin role request) — a thin colored ring plus a
+  // solid-filled icon chip (white icon on accentColor) instead of the
+  // soft tint the others use.
   Widget _buildNotifCard({
     required IconData icon,
     required Color accentColor,
@@ -1003,36 +1053,51 @@ class _HomePageState extends State<HomePage> {
     required String message,
     required VoidCallback onTap,
     bool urgent = false,
+    bool flat = false,
   }) {
+    // One accent-tinted hairline. Urgent rows get a slightly stronger
+    // line; everything else stays quiet so the icon carries the color,
+    // not the entire card.
+    final borderColor = flat
+        ? (urgent
+              ? accentColor.withValues(alpha: 0.45)
+              : AppTheme.divider.withValues(alpha: 0.9))
+        : accentColor.withValues(alpha: urgent ? 0.55 : 0.25);
+
     return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(18),
+      // Nested rows sit on the panel's tinted body, so they're plain
+      // white. The old always-tinted fill was the main culprit: at
+      // alpha 0.45 over white, AppTheme.dangerBg/successBg/warningBg
+      // all land within a few RGB points of white, so the cards were
+      // effectively invisible against the white panel behind them.
+      color: flat
+          ? Colors.white
+          : Color.alphaBlend(accentBg.withValues(alpha: 0.45), Colors.white),
+      borderRadius: BorderRadius.circular(flat ? 14 : 18),
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(flat ? 14 : 18),
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.all(14),
+          padding: EdgeInsets.all(flat ? 12 : 14),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            border: urgent
-                ? Border.all(
-                    color: accentColor.withValues(alpha: 0.35),
-                    width: 1.3,
-                  )
-                : null,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.06),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
-              ),
-            ],
+            borderRadius: BorderRadius.circular(flat ? 14 : 18),
+            border: Border.all(color: borderColor, width: urgent ? 1.4 : 1),
+            // Shadow only when this row is standing on its own.
+            boxShadow: flat
+                ? null
+                : [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.06),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
           ),
           child: Row(
             children: [
               Container(
-                width: 42,
-                height: 42,
+                width: flat ? 38 : 42,
+                height: flat ? 38 : 42,
                 decoration: BoxDecoration(
                   color: urgent ? accentColor : accentBg,
                   shape: BoxShape.circle,
@@ -1040,33 +1105,29 @@ class _HomePageState extends State<HomePage> {
                 child: Icon(
                   icon,
                   color: urgent ? Colors.white : accentColor,
-                  size: 21,
+                  size: flat ? 19 : 21,
                 ),
               ),
-              const SizedBox(width: 13),
+              SizedBox(width: flat ? 12 : 13),
               Expanded(
                 child: Text(
                   message,
                   style: TextStyle(
-                    fontSize: 13,
-                    height: 1.3,
+                    fontSize: flat ? 12.5 : 13,
+                    height: 1.35,
                     fontWeight: FontWeight.w600,
                     color: urgent ? accentColor : AppTheme.textPrimary,
                   ),
                 ),
               ),
               const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.all(5),
-                decoration: const BoxDecoration(
-                  color: AppTheme.surfaceMuted,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.chevron_right_rounded,
-                  color: AppTheme.textMuted,
-                  size: 16,
-                ),
+              // Was a chevron inside a white circle — invisible once
+              // the card itself became white, so it's a plain muted
+              // glyph now.
+              Icon(
+                Icons.chevron_right_rounded,
+                color: AppTheme.textMuted,
+                size: flat ? 18 : 20,
               ),
             ],
           ),
@@ -1165,106 +1226,119 @@ class _HomePageState extends State<HomePage> {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-      child: Material(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        child: Column(
-          children: [
-            InkWell(
-              borderRadius: BorderRadius.circular(18),
-              onTap: () => setState(
-                () => _notificationsExpanded = !_notificationsExpanded,
-              ),
-              child: Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(18),
-                  border: hasUrgent
-                      ? Border.all(
-                          color: headerColor.withValues(alpha: 0.35),
-                          width: 1.3,
-                        )
-                      : null,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.06),
-                      blurRadius: 16,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                        color: headerBg,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.notifications_active_rounded,
-                        color: headerColor,
-                        size: 21,
-                      ),
-                    ),
-                    const SizedBox(width: 13),
-                    Expanded(
-                      child: Text(
-                        '${items.length} hal butuh perhatian Anda',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: AppTheme.textPrimary,
-                        ),
-                      ),
-                    ),
-                    AnimatedRotation(
-                      turns: _notificationsExpanded ? 0.5 : 0,
-                      duration: const Duration(milliseconds: 200),
-                      child: Container(
-                        padding: const EdgeInsets.all(5),
-                        decoration: const BoxDecoration(
-                          color: AppTheme.surfaceMuted,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.keyboard_arrow_down_rounded,
-                          color: AppTheme.textMuted,
-                          size: 18,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            AnimatedSize(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeInOut,
-              alignment: Alignment.topCenter,
-              child: _notificationsExpanded
-                  ? Padding(
-                      padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-                      child: Column(
-                        children: items.map((item) {
-                          return Padding(
-                            padding: const EdgeInsets.only(top: 6),
-                            child: _buildNotifCard(
-                              icon: item.icon,
-                              accentColor: item.color,
-                              accentBg: item.bg,
-                              message: item.message,
-                              onTap: item.onTap,
-                              urgent: item.urgent,
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    )
-                  : const SizedBox(width: double.infinity, height: 0),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          // Was a full-strength red outline whenever anything was
+          // urgent — which drew a second red rectangle directly
+          // inside the urgent card's own red outline, and a third
+          // around the overdue row. The outer ring stays neutral now;
+          // urgency is carried by the header chip and the single
+          // urgent row, so there's one red accent instead of three.
+          border: Border.all(color: AppTheme.divider.withValues(alpha: 0.9)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
             ),
           ],
+        ),
+        // So the tinted body below respects the 18px corners instead
+        // of squaring them off.
+        clipBehavior: Clip.antiAlias,
+        child: Material(
+          color: Colors.transparent,
+          child: Column(
+            children: [
+              InkWell(
+                onTap: () => setState(
+                  () => _notificationsExpanded = !_notificationsExpanded,
+                ),
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: headerBg,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.notifications_active_rounded,
+                          color: headerColor,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          '${items.length} hal butuh perhatian Anda',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.textPrimary,
+                          ),
+                        ),
+                      ),
+                      AnimatedRotation(
+                        turns: _notificationsExpanded ? 0.5 : 0,
+                        duration: const Duration(milliseconds: 200),
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: AppTheme.surfaceMuted,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            color: AppTheme.textSecondary,
+                            size: 18,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              AnimatedSize(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeInOut,
+                alignment: Alignment.topCenter,
+                child: _notificationsExpanded
+                    ? Container(
+                        width: double.infinity,
+                        // Tinted body — this is the single change that
+                        // stops panel fill, card fill, and card border
+                        // from all collapsing into the same white. The
+                        // white rows below now have something to sit on.
+                        color: AppTheme.surfaceMuted,
+                        padding: const EdgeInsets.all(10),
+                        child: Column(
+                          children: [
+                            for (var i = 0; i < items.length; i++)
+                              Padding(
+                                padding: EdgeInsets.only(top: i == 0 ? 0 : 8),
+                                child: _buildNotifCard(
+                                  icon: items[i].icon,
+                                  accentColor: items[i].color,
+                                  accentBg: items[i].bg,
+                                  message: items[i].message,
+                                  onTap: items[i].onTap,
+                                  urgent: items[i].urgent,
+                                  flat: true,
+                                ),
+                              ),
+                          ],
+                        ),
+                      )
+                    : const SizedBox(width: double.infinity, height: 0),
+              ),
+            ],
+          ),
         ),
       ),
     );

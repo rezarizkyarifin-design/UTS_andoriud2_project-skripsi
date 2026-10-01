@@ -46,6 +46,11 @@ class AppTheme {
   static const Color infoPurple = Color(0xFF5C5FCD);
   static const Color infoBg = Color(0xFFE7E8FA);
 
+  // Quick-access / action accents (HomePage grid) — solid fills with white
+  // icons, so each destination reads as its own button.
+  static const Color infoBlue = Color(0xFF2F80ED); // Inventaris Arsip
+  static const Color actionOrange = Color(0xFFE08A1E); // Pengembalian
+
   // ── Neutral surfaces ──
   static const Color surfaceMuted = Color(
     0xFFF5F5F5,
