@@ -259,7 +259,8 @@ class _ReturnPageState extends State<ReturnPage> {
   String _objekBottomLabel(Peminjaman p) {
     switch (p.jenisDokumen) {
       case 'Surat Ukur':
-        return '${p.noTahunSuratUkur ?? '-'} • SU ${p.su ?? '-'}/GS ${p.gs ?? '-'}';
+        // Same rule as ArchivePage: one No. & Tahun, labelled by SU/GS.
+        return '${p.jenisSuratUkur ?? '-'} ${p.noTahunSuratUkur ?? p.su ?? p.gs ?? '-'} • ${p.noHak}';
       case 'Warkah':
         // PBT is searched by kecamatan, not purely by No. 208 — show
         // kecamatan prominently for PBT so the card is actually
@@ -289,11 +290,9 @@ class _ReturnPageState extends State<ReturnPage> {
           ),
           row(
             Icons.numbers_outlined,
-            'No. & Tahun Surat Ukur',
-            p.noTahunSuratUkur ?? '-',
+            'No. & Tahun ${p.jenisSuratUkur ?? ''}'.trim(),
+            p.noTahunSuratUkur ?? p.su ?? p.gs ?? '-',
           ),
-          row(Icons.description_outlined, 'SU', p.su ?? '-'),
-          row(Icons.map_outlined, 'GS (Gambar Situasi)', p.gs ?? '-'),
           row(
             Icons.shield_outlined,
             'Jenis Hak / Nomor Hak',

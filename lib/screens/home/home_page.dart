@@ -762,7 +762,6 @@ class _HomePageState extends State<HomePage> {
               separatorBuilder: (_, __) => const SizedBox(width: 12),
               itemBuilder: (context, index) {
                 final p = recent[index];
-                final overdue = p.isOverdue;
                 return GestureDetector(
                   onTap: () => Navigator.pushNamed(
                     context,

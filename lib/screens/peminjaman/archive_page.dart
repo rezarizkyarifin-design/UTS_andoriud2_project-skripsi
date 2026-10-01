@@ -142,6 +142,9 @@ class _ArchivePageState extends State<ArchivePage> {
           arsip['jenis_hak'],
           arsip['jenis_warkah'],
           arsip['jenis_surat_ukur'],
+          arsip['no_tahun_surat_ukur'],
+          arsip['su'],
+          arsip['gs'],
         ].map((v) => (v ?? '').toString()).join(' ').toLowerCase();
         return haystack.contains(query);
       }).toList();
@@ -176,8 +179,6 @@ class _ArchivePageState extends State<ArchivePage> {
 
     final noHakController = TextEditingController();
     final noTahunController = TextEditingController();
-    final suController = TextEditingController();
-    final gsController = TextEditingController();
     final no208Controller = TextEditingController();
     final tahunWarkahController = TextEditingController();
     String jenisDokumen = 'Buku Tanah';
@@ -223,6 +224,33 @@ class _ArchivePageState extends State<ArchivePage> {
                 return;
               }
 
+              final suratUkurNo = jenisDokumen == 'Surat Ukur'
+                  ? noTahunController.text.trim()
+                  : '';
+              if (jenisDokumen == 'Surat Ukur') {
+                String? err;
+                if (jenisSuratUkur == null || suratUkurNo.isEmpty) {
+                  err = 'Lengkapi data arsip terlebih dahulu.';
+                } else if (!suratUkurNo.contains('/')) {
+                  err =
+                      'Format No. & Tahun harus memuat garis miring (cth: 64/2023).';
+                } else if (jenisSuratUkur == 'GS') {
+                  final tahun = int.tryParse(
+                    suratUkurNo.split('/').last.trim(),
+                  );
+                  if (tahun == null || tahun < 2000) {
+                    err =
+                        'Tahun GS tidak valid — harus tahun 2000 atau lebih baru.';
+                  }
+                }
+                if (err != null) {
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text(err)));
+                  return;
+                }
+              }
+
               setSheetState(() => saving = true);
               final payload = <String, dynamic>{
                 'jenis_dokumen': jenisDokumen,
@@ -232,16 +260,18 @@ class _ArchivePageState extends State<ArchivePage> {
                     : noHakController.text.trim(),
                 'kecamatan': kecamatan,
                 'kelurahan': jenisDokumen == 'Buku Tanah' ? kelurahan : null,
-                'jenis_surat_ukur': jenisSuratUkur,
-                'no_tahun_surat_ukur': noTahunController.text.trim().isEmpty
-                    ? null
-                    : noTahunController.text.trim(),
-                'su': suController.text.trim().isEmpty
-                    ? null
-                    : suController.text.trim(),
-                'gs': gsController.text.trim().isEmpty
-                    ? null
-                    : gsController.text.trim(),
+                // Same rule as form_page.dart: one "No. & Tahun" input,
+                // copied into su OR gs depending on jenis_surat_ukur.
+                'jenis_surat_ukur': jenisDokumen == 'Surat Ukur'
+                    ? jenisSuratUkur
+                    : null,
+                'no_tahun_surat_ukur': suratUkurNo.isEmpty ? null : suratUkurNo,
+                'su': (suratUkurNo.isNotEmpty && jenisSuratUkur == 'SU')
+                    ? suratUkurNo
+                    : null,
+                'gs': (suratUkurNo.isNotEmpty && jenisSuratUkur == 'GS')
+                    ? suratUkurNo
+                    : null,
                 'jenis_warkah': jenisWarkah,
                 'no_208': no208Controller.text.trim().isEmpty
                     ? null
@@ -289,18 +319,20 @@ class _ArchivePageState extends State<ArchivePage> {
             }
 
             Widget field(
-              String label,
+              dynamic label, // String, or a custom label Widget
               TextEditingController controller, {
               required IconData icon,
               String? placeholder,
               TextInputType keyboardType = TextInputType.text,
+              String? helperText,
             }) {
               return Padding(
                 padding: const EdgeInsets.only(bottom: 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    renderLabel(label),
+                    // Render either custom widget or standard string label
+                    label is Widget ? label : renderLabel(label as String),
                     Container(
                       decoration: BoxDecoration(
                         color: AppTheme.surfaceMuted,
@@ -334,6 +366,19 @@ class _ArchivePageState extends State<ArchivePage> {
                         ),
                       ),
                     ),
+                    if (helperText != null) ...[
+                      const SizedBox(height: 4),
+                      Padding(
+                        padding: const EdgeInsets.only(left: 12),
+                        child: Text(
+                          helperText,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.black38,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               );
@@ -720,19 +765,39 @@ class _ArchivePageState extends State<ArchivePage> {
                                   onChanged: (v) =>
                                       setSheetState(() => jenisSuratUkur = v),
                                 ),
-                                field(
-                                  'Nomor Hak',
-                                  noHakController,
-                                  icon: Icons.tag,
-                                  placeholder: 'cth: 12345',
-                                  keyboardType: TextInputType.number,
-                                ),
-                                field(
-                                  'No. & Tahun',
-                                  noTahunController,
-                                  icon: Icons.numbers_outlined,
-                                  placeholder: 'cth: 64/2023',
-                                ),
+                                if (jenisSuratUkur != null)
+                                  field(
+                                    Padding(
+                                      padding: const EdgeInsets.only(bottom: 8),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'No. & Tahun $jenisSuratUkur',
+                                            style: const TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w500,
+                                              color: AppTheme.textSecondary,
+                                            ),
+                                          ),
+                                          if (jenisSuratUkur == 'GS') ...const [
+                                            SizedBox(height: 2),
+                                            Text(
+                                              'Tahun harus 2000 atau lebih baru.',
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                color: Colors.black38,
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                    noTahunController,
+                                    icon: Icons.numbers_outlined,
+                                    placeholder: 'cth: 64/2023',
+                                  ),
                                 dropdown<String>(
                                   label: 'Jenis Hak',
                                   icon: Icons.shield_outlined,
@@ -743,14 +808,11 @@ class _ArchivePageState extends State<ArchivePage> {
                                       setSheetState(() => jenisHak = v),
                                 ),
                                 field(
-                                  'SU (opsional)',
-                                  suController,
-                                  icon: Icons.numbers_outlined,
-                                ),
-                                field(
-                                  'GS (opsional)',
-                                  gsController,
-                                  icon: Icons.numbers_outlined,
+                                  'Nomor Hak',
+                                  noHakController,
+                                  icon: Icons.tag,
+                                  placeholder: 'cth: 12345',
+                                  keyboardType: TextInputType.number,
                                 ),
                               ] else ...[
                                 dropdown<String>(
@@ -832,8 +894,6 @@ class _ArchivePageState extends State<ArchivePage> {
     Future.delayed(const Duration(milliseconds: 300), () {
       noHakController.dispose();
       noTahunController.dispose();
-      suController.dispose();
-      gsController.dispose();
       no208Controller.dispose();
       tahunWarkahController.dispose();
     });
@@ -1080,16 +1140,21 @@ class _ArchivePageState extends State<ArchivePage> {
                     ),
                     infoRow(
                       Icons.numbers_outlined,
-                      'No. & Tahun',
-                      arsip['no_tahun_surat_ukur'],
+                      'No. & Tahun ${arsip['jenis_surat_ukur'] ?? ''}'.trim(),
+                      arsip['no_tahun_surat_ukur'] ??
+                          arsip['su'] ??
+                          arsip['gs'],
                     ),
                     infoRow(
                       Icons.description_outlined,
                       'Jenis Hak',
                       arsip['jenis_hak'],
                     ),
-                    infoRow(Icons.description_outlined, 'SU', arsip['su']),
-                    infoRow(Icons.description_outlined, 'GS', arsip['gs']),
+                    infoRow(
+                      Icons.numbers_outlined,
+                      'Nomor Hak',
+                      arsip['no_hak'],
+                    ),
                   ] else if (jenis == 'Warkah') ...[
                     infoRow(
                       Icons.description_outlined,
@@ -1247,10 +1312,8 @@ class _ArchivePageState extends State<ArchivePage> {
 
     final noHakController = TextEditingController(text: arsip['no_hak'] ?? '');
     final noTahunController = TextEditingController(
-      text: arsip['no_tahun_surat_ukur'] ?? '',
+      text: arsip['no_tahun_surat_ukur'] ?? arsip['su'] ?? arsip['gs'] ?? '',
     );
-    final suController = TextEditingController(text: arsip['su'] ?? '');
-    final gsController = TextEditingController(text: arsip['gs'] ?? '');
     final no208Controller = TextEditingController(text: arsip['no_208'] ?? '');
     final tahunWarkahController = TextEditingController(
       text: arsip['tahun_warkah'] ?? '',
@@ -1258,7 +1321,9 @@ class _ArchivePageState extends State<ArchivePage> {
 
     String jenisDokumen = arsip['jenis_dokumen'] ?? 'Buku Tanah';
     String? jenisHak = arsip['jenis_hak'];
-    String? jenisSuratUkur = arsip['jenis_surat_ukur'];
+    String? jenisSuratUkur =
+        arsip['jenis_surat_ukur'] ??
+        (arsip['su'] != null ? 'SU' : (arsip['gs'] != null ? 'GS' : null));
     String? jenisWarkah = arsip['jenis_warkah'];
     String? kecamatan = arsip['kecamatan'];
     String? kelurahan = arsip['kelurahan'];
@@ -1285,6 +1350,33 @@ class _ArchivePageState extends State<ArchivePage> {
                 : (Data.kelurahan[kecamatan] ?? const <String>[]);
 
             Future<void> save() async {
+              final suratUkurNo = jenisDokumen == 'Surat Ukur'
+                  ? noTahunController.text.trim()
+                  : '';
+              if (jenisDokumen == 'Surat Ukur') {
+                String? err;
+                if (jenisSuratUkur == null || suratUkurNo.isEmpty) {
+                  err = 'Lengkapi data arsip terlebih dahulu.';
+                } else if (!suratUkurNo.contains('/')) {
+                  err =
+                      'Format No. & Tahun harus memuat garis miring (cth: 64/2023).';
+                } else if (jenisSuratUkur == 'GS') {
+                  final tahun = int.tryParse(
+                    suratUkurNo.split('/').last.trim(),
+                  );
+                  if (tahun == null || tahun < 2000) {
+                    err =
+                        'Tahun GS tidak valid — harus tahun 2000 atau lebih baru.';
+                  }
+                }
+                if (err != null) {
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text(err)));
+                  return;
+                }
+              }
+
               setSheetState(() => saving = true);
               final payload = <String, dynamic>{
                 'jenis_dokumen': jenisDokumen,
@@ -1294,16 +1386,18 @@ class _ArchivePageState extends State<ArchivePage> {
                     : noHakController.text.trim(),
                 'kecamatan': kecamatan,
                 'kelurahan': jenisDokumen == 'Buku Tanah' ? kelurahan : null,
-                'jenis_surat_ukur': jenisSuratUkur,
-                'no_tahun_surat_ukur': noTahunController.text.trim().isEmpty
-                    ? null
-                    : noTahunController.text.trim(),
-                'su': suController.text.trim().isEmpty
-                    ? null
-                    : suController.text.trim(),
-                'gs': gsController.text.trim().isEmpty
-                    ? null
-                    : gsController.text.trim(),
+                // Same rule as form_page.dart: one "No. & Tahun" input,
+                // copied into su OR gs depending on jenis_surat_ukur.
+                'jenis_surat_ukur': jenisDokumen == 'Surat Ukur'
+                    ? jenisSuratUkur
+                    : null,
+                'no_tahun_surat_ukur': suratUkurNo.isEmpty ? null : suratUkurNo,
+                'su': (suratUkurNo.isNotEmpty && jenisSuratUkur == 'SU')
+                    ? suratUkurNo
+                    : null,
+                'gs': (suratUkurNo.isNotEmpty && jenisSuratUkur == 'GS')
+                    ? suratUkurNo
+                    : null,
                 'jenis_warkah': jenisWarkah,
                 'no_208': no208Controller.text.trim().isEmpty
                     ? null
@@ -1361,7 +1455,7 @@ class _ArchivePageState extends State<ArchivePage> {
             }
 
             Widget field(
-              String label,
+              dynamic label, // String, or a custom label Widget
               TextEditingController controller, {
               required IconData icon,
               String? placeholder,
@@ -1372,7 +1466,7 @@ class _ArchivePageState extends State<ArchivePage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    renderLabel(label),
+                    label is Widget ? label : renderLabel(label as String),
                     Container(
                       decoration: BoxDecoration(
                         color: AppTheme.surfaceMuted,
@@ -1781,19 +1875,39 @@ class _ArchivePageState extends State<ArchivePage> {
                                   onChanged: (v) =>
                                       setSheetState(() => jenisSuratUkur = v),
                                 ),
-                                field(
-                                  'Nomor Hak',
-                                  noHakController,
-                                  icon: Icons.tag,
-                                  placeholder: 'cth: 12345',
-                                  keyboardType: TextInputType.number,
-                                ),
-                                field(
-                                  'No. & Tahun',
-                                  noTahunController,
-                                  icon: Icons.numbers_outlined,
-                                  placeholder: 'cth: 64/2023',
-                                ),
+                                if (jenisSuratUkur != null)
+                                  field(
+                                    Padding(
+                                      padding: const EdgeInsets.only(bottom: 8),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'No. & Tahun $jenisSuratUkur',
+                                            style: const TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w500,
+                                              color: AppTheme.textSecondary,
+                                            ),
+                                          ),
+                                          if (jenisSuratUkur == 'GS') ...const [
+                                            SizedBox(height: 2),
+                                            Text(
+                                              'Tahun harus 2000 atau lebih baru.',
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                color: Colors.black38,
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                    noTahunController,
+                                    icon: Icons.numbers_outlined,
+                                    placeholder: 'cth: 64/2023',
+                                  ),
                                 dropdown<String>(
                                   label: 'Jenis Hak',
                                   icon: Icons.shield_outlined,
@@ -1804,14 +1918,11 @@ class _ArchivePageState extends State<ArchivePage> {
                                       setSheetState(() => jenisHak = v),
                                 ),
                                 field(
-                                  'SU (opsional)',
-                                  suController,
-                                  icon: Icons.numbers_outlined,
-                                ),
-                                field(
-                                  'GS (opsional)',
-                                  gsController,
-                                  icon: Icons.numbers_outlined,
+                                  'Nomor Hak',
+                                  noHakController,
+                                  icon: Icons.tag,
+                                  placeholder: 'cth: 12345',
+                                  keyboardType: TextInputType.number,
                                 ),
                               ] else ...[
                                 dropdown<String>(
@@ -1888,8 +1999,6 @@ class _ArchivePageState extends State<ArchivePage> {
     Future.delayed(const Duration(milliseconds: 300), () {
       noHakController.dispose();
       noTahunController.dispose();
-      suController.dispose();
-      gsController.dispose();
       no208Controller.dispose();
       tahunWarkahController.dispose();
     });
@@ -1918,9 +2027,13 @@ class _ArchivePageState extends State<ArchivePage> {
           'No. 208: ${arsip['no_208'] ?? '-'} (${arsip['tahun_warkah'] ?? '-'})';
     } else if (jenis == 'Surat Ukur') {
       icon = Icons.straighten_outlined;
-      title = 'SU: ${arsip['su'] ?? '-'} / GS: ${arsip['gs'] ?? '-'}';
-      subtitle =
-          '${arsip['jenis_surat_ukur'] ?? '-'} (${arsip['no_tahun_surat_ukur'] ?? '-'})';
+      final suJenis =
+          arsip['jenis_surat_ukur'] ??
+          (arsip['su'] != null ? 'SU' : (arsip['gs'] != null ? 'GS' : '-'));
+      final suNo =
+          arsip['no_tahun_surat_ukur'] ?? arsip['su'] ?? arsip['gs'] ?? '-';
+      title = '$suJenis: $suNo';
+      subtitle = '${arsip['jenis_hak'] ?? '-'} - ${arsip['no_hak'] ?? '-'}';
     }
 
     // Left-edge color accent bar — matches History/Return's status-colored

@@ -156,9 +156,9 @@ class _BarcodePageState extends State<BarcodePage> {
     //
     // Buku Tanah  → label = jenisHak (e.g. "Hak Milik"), value = noHak
     //                secondary = kelurahan if present
-    // Surat Ukur  → label = "$jenisSuratUkur $noTahunSuratUkur",
-    //                value = SU number (su) or GS number (gs),
-    //                secondary = "No. SU: $su / GS: $gs"
+    // Surat Ukur  → label = "SU" / "GS",
+    //                value = No. & Tahun (e.g. 64/2023),
+    //                secondary = "Hak: $jenisHak $noHak"
     // Warkah      → label = jenisWarkah, value = no208 (the real
     //                identifier; noHak is always '-' for Warkah),
     //                secondary = "Tahun $tahunWarkah"
@@ -168,16 +168,16 @@ class _BarcodePageState extends State<BarcodePage> {
 
     switch (jenisDokumen) {
       case 'Surat Ukur':
-        // Prefer SU number; fall back to GS number if SU is empty.
-        final suNumber = su.isNotEmpty ? su : gs;
-        identifierLabel =
-            '${jenisSuratUkur.isNotEmpty ? jenisSuratUkur : 'Surat Ukur'}'
-            '${noTahunSuratUkur.isNotEmpty ? ' – $noTahunSuratUkur' : ''}';
-        identifierValue = suNumber.isNotEmpty ? suNumber : noHak;
-        secondaryDetail = [
-          if (su.isNotEmpty) 'No. SU: $su',
-          if (gs.isNotEmpty) 'GS: $gs',
-        ].join(' / ');
+        // One "No. & Tahun", labelled by SU/GS (su/gs only as fallback
+        // for older rows that never filled noTahunSuratUkur).
+        final suNo = noTahunSuratUkur.isNotEmpty
+            ? noTahunSuratUkur
+            : (su.isNotEmpty ? su : gs);
+        identifierLabel = jenisSuratUkur.isNotEmpty
+            ? jenisSuratUkur
+            : 'Surat Ukur';
+        identifierValue = suNo.isNotEmpty ? suNo : noHak;
+        secondaryDetail = 'Hak: $jenisHak $noHak';
         break;
 
       case 'Warkah':

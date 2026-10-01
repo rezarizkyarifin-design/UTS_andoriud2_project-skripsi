@@ -173,7 +173,8 @@ class _HistoryPageState extends State<HistoryPage> {
   String _objekBottomLabel(Peminjaman p) {
     switch (p.jenisDokumen) {
       case 'Surat Ukur':
-        return '${p.noTahunSuratUkur ?? '-'} • SU ${p.su ?? '-'}/GS ${p.gs ?? '-'}';
+        // Same rule as ArchivePage: one No. & Tahun, labelled by SU/GS.
+        return '${p.jenisSuratUkur ?? '-'} ${p.noTahunSuratUkur ?? p.su ?? p.gs ?? '-'} • ${p.noHak}';
       case 'Warkah':
         // PBT is searched by kecamatan, not purely by No. 208 — show
         // kecamatan prominently for PBT so the card is actually
@@ -203,11 +204,9 @@ class _HistoryPageState extends State<HistoryPage> {
           ),
           row(
             Icons.numbers_outlined,
-            'No. & Tahun Surat Ukur',
-            p.noTahunSuratUkur ?? '-',
+            'No. & Tahun ${p.jenisSuratUkur ?? ''}'.trim(),
+            p.noTahunSuratUkur ?? p.su ?? p.gs ?? '-',
           ),
-          row(Icons.description_outlined, 'SU', p.su ?? '-'),
-          row(Icons.map_outlined, 'GS (Gambar Situasi)', p.gs ?? '-'),
           row(
             Icons.shield_outlined,
             'Jenis Hak / Nomor Hak',
@@ -1129,13 +1128,15 @@ class _HistoryPageState extends State<HistoryPage> {
     // sections FormPage shows on create are editable here too instead of
     // only ever exposing the Buku Tanah fields.
     final jenisSuratUkurController = TextEditingController(
-      text: p.jenisSuratUkur ?? '',
+      text:
+          p.jenisSuratUkur ??
+          ((p.su ?? '').isNotEmpty
+              ? 'SU'
+              : ((p.gs ?? '').isNotEmpty ? 'GS' : '')),
     );
     final noTahunSuratUkurController = TextEditingController(
-      text: p.noTahunSuratUkur ?? '',
+      text: p.noTahunSuratUkur ?? p.su ?? p.gs ?? '',
     );
-    final suController = TextEditingController(text: p.su ?? '');
-    final gsController = TextEditingController(text: p.gs ?? '');
     final jenisWarkahController = TextEditingController(
       text: p.jenisWarkah ?? '',
     );
@@ -1485,16 +1486,31 @@ class _HistoryPageState extends State<HistoryPage> {
                 return;
               }
             } else if (isSuratUkur) {
-              final hasSu = suController.text.trim().isNotEmpty;
-              final hasGs = gsController.text.trim().isNotEmpty;
+              final noTahun = noTahunSuratUkurController.text.trim();
               if (jenisSuratUkurController.text.trim().isEmpty ||
-                  noTahunSuratUkurController.text.trim().isEmpty ||
-                  (!hasSu && !hasGs) ||
+                  noTahun.isEmpty ||
                   jenisHak == null ||
                   noHakController.text.trim().isEmpty) {
                 ScaffoldMessenger.of(
                   sheetContext,
                 ).showSnackBar(const SnackBar(content: Text(lengkapiPesan)));
+                return;
+              }
+              String? suErr;
+              if (!noTahun.contains('/')) {
+                suErr =
+                    'Format No. & Tahun harus memuat garis miring (cth: 64/2023).';
+              } else if (jenisSuratUkurController.text == 'GS') {
+                final tahun = int.tryParse(noTahun.split('/').last.trim());
+                if (tahun == null || tahun < 2000) {
+                  suErr =
+                      'Tahun GS tidak valid — harus tahun 2000 atau lebih baru.';
+                }
+              }
+              if (suErr != null) {
+                ScaffoldMessenger.of(
+                  sheetContext,
+                ).showSnackBar(SnackBar(content: Text(suErr)));
                 return;
               }
             } else if (isWarkah) {
@@ -1525,8 +1541,14 @@ class _HistoryPageState extends State<HistoryPage> {
               noTahunSuratUkur: isSuratUkur
                   ? noTahunSuratUkurController.text.trim()
                   : null,
-              su: isSuratUkur ? suController.text.trim() : null,
-              gs: isSuratUkur ? gsController.text.trim() : null,
+              // One "No. & Tahun" input, copied into su OR gs by jenis —
+              // same rule as FormPage / ArchivePage.
+              su: (isSuratUkur && jenisSuratUkurController.text == 'SU')
+                  ? noTahunSuratUkurController.text.trim()
+                  : null,
+              gs: (isSuratUkur && jenisSuratUkurController.text == 'GS')
+                  ? noTahunSuratUkurController.text.trim()
+                  : null,
               jenisWarkah: isWarkah ? jenisWarkahController.text.trim() : null,
               no208: isWarkah ? no208Controller.text.trim() : null,
               tahunWarkah: isWarkah ? tahunWarkahController.text.trim() : null,
@@ -1822,52 +1844,35 @@ class _HistoryPageState extends State<HistoryPage> {
                                         },
                                       ),
                                       const SizedBox(height: 16),
-                                      label('No. & Tahun Surat Ukur'),
-                                      textField(
-                                        controller: noTahunSuratUkurController,
-                                        placeholder: 'Contoh: 123/2020',
-                                        icon: Icons.numbers_outlined,
-                                      ),
-                                      const SizedBox(height: 16),
-                                      Row(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                label('SU'),
-                                                textField(
-                                                  controller: suController,
-                                                  placeholder:
-                                                      'Contoh: 45/2020',
-                                                  icon: Icons
-                                                      .description_outlined,
-                                                ),
-                                              ],
+                                      if (jenisSuratUkurController
+                                          .text
+                                          .isNotEmpty) ...[
+                                        label(
+                                          'No. & Tahun ${jenisSuratUkurController.text}',
+                                        ),
+                                        textField(
+                                          controller:
+                                              noTahunSuratUkurController,
+                                          placeholder: 'cth: 64/2023',
+                                          icon: Icons.numbers_outlined,
+                                        ),
+                                        if (jenisSuratUkurController.text ==
+                                            'GS')
+                                          const Padding(
+                                            padding: EdgeInsets.only(
+                                              top: 4,
+                                              left: 4,
+                                            ),
+                                            child: Text(
+                                              'Tahun harus 2000 atau lebih baru.',
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                color: Colors.black38,
+                                              ),
                                             ),
                                           ),
-                                          const SizedBox(width: 12),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                label('GS (Gambar Situasi)'),
-                                                textField(
-                                                  controller: gsController,
-                                                  placeholder:
-                                                      'Contoh: 67/2020',
-                                                  icon: Icons.map_outlined,
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 16),
+                                        const SizedBox(height: 16),
+                                      ],
                                       Row(
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
@@ -2107,8 +2112,6 @@ class _HistoryPageState extends State<HistoryPage> {
       keperluanController.dispose();
       jenisSuratUkurController.dispose();
       noTahunSuratUkurController.dispose();
-      suController.dispose();
-      gsController.dispose();
       jenisWarkahController.dispose();
       no208Controller.dispose();
       tahunWarkahController.dispose();
